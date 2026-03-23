@@ -1,13 +1,16 @@
 import { createSupabaseServer } from '../../lib/supabaseServer';
 import { ShoppingBag, AlertTriangle, CheckCircle2, QrCode } from 'lucide-react';
 
-// 🔥 VERCEL CACHE KILLER: Ye page hamesha fresh load hoga, kabhi cache nahi hoga
+// 🔥 THE CACHE KILLER: Forces Vercel to fetch fresh data every single time.
 export const dynamic = 'force-dynamic'; 
 
-export default async function PublicTagPage({ params }: any) {
-    // Ye line dono folder names ko handle kar legi (chahe [id] ho ya [tag_id])
-    const rawTag = params?.tag_id || params?.id || '';
-    const tagId = rawTag.toUpperCase();
+export default async function PublicTagPage({ params }: { params: Promise<any> }) {
+    // 🛡️ NEXT.JS 16 FIX: Await the params before extracting values
+    const resolvedParams = await params;
+    
+    // Safely extract the tag ID regardless of whether the folder is named [id] or [tag_id]
+    const rawTag = resolvedParams?.tag_id || resolvedParams?.id || Object.values(resolvedParams) || '';
+    const tagId = String(rawTag).toUpperCase();
     
     const supabaseServer = createSupabaseServer();
 
@@ -18,15 +21,17 @@ export default async function PublicTagPage({ params }: any) {
         .eq('id', tagId)
         .single();
 
-    // 2. Fallback UI: Invalid or Deleted Tag
+    // 2. FALLBACK UI: Invalid or Deleted Tag (Prevents the empty bracket bug)
     if (error || !tagData) {
         return (
-            <main className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-6 text-center font-sans">
+            <main className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-6 text-center font-sans selection:bg-red-500/30">
                 <div className="bg-red-500/10 p-6 rounded-full mb-6 border border-red-500/20 shadow-[0_0_40px_rgba(239,68,68,0.2)]">
                     <AlertTriangle className="w-12 h-12 text-red-500" />
                 </div>
                 <h1 className="text-3xl font-black text-white mb-2 tracking-tight">Tag Not Found</h1>
-                <p className="text-zinc-500 max-w-xs font-medium">This QR code ({tagId}) is invalid or has been removed from the database.</p>
+                <p className="text-zinc-500 max-w-xs font-medium">
+                    This QR code <strong className="text-white">({tagId || 'Unknown'})</strong> is invalid or has been removed from the database.
+                </p>
             </main>
         );
     }
@@ -34,20 +39,22 @@ export default async function PublicTagPage({ params }: any) {
     const isSold = tagData.status === 'sold';
     const product = tagData.products;
 
-    // 3. Fallback UI: Free/Unlinked Tag
+    // 3. FALLBACK UI: Free/Unlinked Tag
     if (tagData.status === 'free' || !product) {
         return (
-            <main className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-6 text-center font-sans">
+            <main className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-6 text-center font-sans selection:bg-emerald-500/30">
                 <div className="bg-emerald-500/10 p-6 rounded-full mb-6 border border-emerald-500/20 shadow-[0_0_40px_rgba(16,185,129,0.2)]">
                     <QrCode className="w-12 h-12 text-emerald-500" />
                 </div>
                 <h1 className="text-3xl font-black text-white mb-2 tracking-tight">Tag Available</h1>
-                <p className="text-zinc-500 max-w-xs font-medium">Tag {tagId} is empty and ready to be linked to a new garment from the Admin Panel.</p>
+                <p className="text-zinc-500 max-w-xs font-medium">
+                    Tag <strong className="text-white">{tagId}</strong> is empty and ready to be linked to a new garment from the Control Panel.
+                </p>
             </main>
         );
     }
 
-    // 4. Premium Product Showcase UI (Valid Tag)
+    // 4. PREMIUM SHOWCASE UI: Active or Sold Tag
     return (
         <main className="min-h-screen bg-zinc-950 text-zinc-100 font-sans pb-32 selection:bg-emerald-500/30">
             {/* Hero Image Section */}
