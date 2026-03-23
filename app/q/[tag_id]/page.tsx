@@ -1,14 +1,15 @@
 import { createSupabaseServer } from '../../lib/supabaseServer';
 import { ShoppingBag, AlertTriangle, CheckCircle2, QrCode } from 'lucide-react';
+import AddToCart from '../../components/AddToCart'; // 🔥 Naya Interactive Button Import
 
-// 🔥 THE CACHE KILLER: Forces Vercel to fetch fresh data every single time.
+// 🛑 VERCEL CACHE KILLER: Ensures the page always loads fresh data from the database
 export const dynamic = 'force-dynamic'; 
 
 export default async function PublicTagPage({ params }: { params: Promise<any> }) {
-    // 🛡️ NEXT.JS 16 FIX: Await the params before extracting values
+    // 🛡️ NEXT.JS 16 FIX: Correctly awaiting params to prevent empty Tag IDs
     const resolvedParams = await params;
     
-    // Safely extract the tag ID regardless of whether the folder is named [id] or [tag_id]
+    // Smart extraction: Works whether your folder is named [id], [tag_id], or anything else
     const rawTag = resolvedParams?.tag_id || resolvedParams?.id || Object.values(resolvedParams) || '';
     const tagId = String(rawTag).toUpperCase();
     
@@ -21,7 +22,7 @@ export default async function PublicTagPage({ params }: { params: Promise<any> }
         .eq('id', tagId)
         .single();
 
-    // 2. FALLBACK UI: Invalid or Deleted Tag (Prevents the empty bracket bug)
+    // 2. 🔴 FALLBACK UI: Invalid or Deleted Tag
     if (error || !tagData) {
         return (
             <main className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-6 text-center font-sans selection:bg-red-500/30">
@@ -39,7 +40,7 @@ export default async function PublicTagPage({ params }: { params: Promise<any> }
     const isSold = tagData.status === 'sold';
     const product = tagData.products;
 
-    // 3. FALLBACK UI: Free/Unlinked Tag
+    // 3. 🟢 FALLBACK UI: Free/Unlinked Tag
     if (tagData.status === 'free' || !product) {
         return (
             <main className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-6 text-center font-sans selection:bg-emerald-500/30">
@@ -48,13 +49,13 @@ export default async function PublicTagPage({ params }: { params: Promise<any> }
                 </div>
                 <h1 className="text-3xl font-black text-white mb-2 tracking-tight">Tag Available</h1>
                 <p className="text-zinc-500 max-w-xs font-medium">
-                    Tag <strong className="text-white">{tagId}</strong> is empty and ready to be linked to a new garment from the Control Panel.
+                    Tag <strong className="text-white">{tagId}</strong> is empty and ready to be linked to a new garment from your Control Panel.
                 </p>
             </main>
         );
     }
 
-    // 4. PREMIUM SHOWCASE UI: Active or Sold Tag
+    // 4. ✨ PREMIUM SHOWCASE UI: Active or Sold Tag
     return (
         <main className="min-h-screen bg-zinc-950 text-zinc-100 font-sans pb-32 selection:bg-emerald-500/30">
             {/* Hero Image Section */}
@@ -71,6 +72,7 @@ export default async function PublicTagPage({ params }: { params: Promise<any> }
                     </div>
                 )}
 
+                {/* Elegant Dark Gradient Overlay */}
                 <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/40 to-transparent"></div>
 
                 {/* Intelligent Status Badge */}
@@ -91,26 +93,37 @@ export default async function PublicTagPage({ params }: { params: Promise<any> }
                     <p className="text-emerald-400 text-sm font-bold tracking-widest uppercase mb-3 flex items-center gap-2">
                         <QrCode className="w-4 h-4" /> Tag: {tagId}
                     </p>
-                    <h1 className="text-5xl font-black text-white leading-none mb-4 tracking-tighter">{product.name}</h1>
-                    <h2 className="text-4xl font-black text-white tracking-tighter">₹{product.price}</h2>
+                    <h1 className="text-5xl font-black text-white leading-none mb-4 tracking-tighter drop-shadow-lg">
+                        {product.name}
+                    </h1>
+                    <h2 className="text-4xl font-black text-white tracking-tighter drop-shadow-md">
+                        ₹{product.price}
+                    </h2>
                 </div>
             </div>
 
-            {/* Additional SaaS Details */}
-            <div className="px-6 pt-10">
-                <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-4">Garment Specifications</h3>
-                <div className="bg-zinc-900/40 backdrop-blur-xl border border-zinc-800 rounded-[2rem] p-6 space-y-5 shadow-lg">
-                    <div className="flex justify-between items-center border-b border-zinc-800/80 pb-5">
-                        <span className="text-zinc-400 font-medium">Category</span>
-                        <span className="text-white font-black capitalize tracking-wide">{product.category || 'Premium Apparel'}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <span className="text-zinc-400 font-medium">Authenticity</span>
-                        <span className="text-emerald-400 font-black flex items-center gap-1.5 tracking-wide">
-                            <CheckCircle2 className="w-5 h-5" /> Verified Original
-                        </span>
+            {/* Additional SaaS Details & Call to Action */}
+            <div className="px-6 pt-10 space-y-8">
+                <div>
+                    <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-4">Garment Specifications</h3>
+                    <div className="bg-zinc-900/40 backdrop-blur-xl border border-zinc-800 rounded-[2rem] p-6 space-y-5 shadow-lg">
+                        <div className="flex justify-between items-center border-b border-zinc-800/80 pb-5">
+                            <span className="text-zinc-400 font-medium">Category</span>
+                            <span className="text-white font-black capitalize tracking-wide">{product.category || 'Premium Apparel'}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-zinc-400 font-medium">Authenticity</span>
+                            <span className="text-emerald-400 font-black flex items-center gap-1.5 tracking-wide">
+                                <CheckCircle2 className="w-5 h-5" /> Verified Original
+                            </span>
+                        </div>
                     </div>
                 </div>
+
+                {/* 🔥 The Interactive Client Button Component */}
+                {!isSold && (
+                    <AddToCart product={product} tagId={tagId} />
+                )}
             </div>
         </main>
     );

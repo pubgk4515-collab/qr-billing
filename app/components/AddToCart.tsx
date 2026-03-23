@@ -1,48 +1,65 @@
 'use client';
 
 import { useState } from 'react';
-import { addToCartServer } from '../actions/cartActions';
-import { ShoppingBag, Loader2, Check } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { ShoppingBag, CheckCircle2, Loader2 } from 'lucide-react';
 
-export default function AddToCart({ productId }: { productId: string }) {
-  const [status, setStatus] = useState<'idle' | 'loading' | 'success'>('idle');
+type AddToCartProps = {
+    product: any;
+    tagId: string;
+};
 
-  const handleAddToCart = async () => {
-    setStatus('loading');
-    
-    let sessionId = localStorage.getItem('session_id');
-    if (!sessionId) {
-      sessionId = crypto.randomUUID();
-      localStorage.setItem('session_id', sessionId);
-    }
+export default function AddToCart({ product, tagId }: AddToCartProps) {
+    const [status, setStatus] = useState<'IDLE' | 'ADDING' | 'ADDED'>('IDLE');
 
-    const response = await addToCartServer(sessionId, productId);
+    const handleAddToCart = async () => {
+        if (status !== 'IDLE') return;
 
-    if (response.success) {
-      setStatus('success');
-      setTimeout(() => setStatus('idle'), 2000); 
-    } else {
-      alert("Error: " + response.message);
-      setStatus('idle');
-    }
-  };
+        setStatus('ADDING');
 
-  return (
-    <motion.button 
-      whileTap={{ scale: 0.96 }} 
-      onClick={handleAddToCart} 
-      disabled={status !== 'idle'}
-      className={`w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-bold text-lg transition-all duration-300 shadow-lg ${
-        status === 'success' 
-          ? 'bg-emerald-500 text-white shadow-emerald-500/20' 
-          // Ye line change ki hai: Dark mode mein button White dikhega!
-          : 'bg-white hover:bg-zinc-200 text-zinc-950 shadow-white/10'
-      }`}
-    >
-      {status === 'idle' && <><ShoppingBag className="w-5 h-5" /> Add to Bag</>}
-      {status === 'loading' && <><Loader2 className="w-5 h-5 animate-spin" /> Processing...</>}
-      {status === 'success' && <><Check className="w-5 h-5" /> Added Successfully</>}
-    </motion.button>
-  );
+        // 🔥 FUTURE-PROOF: Yahan hum aage chalkar Database/Cart logic lagayenge
+        // Abhi ke liye hum 1 second ka realistic loading delay simulate kar rahe hain
+        await new Promise((resolve) => setTimeout(resolve, 800));
+
+        setStatus('ADDED');
+
+        // 3 second baad button wapas normal ho jayega (agar aur items add karne ho)
+        setTimeout(() => {
+            setStatus('IDLE');
+        }, 3000);
+    };
+
+    return (
+        <button
+            onClick={handleAddToCart}
+            disabled={status !== 'IDLE'}
+            className={`w-full font-black text-xl py-5 rounded-[2rem] flex items-center justify-center gap-3 transition-all duration-300 active:scale-95 mt-6 ${
+                status === 'ADDED'
+                    ? 'bg-zinc-800 text-emerald-400 border border-emerald-500/30 shadow-none'
+                    : status === 'ADDING'
+                    ? 'bg-emerald-600 text-zinc-900 cursor-not-allowed shadow-[0_0_20px_rgba(16,185,129,0.2)]'
+                    : 'bg-emerald-500 text-black shadow-[0_0_40px_rgba(16,185,129,0.3)] hover:bg-emerald-400 hover:shadow-[0_0_60px_rgba(16,185,129,0.4)]'
+            }`}
+        >
+            {status === 'IDLE' && (
+                <>
+                    <ShoppingBag className="w-7 h-7" />
+                    <span>Add to Bag • ₹{product.price}</span>
+                </>
+            )}
+            
+            {status === 'ADDING' && (
+                <>
+                    <Loader2 className="w-7 h-7 animate-spin" />
+                    <span>Adding Item...</span>
+                </>
+            )}
+
+            {status === 'ADDED' && (
+                <>
+                    <CheckCircle2 className="w-7 h-7" />
+                    <span>Added to Bag!</span>
+                </>
+            )}
+        </button>
+    );
 }
