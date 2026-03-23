@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { getProductByTag, processCheckout } from '../actions/billingActions';
 import { ShoppingBag, Trash2, CreditCard, Loader2, XCircle, QrCode, X, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -19,18 +19,7 @@ export default function BillingPage() {
 
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
   const isProcessingScan = useRef(false);
-
-  // Show error toast
-  const showError = useCallback((msg: string) => {
-    setErrorMsg(msg);
-    setTimeout(() => setErrorMsg(''), 4000);
-  }, []);
-
-  // Show success toast
-  const showSuccess = useCallback((msg: string) => {
-    setSuccessMsg(msg);
-    setTimeout(() => setSuccessMsg(''), 3000);
-  }, []);
+  const containerId = 'premium-scanner';
 
   // Load cart from localStorage
   useEffect(() => {
@@ -63,8 +52,17 @@ export default function BillingPage() {
     localStorage.setItem('premium_cart', JSON.stringify(storageFormat));
   };
 
-  // Handle successful scan
-  const handleScanSuccess = useCallback(async (decodedText: string) => {
+  const showError = (msg: string) => {
+    setErrorMsg(msg);
+    setTimeout(() => setErrorMsg(''), 4000);
+  };
+
+  const showSuccess = (msg: string) => {
+    setSuccessMsg(msg);
+    setTimeout(() => setSuccessMsg(''), 3000);
+  };
+
+  const handleScanSuccess = async (decodedText: string) => {
     if (isProcessingScan.current) return;
     isProcessingScan.current = true;
     if (window.navigator?.vibrate) window.navigator.vibrate(50);
@@ -88,52 +86,57 @@ export default function BillingPage() {
     }
     setLoading(false);
     isProcessingScan.current = false;
-  }, [cart, showError]);
+  };
 
-  // Scanner setup with dimension checks and error handling
-  useEffect(() => {
-    if (viewState !== 'SCANNING') return;
+  // Use useLayoutEffect to ensure DOM is ready, and add a small delay for animation
+  useLayoutEffect(() => {
+    if (viewState !== 'SCANNING') {
+      if (scannerRef.current) {
+        scannerRef.current.clear().catch(console.error);
+        scannerRef.current = null;
+      }
+      return;
+    }
 
-    let mounted = true;
-    const initScanner = () => {
-      const element = document.getElementById('premium-scanner');
-      if (!element || !mounted) return;
-
-      // Ensure the element has dimensions before initializing
-      if (element.offsetWidth === 0 || element.offsetHeight === 0) {
-        setTimeout(initScanner, 100);
+    // Small delay to allow Framer Motion to finish initial render
+    const timer = setTimeout(() => {
+      const element = document.getElementById(containerId);
+      if (!element) {
+        console.error('Scanner container not found');
+        showError('Scanner error: container not found');
+        setViewState('CART_VIEW');
         return;
       }
 
+      // Force a minimum height to avoid any 0-height issues
+      element.style.minHeight = '300px';
+      
       if (!scannerRef.current) {
+        // Create scanner with verbose logging (last param = true)
         const scanner = new Html5QrcodeScanner(
-          'premium-scanner',
+          containerId,
           {
             fps: 10,
             qrbox: { width: 250, height: 250 },
             supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
             aspectRatio: 1.0,
+            showTorchButtonIfSupported: true,
           },
-          false
+          true // verbose: true - now you'll see errors in console
         );
         scanner.render(handleScanSuccess, (error) => {
           console.error('Scanner error:', error);
-          showError('Failed to start camera. Please check permissions and try again.');
-          setViewState('CART_VIEW');
+          // Only show user-facing error if it's a camera permission or fatal error
+          if (error && typeof error === 'string' && (error.includes('Camera') || error.includes('Permission'))) {
+            showError('Camera permission denied or not available.');
+            setViewState('CART_VIEW');
+          }
         });
         scannerRef.current = scanner;
       }
-    };
+    }, 150); // small delay to ensure animation is done
 
-    initScanner();
-
-    return () => {
-      mounted = false;
-      if (scannerRef.current) {
-        scannerRef.current.clear().catch(console.error);
-        scannerRef.current = null;
-      }
-    };
+    return () => clearTimeout(timer);
   }, [viewState, handleScanSuccess, showError, setViewState]);
 
   const addToCart = () => {
@@ -275,7 +278,7 @@ export default function BillingPage() {
               <X className="w-6 h-6" />
             </button>
             <div className="relative w-full max-w-md aspect-square rounded-3xl overflow-hidden shadow-2xl">
-              <div id="premium-scanner" className="w-full h-full"></div>
+              <div id={containerId} className="w-full h-full" style={{ minHeight: '300px' }}></div>
             </div>
             <p className="mt-6 text-zinc-400 text-sm">Align QR code within the frame</p>
           </motion.div>
