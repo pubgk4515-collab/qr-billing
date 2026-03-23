@@ -62,22 +62,33 @@ export default function BillingPage() {
     setTimeout(() => setSuccessMsg(''), 3000);
   };
 
-  // 🔥 handleScanSuccess wrapped in useCallback with robust error handling
+  // 🔥 Updated handleScanSuccess: stops camera cleanly before switching view
   const handleScanSuccess = useCallback(async (decodedText: string) => {
     if (isProcessingScan.current) return;
     isProcessingScan.current = true;
     if (window.navigator?.vibrate) window.navigator.vibrate(50);
 
-    // Extract tag ID if it's a URL
+    // Step 1: Safely stop the camera to avoid crashes
+    if (scannerRef.current) {
+      try {
+        await scannerRef.current.stop();
+        await scannerRef.current.clear();
+        scannerRef.current = null;
+      } catch (e) {
+        console.error('Camera stop failed', e);
+      }
+    }
+
+    // Extract tag ID from URL if needed
     let tagId = decodedText.trim();
     if (tagId.includes('/q/')) {
       tagId = tagId.split('/q/').pop() || tagId;
     } else if (tagId.includes('/')) {
       tagId = tagId.split('/').pop() || tagId;
     }
-
     const formattedTag = tagId.toUpperCase();
 
+    // Check duplicate in cart
     if (cart.some(item => item.id === formattedTag)) {
       showError(`${formattedTag} is already in your bag!`);
       setViewState('CART_VIEW');
@@ -88,24 +99,26 @@ export default function BillingPage() {
     setLoading(true);
     try {
       const res = await getProductByTag(formattedTag);
-      // Safety check: ensure res and res.success exist
       if (res && res.success && res.tag) {
         setScannedData({ scannedProduct: res.tag, relatedProducts: res.relatedProducts || [] });
-        setViewState('PRODUCT_SHOWCASE');
+
+        // Small delay to ensure camera resources are fully released
+        setTimeout(() => {
+          setViewState('PRODUCT_SHOWCASE');
+        }, 200);
       } else {
-        // If the response is invalid or product not found
-        showError(res?.message || `Tag ${formattedTag} not found in database.`);
+        showError(res?.message || `Tag ${formattedTag} not found.`);
         setViewState('CART_VIEW');
       }
     } catch (err) {
       console.error('Fetch error:', err);
-      showError('Server error. Please check your connection and try again.');
+      showError('Server error.');
       setViewState('CART_VIEW');
     } finally {
       setLoading(false);
       isProcessingScan.current = false;
     }
-  }, [cart]); // Re-create only when cart changes
+  }, [cart, showError]);
 
   // 🎯 Callback ref – bulletproof scanner initializer
   const scannerCallbackRef = useCallback((node: HTMLDivElement | null) => {
@@ -114,7 +127,7 @@ export default function BillingPage() {
         const html5QrCode = new Html5Qrcode(node.id);
         scannerRef.current = html5QrCode;
 
-        // Short delay to allow any animations to finish
+        // Short delay to allow animations
         setTimeout(async () => {
           try {
             await html5QrCode.start(
@@ -124,9 +137,8 @@ export default function BillingPage() {
                 qrbox: { width: 250, height: 250 },
               },
               (text) => {
+                // Only call handleScanSuccess – no extra stop here
                 handleScanSuccess(text);
-                // Stop camera after successful scan
-                html5QrCode.stop().catch(() => {});
               },
               () => {} // Ignore frame search errors
             );
@@ -159,7 +171,6 @@ export default function BillingPage() {
       setViewState('CART_VIEW');
       showSuccess(`${scannedData.scannedProduct.products?.name} added to bag!`);
     } else {
-      // Fallback if something went wrong
       showError('Product data missing. Please scan again.');
       setViewState('CART_VIEW');
     }
@@ -301,11 +312,10 @@ export default function BillingPage() {
             <div className="relative w-full max-w-md aspect-square rounded-3xl overflow-hidden shadow-2xl bg-zinc-900">
               <div
                 id={containerId}
-                ref={scannerCallbackRef}   // 🎯 The magic line
+                ref={scannerCallbackRef}
                 className="w-full h-full"
                 style={{ minHeight: '300px' }}
               ></div>
-              {/* Overlay frame for visual guidance */}
               <div className="absolute inset-0 border-[2px] border-emerald-500/30 rounded-3xl pointer-events-none"></div>
             </div>
             <p className="mt-6 text-zinc-400 text-sm">Align QR code within the frame</p>
