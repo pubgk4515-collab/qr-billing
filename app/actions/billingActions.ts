@@ -13,21 +13,18 @@ export async function getProductByTag(tagId: string) {
             .eq('id', tagId.toUpperCase())
             .single();
 
-        // Agar tag hi nahi mila ya error aaya
         if (error || !data) {
             return { success: false, message: 'Invalid Tag: Ye QR Code database mein nahi hai.' };
         }
         
-        // Tag status checks
         if (data.status === 'sold') return { success: false, message: 'Ye item pehle hi bik chuka hai!' };
-        if (data.status === 'free' || !data.products) return { success: false, message: 'Ye tag khali hai, ispar kapda link nahi hai!' };
+        if (data.status === 'free' || !data.products) return { success: false, message: 'Ye tag khali hai!' };
 
         // 2. Safely Matches (Recommendations) Dhoondo
         let related = [];
         try {
-            // Hum check kar rahe hain ki database mein 'category' column hai ya 'category_id'
-            const catColumn = data.products.category ? 'category' : (data.products.category_id ? 'category_id' : null);
-            const catValue = data.products.category || data.products.category_id;
+            const catColumn = data.products?.category ? 'category' : (data.products?.category_id ? 'category_id' : null);
+            const catValue = data.products?.category || data.products?.category_id;
 
             if (catColumn && catValue) {
                 const { data: relData } = await supabaseServer
@@ -40,17 +37,21 @@ export async function getProductByTag(tagId: string) {
                 if (relData) related = relData;
             }
         } catch (relErr) {
-            // Agar related dhoondhne mein error aaya, toh usko ignore karo, crash mat hone do
             console.error("Recommendations fail hui", relErr);
         }
 
+        // 🔥 SABSE BADA FIX: JSON Serialization
+        // Ye line ensure karegi ki database ke complex objects plain text mein convert ho jayein
+        // Jisse Vercel production mein 500 Error kabhi nahi dega!
+        const safeData = JSON.parse(JSON.stringify(data));
+        const safeRelated = JSON.parse(JSON.stringify(related));
+
         return { 
             success: true, 
-            tag: data,
-            relatedProducts: related
+            tag: safeData,
+            relatedProducts: safeRelated
         };
     } catch (error: any) {
-        // SABSE BADA FIX: Yahan se kabhi error THROW nahi hoga, UI ko safe message jayega
         return { success: false, message: 'Server issue: ' + error.message };
     }
 }
