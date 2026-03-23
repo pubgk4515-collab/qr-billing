@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getProductByTag, processCheckout } from '../actions/billingActions';
-import { ShoppingBag, Trash2, CreditCard, Loader2, XCircle, QrCode, X, Zap, CheckCircle2, Camera } from 'lucide-react';
+import { ShoppingBag, Trash2, CreditCard, Loader2, XCircle, QrCode, X, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
 
@@ -19,6 +19,18 @@ export default function BillingPage() {
 
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
   const isProcessingScan = useRef(false);
+
+  // Show error toast
+  const showError = useCallback((msg: string) => {
+    setErrorMsg(msg);
+    setTimeout(() => setErrorMsg(''), 4000);
+  }, []);
+
+  // Show success toast
+  const showSuccess = useCallback((msg: string) => {
+    setSuccessMsg(msg);
+    setTimeout(() => setSuccessMsg(''), 3000);
+  }, []);
 
   // Load cart from localStorage
   useEffect(() => {
@@ -51,33 +63,8 @@ export default function BillingPage() {
     localStorage.setItem('premium_cart', JSON.stringify(storageFormat));
   };
 
-  // Scanner setup
-  useEffect(() => {
-    if (viewState === 'SCANNING') {
-      const timer = setTimeout(() => {
-        if (!scannerRef.current) {
-          const scanner = new Html5QrcodeScanner(
-            'premium-scanner',
-            {
-              fps: 10,
-              qrbox: { width: 250, height: 250 },
-              supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
-              aspectRatio: 1.0,
-            },
-            false
-          );
-          scanner.render(handleScanSuccess, () => {});
-          scannerRef.current = scanner;
-        }
-      }, 100);
-      return () => clearTimeout(timer);
-    } else if (scannerRef.current) {
-      scannerRef.current.clear().catch(console.error);
-      scannerRef.current = null;
-    }
-  }, [viewState]);
-
-  const handleScanSuccess = async (decodedText: string) => {
+  // Handle successful scan
+  const handleScanSuccess = useCallback(async (decodedText: string) => {
     if (isProcessingScan.current) return;
     isProcessingScan.current = true;
     if (window.navigator?.vibrate) window.navigator.vibrate(50);
@@ -101,17 +88,53 @@ export default function BillingPage() {
     }
     setLoading(false);
     isProcessingScan.current = false;
-  };
+  }, [cart, showError]);
 
-  const showError = (msg: string) => {
-    setErrorMsg(msg);
-    setTimeout(() => setErrorMsg(''), 4000);
-  };
+  // Scanner setup with dimension checks and error handling
+  useEffect(() => {
+    if (viewState !== 'SCANNING') return;
 
-  const showSuccess = (msg: string) => {
-    setSuccessMsg(msg);
-    setTimeout(() => setSuccessMsg(''), 3000);
-  };
+    let mounted = true;
+    const initScanner = () => {
+      const element = document.getElementById('premium-scanner');
+      if (!element || !mounted) return;
+
+      // Ensure the element has dimensions before initializing
+      if (element.offsetWidth === 0 || element.offsetHeight === 0) {
+        setTimeout(initScanner, 100);
+        return;
+      }
+
+      if (!scannerRef.current) {
+        const scanner = new Html5QrcodeScanner(
+          'premium-scanner',
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
+            aspectRatio: 1.0,
+          },
+          false
+        );
+        scanner.render(handleScanSuccess, (error) => {
+          console.error('Scanner error:', error);
+          showError('Failed to start camera. Please check permissions and try again.');
+          setViewState('CART_VIEW');
+        });
+        scannerRef.current = scanner;
+      }
+    };
+
+    initScanner();
+
+    return () => {
+      mounted = false;
+      if (scannerRef.current) {
+        scannerRef.current.clear().catch(console.error);
+        scannerRef.current = null;
+      }
+    };
+  }, [viewState, handleScanSuccess, showError, setViewState]);
 
   const addToCart = () => {
     if (scannedData) {
@@ -291,7 +314,6 @@ export default function BillingPage() {
       {viewState === 'CART_VIEW' && (
         <div className="fixed bottom-0 left-0 w-full p-6 z-40">
           <div className="max-w-md mx-auto">
-            {/* Integrated bottom bar without overlapping */}
             <div className="bg-zinc-900/90 backdrop-blur-xl border border-zinc-800 p-4 rounded-2xl flex items-center justify-between shadow-2xl">
               <button
                 onClick={() => setViewState('SCANNING')}
