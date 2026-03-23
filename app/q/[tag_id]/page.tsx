@@ -1,100 +1,106 @@
-'use client';
-import { supabase } from '../../lib/supabase';
-import AddToCart from '../../components/AddToCart';
-import { PackageX, Tag, ShoppingBag } from 'lucide-react';
+import { createSupabaseServer } from '../../lib/supabaseServer';
+import { ShoppingBag, AlertTriangle, CheckCircle2, QrCode } from 'lucide-react';
 
-export default async function QRPage({ params }: { params: Promise<{ tag_id: string }> }) {
-  const { tag_id } = await params;
+// Future-Proof Server Component (No 'use client' needed, zero hydration errors)
+export default async function PublicTagPage({ params }: { params: { tag_id: string } }) {
+    const tagId = params.tag_id.toUpperCase();
+    const supabaseServer = createSupabaseServer();
 
-  // 1. Fetch QR Tag
-  const { data: tagData, error: tagError } = await supabase
-    .from('qr_tags')
-    .select('product_id, status')
-    .eq('id', tag_id)
-    .single();
+    // 1. Securely fetch Tag and attached Product Data
+    const { data: tagData, error } = await supabaseServer
+        .from('qr_tags')
+        .select('*, products(*)')
+        .eq('id', tagId)
+        .single();
 
-  // Invalid QR State
-  if (tagError || !tagData) {
+    // 2. Fallback UI: Invalid or Deleted Tag
+    if (error || !tagData) {
+        return (
+            <main className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-6 text-center font-sans">
+                <div className="bg-red-500/10 p-6 rounded-full mb-6 border border-red-500/20 shadow-[0_0_40px_rgba(239,68,68,0.2)]">
+                    <AlertTriangle className="w-12 h-12 text-red-500" />
+                </div>
+                <h1 className="text-3xl font-black text-white mb-2 tracking-tight">Tag Not Found</h1>
+                <p className="text-zinc-500 max-w-xs font-medium">This QR code ({tagId}) is invalid or has been removed from the database.</p>
+            </main>
+        );
+    }
+
+    const isSold = tagData.status === 'sold';
+    const product = tagData.products;
+
+    // 3. Fallback UI: Free/Unlinked Tag
+    if (tagData.status === 'free' || !product) {
+        return (
+            <main className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-6 text-center font-sans">
+                <div className="bg-emerald-500/10 p-6 rounded-full mb-6 border border-emerald-500/20 shadow-[0_0_40px_rgba(16,185,129,0.2)]">
+                    <QrCode className="w-12 h-12 text-emerald-500" />
+                </div>
+                <h1 className="text-3xl font-black text-white mb-2 tracking-tight">Tag Available</h1>
+                <p className="text-zinc-500 max-w-xs font-medium">Tag {tagId} is empty and ready to be linked to a new garment from the Admin Panel.</p>
+            </main>
+        );
+    }
+
+    // 4. Premium Product Showcase UI (Valid Tag)
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-950 p-6 text-zinc-400">
-        <PackageX className="w-16 h-16 text-zinc-700 mb-4" />
-        <h2 className="text-xl font-bold text-zinc-200">Invalid QR Code</h2>
-        <p className="text-center mt-2">This tag does not exist in our system.</p>
-      </div>
-    );
-  }
+        <main className="min-h-screen bg-zinc-950 text-zinc-100 font-sans pb-32 selection:bg-emerald-500/30">
+            {/* Hero Image Section */}
+            <div className="relative h-[65vh] w-full bg-zinc-900 rounded-b-[3rem] overflow-hidden shadow-2xl">
+                {product.image_url ? (
+                    // Standard img tag to prevent Server Component interactive errors
+                    <img
+                        src={product.image_url}
+                        alt={product.name}
+                        className={`w-full h-full object-cover transition-all duration-700 ${isSold ? 'opacity-40 grayscale blur-[2px]' : 'opacity-90'}`}
+                    />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-zinc-900">
+                        <ShoppingBag className="w-24 h-24 text-zinc-800" />
+                    </div>
+                )}
 
-  // Unavailable State
-  if (tagData.status !== 'active' || !tagData.product_id) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-950 p-6 text-zinc-400">
-        <Tag className="w-16 h-16 text-zinc-700 mb-4" />
-        <h2 className="text-xl font-bold text-zinc-200">Item Unavailable</h2>
-        <p className="text-center mt-2">This product is currently out of stock or unassigned.</p>
-      </div>
-    );
-  }
+                <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/40 to-transparent"></div>
 
-  // 2. Fetch Product Data
-  const { data: product, error: productError } = await supabase
-    .from('products')
-    .select('*')
-    .eq('id', tagData.product_id)
-    .single();
+                {/* Intelligent Status Badge */}
+                <div className="absolute top-6 right-6">
+                    {isSold ? (
+                        <span className="bg-red-500/90 backdrop-blur-md text-white px-5 py-2.5 rounded-full font-black text-xs tracking-widest uppercase border border-red-400 shadow-2xl flex items-center gap-2">
+                            Sold Out
+                        </span>
+                    ) : (
+                        <span className="bg-emerald-500/90 backdrop-blur-md text-black px-5 py-2.5 rounded-full font-black text-xs tracking-widest uppercase border border-emerald-400 shadow-2xl flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4" /> In Stock
+                        </span>
+                    )}
+                </div>
 
-  if (productError || !product) {
-    return <div className="p-10 text-center text-red-500 font-bold bg-zinc-950 min-h-screen">Product not found.</div>;
-  }
-
-  // 3. The Premium Apple/Symbiote UI (Dark Mode)
-  return (
-    <main className="min-h-screen bg-zinc-950 text-zinc-100 pb-20 font-sans selection:bg-zinc-800">
-      
-      {/* Minimal Dark Header */}
-      <header className="bg-zinc-950/80 backdrop-blur-md p-5 text-center sticky top-0 z-10 border-b border-zinc-900">
-        <h1 className="font-bold text-lg tracking-tight text-white">Rampurhat Collection</h1>
-      </header>
-
-      {/* Product Card Container */}
-      <div className="max-w-md mx-auto p-4 mt-2">
-        <div className="bg-zinc-900 rounded-[2rem] shadow-[0_20px_60px_rgba(0,0,0,0.4)] border border-zinc-800 overflow-hidden">
-          
-          {/* Smart Image Area (Dark Placeholder) */}
-          <div className="w-full h-[400px] bg-zinc-950 flex items-center justify-center relative overflow-hidden group border-b border-zinc-800">
-            {product.image_url ? (
-               <img 
-                 src={product.image_url} 
-                 alt={product.name} 
-                 className="w-full h-full object-cover opacity-90 transition-opacity duration-300 group-hover:opacity-100"
-                 onError={(e) => { e.currentTarget.style.display = 'none'; }} 
-               />
-            ) : null}
-            
-            <div className="absolute inset-0 flex flex-col items-center justify-center -z-10 text-zinc-600">
-              <ShoppingBag className="w-12 h-12 mb-3 opacity-30" />
-              <span className="text-sm font-medium">Image not available</span>
+                {/* Typography & Details Overlay */}
+                <div className="absolute bottom-8 left-6 right-6">
+                    <p className="text-emerald-400 text-sm font-bold tracking-widest uppercase mb-3 flex items-center gap-2">
+                        <QrCode className="w-4 h-4" /> Tag: {tagId}
+                    </p>
+                    <h1 className="text-5xl font-black text-white leading-none mb-4 tracking-tighter">{product.name}</h1>
+                    <h2 className="text-4xl font-black text-white tracking-tighter">₹{product.price}</h2>
+                </div>
             </div>
-          </div>
-          
-          {/* Product Details Section */}
-          <div className="p-6 pt-8">
-            <div className="flex justify-between items-start mb-2">
-              <h2 className="text-2xl font-bold text-white leading-tight">{product.name}</h2>
-              <span className="bg-zinc-800 text-zinc-400 border border-zinc-700 text-xs font-bold px-3 py-1.5 rounded-full tracking-wider">
-                #{tag_id}
-              </span>
-            </div>
-            
-            <p className="text-4xl font-black text-white mb-8 tracking-tighter">
-              ₹{product.price}
-            </p>
-            
-            {/* The Animated Client Button */}
-            <AddToCart productId={product.id} />
-          </div>
 
-        </div>
-      </div>
-    </main>
-  );
+            {/* Additional SaaS Details */}
+            <div className="px-6 pt-10">
+                <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-4">Garment Specifications</h3>
+                <div className="bg-zinc-900/40 backdrop-blur-xl border border-zinc-800 rounded-[2rem] p-6 space-y-5 shadow-lg">
+                    <div className="flex justify-between items-center border-b border-zinc-800/80 pb-5">
+                        <span className="text-zinc-400 font-medium">Category</span>
+                        <span className="text-white font-black capitalize tracking-wide">{product.category || 'Premium Apparel'}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                        <span className="text-zinc-400 font-medium">Authenticity</span>
+                        <span className="text-emerald-400 font-black flex items-center gap-1.5 tracking-wide">
+                            <CheckCircle2 className="w-5 h-5" /> Verified Original
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </main>
+    );
 }
