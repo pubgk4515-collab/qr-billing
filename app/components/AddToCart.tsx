@@ -26,7 +26,7 @@ export default function AddToCart({ product, tagId }: AddToCartProps) {
 
         // 🔥 Wait for 1 second so the user sees the success animation, then redirect!
         setTimeout(() => {
-            router.push('/cart'); // Change to '/billing' if your cart route is named differently
+            router.push('/billing'); // Change to '/billing' if your cart route is named differently
         }, 1000); 
     };
 
