@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { getProductByTag, processCheckout } from '../actions/billingActions';
 import { ShoppingBag, Trash2, CreditCard, Loader2, XCircle, QrCode, X, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
+import { Html5Qrcode } from 'html5-qrcode';
 
 type ViewState = 'CART_VIEW' | 'SCANNING' | 'PRODUCT_SHOWCASE';
 
@@ -17,7 +17,7 @@ export default function BillingPage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
   const isProcessingScan = useRef(false);
   const containerId = 'premium-scanner';
 
@@ -76,55 +76,94 @@ export default function BillingPage() {
     }
 
     setLoading(true);
-    const res = await getProductByTag(formattedTag);
-    if (res.success) {
-      setScannedData({ scannedProduct: res.tag, relatedProducts: res.relatedProducts });
-      setViewState('PRODUCT_SHOWCASE');
-    } else {
-      showError(res.message || 'Scan failed!');
+    try {
+      const res = await getProductByTag(formattedTag);
+      if (res.success) {
+        setScannedData({ scannedProduct: res.tag, relatedProducts: res.relatedProducts });
+        setViewState('PRODUCT_SHOWCASE');
+      } else {
+        showError(res.message || 'Invalid Tag: This QR code is not in the database.');
+        setViewState('CART_VIEW');
+      }
+    } catch (err) {
+      console.error('Error fetching product:', err);
+      showError('Server error. Please try again.');
       setViewState('CART_VIEW');
+    } finally {
+      setLoading(false);
+      isProcessingScan.current = false;
     }
-    setLoading(false);
-    isProcessingScan.current = false;
   };
 
-  // 🔥 Callback ref - initializes scanner only when the div is actually in the DOM
-  const scannerRefCallback = useCallback(
-    (node: HTMLDivElement | null) => {
-      if (node !== null && viewState === 'SCANNING') {
-        // Div is ready, initialize scanner
-        if (!scannerRef.current) {
-          const scanner = new Html5QrcodeScanner(
-            node.id,
-            {
-              fps: 10,
-              qrbox: { width: 250, height: 250 },
-              supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
-              aspectRatio: 1.0,
-              showTorchButtonIfSupported: true,
-            },
-            false // verbose false to avoid clutter, but errors still appear in console
-          );
-          scanner.render(handleScanSuccess, (err) => {
-            // Ignore normal scanning errors, just log for debugging
-            if (err && typeof err === 'string' && err.includes('NotFound')) {
-              console.warn('Looking for QR...');
-            } else if (err) {
-              console.error('Scanner error:', err);
+  // Scanner initializer with auto‑start back camera
+  useLayoutEffect(() => {
+    if (viewState !== 'SCANNING') return;
+
+    const timer = setTimeout(async () => {
+      const element = document.getElementById(containerId);
+      if (!element) {
+        console.error('Scanner container not found');
+        showError('Scanner error: container not found');
+        setViewState('CART_VIEW');
+        return;
+      }
+
+      const html5QrCode = new Html5Qrcode(containerId);
+      scannerRef.current = html5QrCode;
+
+      try {
+        await html5QrCode.start(
+          { facingMode: 'environment' }, // Force back camera
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+          },
+          (decodedText) => {
+            handleScanSuccess(decodedText);
+            // Stop scanner after successful scan
+            if (scannerRef.current) {
+              scannerRef.current.stop().catch(console.error);
             }
-          });
-          scannerRef.current = scanner;
-        }
-      } else {
-        // When scanning view is closed, clean up scanner
+          },
+          (errorMessage) => {
+            // Ignore normal scanning errors (like "no QR found")
+            if (errorMessage && !errorMessage.includes('No MultiFormat Readers')) {
+              console.warn('Scanner error:', errorMessage);
+            }
+          }
+        );
+      } catch (err) {
+        console.error('Camera start error:', err);
+        showError('Camera failed. Check permissions and try again.');
+        setViewState('CART_VIEW');
         if (scannerRef.current) {
-          scannerRef.current.clear().catch(console.error);
+          try {
+            await scannerRef.current.clear();
+          } catch (clearErr) {
+            console.error('Clear error:', clearErr);
+          }
           scannerRef.current = null;
         }
       }
-    },
-    [viewState, handleScanSuccess]
-  );
+    }, 300); // Small delay to ensure DOM is ready
+
+    return () => {
+      clearTimeout(timer);
+      if (scannerRef.current) {
+        // Use async IIFE to handle Promise without .catch() TypeScript error
+        (async () => {
+          try {
+            await scannerRef.current?.stop();
+            await scannerRef.current?.clear();
+          } catch (err) {
+            console.error('Scanner cleanup error:', err);
+          } finally {
+            scannerRef.current = null;
+          }
+        })();
+      }
+    };
+  }, [viewState, handleScanSuccess, showError, setViewState]);
 
   const addToCart = () => {
     if (scannedData) {
@@ -264,13 +303,10 @@ export default function BillingPage() {
             >
               <X className="w-6 h-6" />
             </button>
-            <div className="relative w-full max-w-md aspect-square rounded-3xl overflow-hidden shadow-2xl">
-              <div
-                id={containerId}
-                ref={scannerRefCallback} // 🎯 Callback ref ensures scanner starts when div is ready
-                className="w-full h-full"
-                style={{ minHeight: '300px' }}
-              ></div>
+            <div className="relative w-full max-w-md aspect-square rounded-3xl overflow-hidden shadow-2xl bg-zinc-900">
+              <div id={containerId} className="w-full h-full"></div>
+              {/* Overlay frame for visual guidance */}
+              <div className="absolute inset-0 border-[2px] border-emerald-500/30 rounded-3xl pointer-events-none"></div>
             </div>
             <p className="mt-6 text-zinc-400 text-sm">Align QR code within the frame</p>
           </motion.div>
