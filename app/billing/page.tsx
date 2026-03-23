@@ -17,7 +17,40 @@ export default function BillingPage() {
   const [errorMsg, setErrorMsg] = useState('');
   
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
-  const isProcessingScan = useRef(false); // 🔥 PREVENTS DOUBLE SCAN CRASHES
+  const isProcessingScan = useRef(false);
+
+  // 🛡️ LOAD CART FROM LOCALSTORAGE ON MOUNT
+  useEffect(() => {
+    const savedCart = localStorage.getItem('premium_cart');
+    if (savedCart) {
+        try {
+            const parsedCart = JSON.parse(savedCart);
+            // Mapping the localStorage format to match your UI's expected format
+            const formattedCart = parsedCart.map((item: any) => ({
+                id: item.tagId,
+                products: {
+                    name: item.name,
+                    price: item.price,
+                    image_url: item.image_url
+                }
+            }));
+            setCart(formattedCart);
+        } catch (e) {
+            console.error("Failed to load cart", e);
+        }
+    }
+  }, []);
+
+  // 💾 SYNC CART TO LOCALSTORAGE WHENEVER IT CHANGES
+  const syncToStorage = (updatedCart: any[]) => {
+      const storageFormat = updatedCart.map(item => ({
+          tagId: item.id,
+          name: item.products?.name,
+          price: item.products?.price,
+          image_url: item.products?.image_url
+      }));
+      localStorage.setItem('premium_cart', JSON.stringify(storageFormat));
+  };
 
   useEffect(() => {
     if (viewState === 'SCANNING' && !scannerRef.current) {
@@ -38,12 +71,6 @@ export default function BillingPage() {
         scannerRef.current.clear().catch(console.error);
         scannerRef.current = null;
     }
-    return () => {
-        if (scannerRef.current) {
-            scannerRef.current.clear().catch(console.error);
-            scannerRef.current = null;
-        }
-    };
   }, [viewState]);
 
   const handleScanSuccess = async (decodedText: string) => {
@@ -72,9 +99,8 @@ export default function BillingPage() {
     if (res.success) {
         setScannedData({ scannedProduct: res.tag, relatedProducts: res.relatedProducts });
         setViewState('PRODUCT_SHOWCASE'); 
-        } else {
-        // Agar res.message nahi mila, toh default message dikha do
-        showError(res.message || "Item scan karne mein problem aayi, wapas try karein!");
+    } else {
+        showError(res.message || "Item scan karne mein problem aayi!");
         setViewState('CART_VIEW');
     }
 
@@ -89,13 +115,19 @@ export default function BillingPage() {
 
   const addToCart = () => {
     if (scannedData) {
-        setCart(prev => [...prev, scannedData.scannedProduct]);
+        const updatedCart = [...cart, scannedData.scannedProduct];
+        setCart(updatedCart);
+        syncToStorage(updatedCart); // Update memory
         setScannedData(null);
         setViewState('CART_VIEW');
     }
   };
 
-  const removeFromCart = (tagId: string) => setCart(cart.filter(item => item.id !== tagId));
+  const removeFromCart = (tagId: string) => {
+      const updatedCart = cart.filter(item => item.id !== tagId);
+      setCart(updatedCart);
+      syncToStorage(updatedCart); // Update memory
+  };
 
   const handleCheckout = async () => {
     if (cart.length === 0) return;
@@ -105,6 +137,7 @@ export default function BillingPage() {
     if (res.success) {
         alert(`✅ Sale Completed! Amount: ₹${totalAmount}`);
         setCart([]); 
+        localStorage.removeItem('premium_cart'); // Empty memory after checkout
         setViewState('CART_VIEW');
     } else {
         showError(res.message);
@@ -112,7 +145,7 @@ export default function BillingPage() {
     setIsCheckingOut(false);
   };
 
-  const totalAmount = cart.reduce((sum, item) => sum + item.products?.price || 0, 0);
+  const totalAmount = cart.reduce((sum, item) => sum + (item.products?.price || 0), 0);
 
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100 font-sans pb-32 overflow-hidden">
@@ -140,7 +173,7 @@ export default function BillingPage() {
                     {cart.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-64 opacity-50">
                             <QrCode className="w-16 h-16 mb-4 text-zinc-600" />
-                            <p className="font-medium text-zinc-400 text-center">Bag is empty.<br/>Tap the scanner to add items.</p>
+                            <p className="font-medium text-zinc-400 text-center">Bag is empty.<br/>Tap the scanner or scan a tag to add items.</p>
                         </div>
                     ) : (
                         cart.map((item) => (
@@ -211,26 +244,9 @@ export default function BillingPage() {
 
                 <div className="p-6">
                     <button onClick={addToCart} className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xl py-5 rounded-[2rem] flex items-center justify-center gap-3 shadow-[0_0_40px_rgba(16,185,129,0.3)] transition-all active:scale-95">
-                        <CheckCircle2 className="w-7 h-7" /> Add to Bag
+                        <CheckCircle2 className="w-7 h-7" /> Confirm Add to Bag
                     </button>
                 </div>
-
-                {scannedData.relatedProducts?.length > 0 && (
-                    <div className="mt-2 flex-1">
-                        <h3 className="px-6 text-sm font-bold text-zinc-400 uppercase tracking-widest mb-4">Complete The Look</h3>
-                        <div className="flex gap-4 overflow-x-auto px-6 pb-6 snap-x hide-scrollbar">
-                            {scannedData.relatedProducts.map((related: any) => (
-                                <div key={related.id} onClick={() => showError(`Scan ${related.name}'s tag to add!`)} className="snap-start shrink-0 w-36 bg-zinc-900/50 p-3 rounded-3xl border border-zinc-800 cursor-pointer active:scale-95 transition-transform">
-                                    <div className="w-full h-36 bg-zinc-950 rounded-2xl mb-3 overflow-hidden">
-                                        {related.image_url && <img src={related.image_url} alt="match" className="w-full h-full object-cover" />}
-                                    </div>
-                                    <h4 className="font-bold text-white text-sm truncate">{related.name}</h4>
-                                    <p className="text-emerald-400 font-bold text-sm">₹{related.price}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
             </motion.div>
         )}
       </AnimatePresence>
