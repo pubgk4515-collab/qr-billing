@@ -62,7 +62,7 @@ export default function BillingPage() {
     setTimeout(() => setSuccessMsg(''), 3000);
   };
 
-  // 🔥 handleScanSuccess wrapped in useCallback to prevent re‑creation
+  // 🔥 handleScanSuccess wrapped in useCallback with robust error handling
   const handleScanSuccess = useCallback(async (decodedText: string) => {
     if (isProcessingScan.current) return;
     isProcessingScan.current = true;
@@ -88,22 +88,24 @@ export default function BillingPage() {
     setLoading(true);
     try {
       const res = await getProductByTag(formattedTag);
-      if (res.success) {
-        setScannedData({ scannedProduct: res.tag, relatedProducts: res.relatedProducts });
+      // Safety check: ensure res and res.success exist
+      if (res && res.success && res.tag) {
+        setScannedData({ scannedProduct: res.tag, relatedProducts: res.relatedProducts || [] });
         setViewState('PRODUCT_SHOWCASE');
       } else {
-        showError(res.message || `Tag ${formattedTag} not found.`);
+        // If the response is invalid or product not found
+        showError(res?.message || `Tag ${formattedTag} not found in database.`);
         setViewState('CART_VIEW');
       }
     } catch (err) {
       console.error('Fetch error:', err);
-      showError('Server error.');
+      showError('Server error. Please check your connection and try again.');
       setViewState('CART_VIEW');
     } finally {
       setLoading(false);
       isProcessingScan.current = false;
     }
-  }, [cart]); // Re‑create only when cart changes
+  }, [cart]); // Re-create only when cart changes
 
   // 🎯 Callback ref – bulletproof scanner initializer
   const scannerCallbackRef = useCallback((node: HTMLDivElement | null) => {
@@ -149,13 +151,17 @@ export default function BillingPage() {
   }, [viewState, handleScanSuccess, showError, setViewState]);
 
   const addToCart = () => {
-    if (scannedData) {
+    if (scannedData && scannedData.scannedProduct) {
       const updatedCart = [...cart, scannedData.scannedProduct];
       setCart(updatedCart);
       syncToStorage(updatedCart);
       setScannedData(null);
       setViewState('CART_VIEW');
       showSuccess(`${scannedData.scannedProduct.products?.name} added to bag!`);
+    } else {
+      // Fallback if something went wrong
+      showError('Product data missing. Please scan again.');
+      setViewState('CART_VIEW');
     }
   };
 
@@ -169,16 +175,22 @@ export default function BillingPage() {
   const handleCheckout = async () => {
     if (cart.length === 0) return;
     setIsCheckingOut(true);
-    const res = await processCheckout(cart.map(item => item.id));
-    if (res.success) {
-      showSuccess(`✅ Sale completed! Total: ₹${totalAmount}`);
-      setCart([]);
-      localStorage.removeItem('premium_cart');
-      setViewState('CART_VIEW');
-    } else {
-      showError(res.message);
+    try {
+      const res = await processCheckout(cart.map(item => item.id));
+      if (res && res.success) {
+        showSuccess(`✅ Sale completed! Total: ₹${totalAmount}`);
+        setCart([]);
+        localStorage.removeItem('premium_cart');
+        setViewState('CART_VIEW');
+      } else {
+        showError(res?.message || 'Checkout failed. Please try again.');
+      }
+    } catch (err) {
+      console.error('Checkout error:', err);
+      showError('Checkout error. Please try again.');
+    } finally {
+      setIsCheckingOut(false);
     }
-    setIsCheckingOut(false);
   };
 
   const totalAmount = cart.reduce((sum, item) => sum + (item.products?.price || 0), 0);
@@ -310,11 +322,17 @@ export default function BillingPage() {
             className="fixed inset-0 z-50 bg-zinc-950 flex flex-col p-6"
           >
             <div className="flex-1 relative rounded-3xl overflow-hidden bg-zinc-900">
-              <img
-                src={scannedData.scannedProduct.products?.image_url}
-                className="w-full h-full object-cover"
-                alt={scannedData.scannedProduct.products?.name}
-              />
+              {scannedData.scannedProduct.products?.image_url ? (
+                <img
+                  src={scannedData.scannedProduct.products.image_url}
+                  className="w-full h-full object-cover"
+                  alt={scannedData.scannedProduct.products.name}
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-zinc-500">
+                  No image available
+                </div>
+              )}
               <div className="absolute bottom-8 left-8 bg-black/50 backdrop-blur-sm p-4 rounded-2xl">
                 <h2 className="text-4xl font-black text-white">{scannedData.scannedProduct.products?.name}</h2>
                 <p className="text-2xl font-bold text-emerald-400">₹{scannedData.scannedProduct.products?.price}</p>
