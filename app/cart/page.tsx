@@ -1,311 +1,304 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { getStoreData, addNewItem, generateFreeTags, linkTagToProduct, unlinkTag } from '../actions/adminActions';
-import { LayoutDashboard, Box, QrCode, PackagePlus, Loader2, Download, X, ExternalLink, Lock, KeyRound, Plus, Image as ImageIcon, Tag, Hash, Link2, Unlink } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { getProductByTag, processCheckout } from '../actions/billingActions';
+import { ShoppingBag, Trash2, CreditCard, Loader2, XCircle, QrCode, X, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { QRCodeSVG } from 'qrcode.react';
+import { Html5Qrcode } from 'html5-qrcode';
 
-export default function AdminDashboard() {
-  const [isLocked, setIsLocked] = useState(true);
-  const [pinEntry, setPinEntry] = useState('');
-  const [pinError, setPinError] = useState(false);
-  
-  const [data, setData] = useState<any>({ products: [], qrTags: [] });
+type ViewState = 'CART_VIEW' | 'SCANNING' | 'PRODUCT_SHOWCASE';
+
+export default function BillingPage() {
+  const [viewState, setViewState] = useState<ViewState>('CART_VIEW');
+  const [cart, setCart] = useState<any[]>([]);
+  const [scannedData, setScannedData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  
-  // UI States
-  const [selectedTagForQR, setSelectedTagForQR] = useState<any>(null);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isFreeTagModalOpen, setIsFreeTagModalOpen] = useState(false);
-  const [linkingTag, setLinkingTag] = useState<any>(null); // Jis tag ko manual link karna hai
-  
-  // Forms
-  const [newItem, setNewItem] = useState({ name: '', price: '', imageUrl: '' });
-  const [freeTagCount, setFreeTagCount] = useState('5');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
-  const CORRECT_PIN = '1234'; 
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const isProcessingScan = useRef(false);
+  const containerId = 'premium-scanner';
 
+  // 🛡️ 1. Sync Memory (Local Storage)
   useEffect(() => {
-    const isUnlocked = sessionStorage.getItem('admin_unlocked');
-    if (isUnlocked === 'true') {
-      setIsLocked(false);
-      loadData();
+    const savedCart = localStorage.getItem('premium_cart');
+    if (savedCart) {
+      try {
+        const parsedCart = JSON.parse(savedCart);
+        const formattedCart = parsedCart.map((item: any) => ({
+          id: item.tagId,
+          products: {
+            name: item.name,
+            price: item.price,
+            image_url: item.image_url,
+          },
+        }));
+        setCart(formattedCart);
+      } catch (e) { console.error(e); }
     }
   }, []);
 
-  const handleUnlock = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (pinEntry === CORRECT_PIN) {
-      sessionStorage.setItem('admin_unlocked', 'true');
-      setIsLocked(false);
-      loadData();
-    } else {
-      setPinError(true);
-      setPinEntry('');
-      setTimeout(() => setPinError(false), 2000);
-    }
+  const syncToStorage = (updatedCart: any[]) => {
+    const storageFormat = updatedCart.map(item => ({
+      tagId: item.id,
+      name: item.products?.name,
+      price: item.products?.price,
+      image_url: item.products?.image_url,
+    }));
+    localStorage.setItem('premium_cart', JSON.stringify(storageFormat));
   };
 
-  async function loadData() {
+  const showError = (msg: string) => {
+    setErrorMsg(msg);
+    setTimeout(() => setErrorMsg(''), 4000);
+  };
+
+  const showSuccess = (msg: string) => {
+    setSuccessMsg(msg);
+    setTimeout(() => setSuccessMsg(''), 3000);
+  };
+
+  // 🛡️ 2. The Smart Scan Handler (Camera crash proof)
+  const handleScanSuccess = useCallback(async (decodedText: string) => {
+    if (isProcessingScan.current) return;
+    isProcessingScan.current = true;
+    if (window.navigator?.vibrate) window.navigator.vibrate(50);
+
+    // Stop camera safely BEFORE changing state to prevent Next.js crash
+    if (scannerRef.current) {
+        try {
+            await scannerRef.current.stop();
+            await scannerRef.current.clear();
+            scannerRef.current = null;
+        } catch (e) { console.error("Camera stop failed", e); }
+    }
+
+    // Clean URL into a pure Tag ID
+    let tagId = decodedText.trim();
+    if (tagId.includes('/q/')) tagId = tagId.split('/q/').pop() || tagId;
+    const formattedTag = tagId.toUpperCase();
+
+    if (cart.some(item => item.id === formattedTag)) {
+      showError(`${formattedTag} is already in your bag!`);
+      setViewState('CART_VIEW');
+      isProcessingScan.current = false;
+      return;
+    }
+
     setLoading(true);
-    const response = await getStoreData();
-    if (response.success) {
-      setData({ products: response.products, qrTags: response.qrTags });
-    } else {
-      alert("🛑 Error: " + response.message);
-    }
-    setLoading(false);
-  }
-
-  const handleAddItem = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newItem.name || !newItem.price) return alert("Naam aur Price zaroori hai!");
-    setIsSubmitting(true);
-    const res = await addNewItem(newItem.name, Number(newItem.price), newItem.imageUrl);
-    if (res.success) {
-      setNewItem({ name: '', price: '', imageUrl: '' });
-      setIsAddModalOpen(false);
-      loadData(); 
-    } else alert("Error: " + res.message);
-    setIsSubmitting(false);
-  };
-
-  const handleGenerateFreeTags = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const count = parseInt(freeTagCount);
-    if (isNaN(count) || count < 1 || count > 50) return alert("1 se 50 ke beech number daalein");
-    setIsSubmitting(true);
-    const res = await generateFreeTags(count);
-    if (res.success) {
-      setIsFreeTagModalOpen(false);
-      loadData();
-    } else alert("Error: " + res.message);
-    setIsSubmitting(false);
-  };
-
-  // ✨ Manual Linking
-  const handleManualLink = async (productId: string) => {
-      if(!linkingTag) return;
-      setIsSubmitting(true);
-      const res = await linkTagToProduct(linkingTag.id, productId);
-      if(res.success){
-          setLinkingTag(null);
-          loadData();
-      } else alert("Error linking: " + res.message);
-      setIsSubmitting(false);
-  }
-
-  // ✨ Unlink (Make Free)
-  const handleUnlink = async (tagId: string) => {
-      if(confirm(`Kya aap sach mein ${tagId} ko free karna chahte hain? Iska link toot jayega.`)){
-          setIsSubmitting(true);
-          const res = await unlinkTag(tagId);
-          if(res.success) loadData();
-          else alert("Error unlinking: " + res.message);
-          setIsSubmitting(false);
+    try {
+      const res = await getProductByTag(formattedTag);
+      if (res && res.success && res.tag) {
+        setScannedData({ scannedProduct: res.tag, relatedProducts: res.relatedProducts || [] });
+        
+        // Small delay to ensure camera is fully unloaded from browser memory
+        setTimeout(() => setViewState('PRODUCT_SHOWCASE'), 200);
+      } else {
+        showError(res?.message || `Tag ${formattedTag} not found.`);
+        setViewState('CART_VIEW');
       }
-  }
+    } catch (err) {
+      showError('Server connection error.');
+      setViewState('CART_VIEW');
+    } finally {
+      setLoading(false);
+      isProcessingScan.current = false;
+    }
+  }, [cart]); 
 
-  const downloadQR = (tagId: string) => {
-    const svg = document.getElementById(`qr-${tagId}`);
-    if (!svg) return;
-    const svgData = new XMLSerializer().serializeToString(svg);
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    const img = new Image();
-    img.onload = () => {
-      canvas.width = img.width;
-      canvas.height = img.height;
-      ctx?.drawImage(img, 0, 0);
-      const link = document.createElement("a");
-      link.download = `${tagId}.png`;
-      link.href = canvas.toDataURL("image/png");
-      link.click();
-    };
-    img.src = "data:image/svg+xml;base64," + btoa(svgData);
+  // 🛡️ 3. Bulletproof Scanner Initialization (Callback Ref)
+  const scannerCallbackRef = useCallback((node: HTMLDivElement | null) => {
+    if (node !== null && viewState === 'SCANNING') {
+      if (!scannerRef.current) {
+        const html5QrCode = new Html5Qrcode(node.id);
+        scannerRef.current = html5QrCode;
+
+        setTimeout(async () => {
+          try {
+            await html5QrCode.start(
+              { facingMode: 'environment' }, 
+              { fps: 10, qrbox: { width: 250, height: 250 } },
+              (text) => handleScanSuccess(text), // Trigger success handler
+              () => {} 
+            );
+          } catch (err) {
+            console.error('Camera error:', err);
+            showError('Camera failed. Check permissions.');
+            setViewState('CART_VIEW');
+          }
+        }, 150);
+      }
+    } else {
+      if (scannerRef.current) {
+        scannerRef.current.stop()
+          .then(() => scannerRef.current?.clear())
+          .catch(() => {})
+          .finally(() => { scannerRef.current = null; });
+      }
+    }
+  }, [viewState, handleScanSuccess]);
+
+  // 🛡️ 4. Cart Logic
+  const addToCart = () => {
+    if (scannedData && scannedData.scannedProduct) {
+      const updatedCart = [...cart, scannedData.scannedProduct];
+      setCart(updatedCart);
+      syncToStorage(updatedCart);
+      setScannedData(null);
+      setViewState('CART_VIEW');
+      showSuccess(`${scannedData.scannedProduct.products?.name} added to bag!`);
+    }
   };
 
-  if (isLocked) {
-    return (
-      <main className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-6 text-white selection:bg-zinc-800">
-        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="bg-zinc-900 border border-zinc-800 p-8 md:p-12 rounded-[2.5rem] w-full max-w-md shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-emerald-500/20 blur-[60px] rounded-full -z-10" />
-          <div className="flex flex-col items-center text-center mb-8">
-            <div className="w-16 h-16 bg-zinc-950 border border-zinc-800 rounded-2xl flex items-center justify-center mb-6 shadow-inner"><Lock className="w-8 h-8 text-emerald-400" /></div>
-            <h1 className="text-3xl font-black tracking-tighter mb-2">Restricted Area</h1>
-          </div>
-          <form onSubmit={handleUnlock} className="space-y-4">
-            <div className="relative">
-              <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-600" />
-              <input type="password" maxLength={4} value={pinEntry} onChange={(e) => setPinEntry(e.target.value)} placeholder="••••" className="w-full bg-zinc-950 border border-zinc-800 focus:border-emerald-500 rounded-2xl py-4 pl-12 text-center text-2xl font-black tracking-[0.5em] text-white outline-none" autoFocus />
-            </div>
-            {pinError && <p className="text-red-400 text-xs font-bold text-center animate-pulse">Access Denied.</p>}
-            <button type="submit" className="w-full bg-white text-black font-black py-4 rounded-2xl mt-4 hover:bg-zinc-200 transition-colors">Unlock Terminal</button>
-          </form>
-        </motion.div>
-      </main>
-    );
-  }
+  const removeFromCart = (tagId: string, productName: string) => {
+    const updatedCart = cart.filter(item => item.id !== tagId);
+    setCart(updatedCart);
+    syncToStorage(updatedCart);
+    showSuccess(`${productName} removed from bag`);
+  };
 
-  if (loading && data.products.length === 0) return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-zinc-600"><Loader2 className="animate-spin w-10 h-10" /></div>;
+  // 🛡️ 5. Checkout Logic
+  const handleCheckout = async () => {
+    if (cart.length === 0) return;
+    setIsCheckingOut(true);
+    try {
+      const res = await processCheckout(cart.map(item => item.id));
+      if (res && res.success) {
+        showSuccess(`✅ Sale completed! Total: ₹${totalAmount}`);
+        setCart([]); // Clear state
+        localStorage.removeItem('premium_cart'); // Clear browser memory
+        setViewState('CART_VIEW');
+      } else {
+        showError(res?.message || 'Checkout failed.');
+      }
+    } catch (err) {
+      showError('Checkout error. Please try again.');
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
 
-  const activeQRs = data.qrTags.filter((t: any) => t.status === 'active').length;
-  const freeQRs = data.qrTags.filter((t: any) => t.status === 'free').length;
+  const totalAmount = cart.reduce((sum, item) => sum + (item.products?.price || 0), 0);
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-zinc-100 pb-20 font-sans">
-      <header className="bg-zinc-950/80 backdrop-blur-md p-6 sticky top-0 z-20 border-b border-zinc-900">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <h1 className="text-2xl font-black text-white flex items-center gap-2"><LayoutDashboard className="w-6 h-6 text-zinc-500" /> Dashboard</h1>
-          <button onClick={() => { sessionStorage.removeItem('admin_unlocked'); setIsLocked(true); }} className="text-xs bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-full hover:text-red-400">Lock</button>
-        </div>
-      </header>
-
-      <div className="max-w-7xl mx-auto p-6 mt-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <StatCard title="Products" value={data.products.length} color="text-blue-400" />
-          <StatCard title="Active QRs" value={activeQRs} color="text-emerald-400" />
-          <StatCard title="Free QRs" value={freeQRs} color="text-orange-400" />
-        </div>
-
-        <div className="bg-zinc-900 rounded-3xl border border-zinc-800/80 shadow-2xl overflow-hidden">
-          <div className="p-6 border-b border-zinc-800 flex flex-col sm:flex-row justify-between items-center gap-4">
-            <h2 className="text-xl font-black text-white">Inventory Status</h2>
-            <div className="flex gap-2">
-              <button onClick={() => setIsFreeTagModalOpen(true)} className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded-xl text-sm font-bold border border-zinc-700"><PackagePlus className="w-4 h-4"/> Free Tags</button>
-              <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 bg-emerald-500 text-black px-4 py-2 rounded-xl text-sm font-black"><Plus className="w-4 h-4"/> Add Item</button>
-            </div>
-          </div>
-          
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-zinc-950/50 text-zinc-500 text-[10px] uppercase tracking-widest font-black">
-                <tr>
-                  <th className="p-4">Tag ID</th>
-                  <th className="p-4 text-center">Status</th>
-                  <th className="p-4">Linked Product</th>
-                  <th className="p-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-800">
-                {data.qrTags.map((tag: any) => (
-                  <tr key={tag.id} className="hover:bg-zinc-800/40">
-                    <td className="p-4 font-bold text-white">{tag.id}</td>
-                    <td className="p-4 text-center">
-                      <span className={`px-3 py-1 rounded-full text-[10px] font-black tracking-widest border ${tag.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-orange-500/10 text-orange-400 border-orange-500/20'}`}>{tag.status.toUpperCase()}</span>
-                    </td>
-                    <td className="p-4 text-zinc-300 font-medium">
-                      {tag.products?.name || <span className="text-zinc-600 italic text-sm">Empty</span>}
-                    </td>
-                    <td className="p-4 text-right flex justify-end gap-2">
-                      
-                      {/* ✨ EDIT/LINK BUTTON */}
-                      {tag.status === 'free' ? (
-                          <button onClick={() => setLinkingTag(tag)} className="p-2 bg-zinc-800 text-orange-400 hover:bg-orange-500 hover:text-white rounded-lg transition-colors border border-zinc-700 tooltip" title="Link to Product">
-                              <Link2 className="w-4 h-4" />
-                          </button>
-                      ) : (
-                          <button onClick={() => handleUnlink(tag.id)} className="p-2 bg-zinc-800 text-red-400 hover:bg-red-500 hover:text-white rounded-lg transition-colors border border-zinc-700" title="Unlink (Make Free)">
-                              <Unlink className="w-4 h-4" />
-                          </button>
-                      )}
-
-                      {/* QR BUTTON */}
-                      <button onClick={() => setSelectedTagForQR(tag)} className="p-2 bg-zinc-800 hover:bg-white text-white hover:text-black rounded-lg transition-colors border border-zinc-700">
-                        <QrCode className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      {/* 🔗 LINKING MODAL */}
+    <main className="min-h-screen bg-zinc-950 text-zinc-100 font-sans overflow-hidden">
+      {/* TOASTS */}
       <AnimatePresence>
-          {linkingTag && (
-             <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-                 <div className="absolute inset-0 bg-black/80 backdrop-blur-xl" onClick={() => setLinkingTag(null)}></div>
-                 <div className="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-[2rem] p-8 relative z-10 shadow-2xl">
-                    <h3 className="text-2xl font-black mb-4">Link {linkingTag.id}</h3>
-                    <p className="text-zinc-400 text-sm mb-6">Select a product to attach to this free tag.</p>
-                    
-                    <div className="max-h-60 overflow-y-auto space-y-2 pr-2">
-                        {data.products.map((p:any) => (
-                            <button 
-                                key={p.id} 
-                                onClick={() => handleManualLink(p.id)}
-                                className="w-full text-left p-4 rounded-xl bg-zinc-950 border border-zinc-800 hover:border-emerald-500 transition-colors flex justify-between items-center group"
-                            >
-                                <span className="font-bold text-white group-hover:text-emerald-400">{p.name}</span>
-                                <span className="text-zinc-500 text-sm">₹{p.price}</span>
-                            </button>
-                        ))}
-                    </div>
-                 </div>
-             </div> 
-          )}
+        {errorMsg && (
+          <motion.div initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -50 }} className="fixed top-6 left-1/2 -translate-x-1/2 z- bg-red-500/90 backdrop-blur-md text-white font-bold px-6 py-3 rounded-full border border-red-400 shadow-2xl flex items-center gap-2">
+            <XCircle className="w-5 h-5" /> {errorMsg}
+          </motion.div>
+        )}
+        {successMsg && (
+          <motion.div initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -50 }} className="fixed top-6 left-1/2 -translate-x-1/2 z- bg-emerald-500/90 backdrop-blur-md text-white font-bold px-6 py-3 rounded-full border border-emerald-400 shadow-2xl flex items-center gap-2">
+            <CheckCircle2 className="w-5 h-5" /> {successMsg}
+          </motion.div>
+        )}
       </AnimatePresence>
 
-      {/* ADD/FREE/QR Modals remaining exactly same logic, just keeping code clean... */}
-      {/* ➕ ADD MODAL */}
-      {isAddModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl">
-            <div className="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-[2.5rem] p-8 relative shadow-2xl">
-              <button onClick={() => setIsAddModalOpen(false)} className="absolute top-6 right-6 text-zinc-500"><X className="w-6 h-6" /></button>
-              <h3 className="text-2xl font-black text-white mb-6">New Product</h3>
-              <form onSubmit={handleAddItem} className="space-y-4">
-                <input type="text" required value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} placeholder="Product Name" className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 text-white" />
-                <input type="number" required value={newItem.price} onChange={e => setNewItem({...newItem, price: e.target.value})} placeholder="Price ₹" className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 text-white" />
-                <button disabled={isSubmitting} type="submit" className="w-full bg-emerald-500 text-black font-black p-4 rounded-xl">Save Item</button>
-              </form>
-            </div>
-          </div>
-      )}
+      <AnimatePresence mode="wait">
+        {/* VIEW 1: CART */}
+        {viewState === 'CART_VIEW' && (
+          <motion.div key="cart" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="min-h-screen flex flex-col pb-36">
+            <header className="px-6 pt-12 pb-6 flex items-center justify-between">
+              <h1 className="text-3xl font-black text-white flex items-center gap-3">
+                <ShoppingBag className="w-8 h-8 text-emerald-400" /> My Bag
+              </h1>
+              <span className="text-emerald-400 font-bold bg-emerald-500/10 px-4 py-2 rounded-full border border-emerald-500/20">{cart.length} Items</span>
+            </header>
 
-      {/* 🏷️ FREE TAG MODAL */}
-      {isFreeTagModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl">
-             <div className="bg-zinc-900 border border-orange-500/30 w-full max-w-sm rounded-[2.5rem] p-8 relative shadow-2xl text-center">
-              <button onClick={() => setIsFreeTagModalOpen(false)} className="absolute top-6 right-6 text-zinc-500"><X className="w-6 h-6" /></button>
-              <h3 className="text-2xl font-black text-white mb-6">Create Blank Tags</h3>
-              <form onSubmit={handleGenerateFreeTags} className="space-y-4">
-                <input type="number" min="1" max="50" value={freeTagCount} onChange={e => setFreeTagCount(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 text-center text-xl font-bold text-white" />
-                <button disabled={isSubmitting} type="submit" className="w-full bg-white text-black font-black p-4 rounded-xl">Generate</button>
-              </form>
+            <div className="flex-1 px-6 space-y-4 overflow-y-auto">
+              {cart.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-64 opacity-50">
+                  <QrCode className="w-16 h-16 mb-4 text-zinc-600" />
+                  <p className="font-medium text-zinc-400 text-center">Bag is empty.<br />Tap the scanner to add items.</p>
+                </div>
+              ) : (
+                cart.map(item => (
+                  <motion.div key={item.id} layout initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-zinc-900/80 backdrop-blur-sm p-4 rounded-[2rem] border border-zinc-800 flex items-center justify-between shadow-xl">
+                    <div className="flex items-center gap-4">
+                      <div className="w-16 h-16 bg-zinc-800 rounded-2xl overflow-hidden border border-zinc-700">
+                        {item.products?.image_url && <img src={item.products.image_url} alt="img" className="w-full h-full object-cover" />}
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-lg text-white leading-tight">{item.products?.name}</h3>
+                        <p className="text-zinc-500 text-xs font-bold tracking-widest uppercase">{item.id}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <p className="text-xl font-black">₹{item.products?.price}</p>
+                      <button onClick={() => removeFromCart(item.id, item.products?.name)} className="p-3 text-zinc-500 hover:text-red-400 bg-zinc-950 rounded-xl transition-colors"><Trash2 className="w-5 h-5" /></button>
+                    </div>
+                  </motion.div>
+                ))
+              )}
             </div>
-          </div>
-      )}
+          </motion.div>
+        )}
 
-      {/* 📥 QR DOWNLOAD MODAL */}
-      {selectedTagForQR && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl">
-            <div className="bg-zinc-900 border border-zinc-800 w-full max-w-sm rounded-[2.5rem] p-8 relative text-center">
-              <button onClick={() => setSelectedTagForQR(null)} className="absolute top-6 right-6 text-zinc-500"><X className="w-6 h-6" /></button>
-              <h3 className="text-2xl font-black text-white mb-2">QR Asset</h3>
-              <p className="text-zinc-500 mb-6">{selectedTagForQR.id}</p>
-              <div className="bg-white p-4 rounded-3xl inline-block mb-6">
-                <QRCodeSVG id={`qr-${selectedTagForQR.id}`} value={`${window.location.origin}/q/${selectedTagForQR.id}`} size={180} level="H" includeMargin={false} />
+        {/* VIEW 2: SCANNER */}
+        {viewState === 'SCANNING' && (
+          <motion.div key="scan" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center">
+            <button onClick={() => setViewState('CART_VIEW')} className="absolute top-12 right-6 p-4 bg-zinc-900 rounded-full text-white z-50 border border-zinc-700 hover:bg-zinc-800 transition">
+              <X className="w-6 h-6" />
+            </button>
+            <div className="relative w-full max-w-md aspect-square rounded-3xl overflow-hidden shadow-2xl bg-zinc-900">
+              <div id={containerId} ref={scannerCallbackRef} className="w-full h-full" style={{ minHeight: '300px' }}></div>
+              <div className="absolute inset-0 border-[2px] border-emerald-500/30 rounded-3xl pointer-events-none"></div>
+            </div>
+            {loading && <Loader2 className="absolute bottom-32 w-10 h-10 text-emerald-500 animate-spin" />}
+            <p className="mt-6 text-zinc-400 text-sm">Align QR code within the frame</p>
+          </motion.div>
+        )}
+
+        {/* VIEW 3: SHOWCASE */}
+        {viewState === 'PRODUCT_SHOWCASE' && scannedData && (
+          <motion.div key="showcase" initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="fixed inset-0 z-50 bg-zinc-950 flex flex-col p-6">
+            <div className="flex-1 relative rounded-3xl overflow-hidden bg-zinc-900">
+              {scannedData.scannedProduct.products?.image_url ? (
+                <img src={scannedData.scannedProduct.products.image_url} className="w-full h-full object-cover" alt="product" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center"><ShoppingBag className="w-20 h-20 text-zinc-800"/></div>
+              )}
+              <div className="absolute bottom-8 left-8 bg-black/50 backdrop-blur-sm p-4 rounded-2xl">
+                <h2 className="text-4xl font-black text-white">{scannedData.scannedProduct.products?.name}</h2>
+                <p className="text-2xl font-bold text-emerald-400">₹{scannedData.scannedProduct.products?.price}</p>
               </div>
-              <button onClick={() => downloadQR(selectedTagForQR.id)} className="w-full bg-white text-black font-black p-4 rounded-xl mb-3 flex justify-center items-center gap-2"><Download className="w-4 h-4"/> Download PNG</button>
-              <a href={`/q/${selectedTagForQR.id}`} target="_blank" className="block w-full bg-zinc-800 text-zinc-400 font-bold p-3 rounded-xl">Preview Link</a>
+            </div>
+            <div className="flex gap-4 mt-6">
+                <button onClick={() => setViewState('SCANNING')} className="flex-1 bg-zinc-800 text-white font-black text-lg py-5 rounded-2xl hover:bg-zinc-700 transition-all active:scale-95">Cancel</button>
+                <button onClick={addToCart} className="flex- bg-emerald-500 text-black font-black text-xl py-5 rounded-2xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-400 transition-all active:scale-95">
+                  Confirm Add
+                </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* BOTTOM CHECKOUT BAR */}
+      {viewState === 'CART_VIEW' && (
+        <div className="fixed bottom-0 left-0 w-full p-6 z-40">
+          <div className="max-w-md mx-auto relative">
+            {/* FLOATING SCAN BUTTON */}
+            <button onClick={() => setViewState('SCANNING')} className="absolute left-1/2 -translate-x-1/2 -top-10 bg-emerald-500 text-black p-5 rounded-full hover:scale-110 active:scale-95 transition-transform shadow-[0_10px_40px_rgba(16,185,129,0.4)] border-[6px] border-zinc-950 z-50">
+              <QrCode className="w-8 h-8" />
+            </button>
+            
+            <div className="bg-zinc-900/90 backdrop-blur-xl border border-zinc-800 p-4 rounded-[2.5rem] flex items-center justify-between shadow-2xl relative z-40">
+              <div className="pl-4">
+                <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest">Grand Total</p>
+                <p className="text-2xl font-black text-white">₹{totalAmount}</p>
+              </div>
+              <button onClick={handleCheckout} disabled={cart.length === 0 || isCheckingOut} className="bg-white text-black px-8 py-4 rounded-[1.5rem] font-black flex items-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-100 transition active:scale-95">
+                {isCheckingOut ? <Loader2 className="w-5 h-5 animate-spin" /> : <CreditCard className="w-5 h-5" />}
+                Buy
+              </button>
             </div>
           </div>
+        </div>
       )}
-
     </main>
-  );
-}
-
-function StatCard({ title, value, color }: any) {
-  return (
-    <div className="bg-zinc-900 p-6 rounded-3xl border border-zinc-800/80">
-      <p className="text-zinc-500 font-bold text-xs uppercase mb-2">{title}</p>
-      <p className={`text-5xl font-black ${color}`}>{value}</p>
-    </div>
   );
 }
