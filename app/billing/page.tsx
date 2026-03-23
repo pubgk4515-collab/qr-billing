@@ -19,13 +19,12 @@ export default function BillingPage() {
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
   const isProcessingScan = useRef(false);
 
-  // 🛡️ LOAD CART FROM LOCALSTORAGE ON MOUNT
+  // 1. Sync Cart from localStorage on load
   useEffect(() => {
     const savedCart = localStorage.getItem('premium_cart');
     if (savedCart) {
         try {
             const parsedCart = JSON.parse(savedCart);
-            // Mapping the localStorage format to match your UI's expected format
             const formattedCart = parsedCart.map((item: any) => ({
                 id: item.tagId,
                 products: {
@@ -35,13 +34,10 @@ export default function BillingPage() {
                 }
             }));
             setCart(formattedCart);
-        } catch (e) {
-            console.error("Failed to load cart", e);
-        }
+        } catch (e) { console.error(e); }
     }
   }, []);
 
-  // 💾 SYNC CART TO LOCALSTORAGE WHENEVER IT CHANGES
   const syncToStorage = (updatedCart: any[]) => {
       const storageFormat = updatedCart.map(item => ({
           tagId: item.id,
@@ -52,21 +48,25 @@ export default function BillingPage() {
       localStorage.setItem('premium_cart', JSON.stringify(storageFormat));
   };
 
+  // 2. Scanner Initialization logic
   useEffect(() => {
     if (viewState === 'SCANNING' && !scannerRef.current) {
-        const scanner = new Html5QrcodeScanner(
-            "premium-scanner",
-            { 
-              fps: 10, 
-              qrbox: { width: 250, height: 250 }, 
-              supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
-              aspectRatio: 1.0,
-              videoConstraints: { facingMode: "environment" }
-            },
-            false
-        );
-        scanner.render(handleScanSuccess, () => {});
-        scannerRef.current = scanner;
+        // Chhota delay taaki DOM element render ho jaye
+        setTimeout(() => {
+            const scanner = new Html5QrcodeScanner(
+                "premium-scanner",
+                { 
+                  fps: 10, 
+                  qrbox: { width: 250, height: 250 }, 
+                  supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
+                  rememberLastUsedCamera: true,
+                  aspectRatio: 1.0,
+                },
+                false
+            );
+            scanner.render(handleScanSuccess, (err) => { /* ignore */ });
+            scannerRef.current = scanner;
+        }, 100);
     } else if (viewState !== 'SCANNING' && scannerRef.current) {
         scannerRef.current.clear().catch(console.error);
         scannerRef.current = null;
@@ -77,8 +77,9 @@ export default function BillingPage() {
     if (isProcessingScan.current) return;
     isProcessingScan.current = true;
 
-    if (window.navigator && window.navigator.vibrate) window.navigator.vibrate(50);
+    if (window.navigator?.vibrate) window.navigator.vibrate(50);
     
+    // Stop scanner immediately after success
     if (scannerRef.current) {
         await scannerRef.current.clear().catch(console.error);
         scannerRef.current = null;
@@ -86,6 +87,7 @@ export default function BillingPage() {
 
     const formattedTag = decodedText.trim().toUpperCase();
 
+    // Check duplicate
     if (cart.some(item => item.id === formattedTag)) {
         showError(`${formattedTag} pehle se bag mein hai!`);
         setViewState('CART_VIEW');
@@ -100,7 +102,7 @@ export default function BillingPage() {
         setScannedData({ scannedProduct: res.tag, relatedProducts: res.relatedProducts });
         setViewState('PRODUCT_SHOWCASE'); 
     } else {
-        showError(res.message || "Item scan karne mein problem aayi!");
+        showError(res.message || "Invalid Tag!");
         setViewState('CART_VIEW');
     }
 
@@ -117,7 +119,7 @@ export default function BillingPage() {
     if (scannedData) {
         const updatedCart = [...cart, scannedData.scannedProduct];
         setCart(updatedCart);
-        syncToStorage(updatedCart); // Update memory
+        syncToStorage(updatedCart);
         setScannedData(null);
         setViewState('CART_VIEW');
     }
@@ -126,33 +128,18 @@ export default function BillingPage() {
   const removeFromCart = (tagId: string) => {
       const updatedCart = cart.filter(item => item.id !== tagId);
       setCart(updatedCart);
-      syncToStorage(updatedCart); // Update memory
-  };
-
-  const handleCheckout = async () => {
-    if (cart.length === 0) return;
-    setIsCheckingOut(true);
-    const res = await processCheckout(cart.map(item => item.id));
-    
-    if (res.success) {
-        alert(`✅ Sale Completed! Amount: ₹${totalAmount}`);
-        setCart([]); 
-        localStorage.removeItem('premium_cart'); // Empty memory after checkout
-        setViewState('CART_VIEW');
-    } else {
-        showError(res.message);
-    }
-    setIsCheckingOut(false);
+      syncToStorage(updatedCart);
   };
 
   const totalAmount = cart.reduce((sum, item) => sum + (item.products?.price || 0), 0);
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-zinc-100 font-sans pb-32 overflow-hidden">
+    <main className="min-h-screen bg-zinc-950 text-zinc-100 font-sans pb-44 overflow-hidden">
       
+      {/* Error Notifications */}
       <AnimatePresence>
           {errorMsg && (
-              <motion.div initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -50 }} className="fixed top-6 left-1/2 -translate-x-1/2 z- bg-red-500/90 backdrop-blur-md text-white font-bold px-6 py-3 rounded-full border border-red-400 shadow-2xl flex items-center gap-2 whitespace-nowrap">
+              <motion.div initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -50 }} className="fixed top-6 left-1/2 -translate-x-1/2 z- bg-red-500/90 backdrop-blur-md text-white font-bold px-6 py-3 rounded-full border border-red-400 shadow-2xl flex items-center gap-2">
                   <XCircle className="w-5 h-5" /> {errorMsg}
               </motion.div>
           )}
@@ -160,8 +147,9 @@ export default function BillingPage() {
 
       <AnimatePresence mode="wait">
         
+        {/* VIEW 1: THE CART */}
         {viewState === 'CART_VIEW' && (
-            <motion.div key="cart" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="min-h-screen flex flex-col">
+            <motion.div key="cart" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col">
                 <header className="px-6 pt-12 pb-6 flex items-center justify-between">
                     <h1 className="text-3xl font-black text-white flex items-center gap-3">
                         <ShoppingBag className="w-8 h-8 text-emerald-400" /> My Bag
@@ -169,112 +157,99 @@ export default function BillingPage() {
                     <span className="text-emerald-400 font-bold bg-emerald-500/10 px-4 py-2 rounded-full border border-emerald-500/20">{cart.length} Items</span>
                 </header>
 
-                <div className="flex-1 px-6 space-y-4 overflow-y-auto pb-40">
+                <div className="flex-1 px-6 space-y-4 overflow-y-auto">
                     {cart.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-64 opacity-50">
-                            <QrCode className="w-16 h-16 mb-4 text-zinc-600" />
-                            <p className="font-medium text-zinc-400 text-center">Bag is empty.<br/>Tap the scanner or scan a tag to add items.</p>
+                        <div className="flex flex-col items-center justify-center h-80 opacity-40">
+                            <QrCode className="w-20 h-20 mb-4" />
+                            <p className="text-center">Bag is empty.<br/>Scan a tag to add items.</p>
                         </div>
                     ) : (
                         cart.map((item) => (
-                            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} key={item.id} className="bg-zinc-900/80 backdrop-blur-sm p-4 rounded-[2rem] border border-zinc-800 flex items-center justify-between shadow-xl">
+                            <div key={item.id} className="bg-zinc-900/60 backdrop-blur-sm p-4 rounded-[2rem] border border-zinc-800/50 flex items-center justify-between shadow-lg">
                                 <div className="flex items-center gap-4">
-                                    <div className="w-16 h-16 bg-zinc-800 rounded-2xl overflow-hidden border border-zinc-700">
-                                        {item.products?.image_url && <img src={item.products.image_url} alt="img" className="w-full h-full object-cover" />}
-                                    </div>
+                                    <img src={item.products?.image_url} className="w-16 h-16 rounded-2xl object-cover" alt="product" />
                                     <div>
-                                        <h3 className="font-bold text-lg text-white leading-tight">{item.products?.name}</h3>
-                                        <p className="text-zinc-500 text-xs font-bold tracking-widest uppercase">{item.id}</p>
+                                        <h3 className="font-bold text-white">{item.products?.name}</h3>
+                                        <p className="text-zinc-500 text-xs font-bold uppercase">{item.id}</p>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-4">
-                                    <p className="text-xl font-black">₹{item.products?.price}</p>
-                                    <button onClick={() => removeFromCart(item.id)} className="p-3 text-zinc-500 hover:text-red-400 bg-zinc-950 rounded-xl transition-colors"><Trash2 className="w-5 h-5"/></button>
+                                <div className="flex items-center gap-3">
+                                    <p className="text-lg font-black text-emerald-400">₹{item.products?.price}</p>
+                                    <button onClick={() => removeFromCart(item.id)} className="p-3 bg-zinc-800 rounded-2xl text-zinc-500 hover:text-red-400">
+                                        <Trash2 className="w-5 h-5"/>
+                                    </button>
                                 </div>
-                            </motion.div>
+                            </div>
                         ))
                     )}
                 </div>
             </motion.div>
         )}
 
+        {/* VIEW 2: THE SCANNER */}
         {viewState === 'SCANNING' && (
-            <motion.div key="scan" initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center">
-                <button onClick={() => setViewState('CART_VIEW')} className="absolute top-12 right-6 p-4 bg-zinc-900/80 backdrop-blur-md rounded-full text-white z-50 border border-zinc-700">
+            <motion.div key="scan" initial={{ opacity: 0, scale: 1.1 }} animate={{ opacity: 1, scale: 1 }} className="fixed inset-0 z- bg-black flex flex-col items-center justify-center p-6">
+                <button onClick={() => setViewState('CART_VIEW')} className="absolute top-12 right-6 p-4 bg-zinc-900 rounded-full border border-zinc-800">
                     <X className="w-6 h-6" />
                 </button>
-                
-                <div className="text-center absolute top-32 z-50 w-full">
-                    <h2 className="text-2xl font-black text-white mb-2">Scan Garment Tag</h2>
-                    <p className="text-emerald-400 text-sm font-bold flex items-center justify-center gap-2"><Zap className="w-4 h-4 animate-pulse"/> Point camera at QR Code</p>
+                <div className="text-center mb-8">
+                    <h2 className="text-2xl font-black text-white">Scanning...</h2>
+                    <p className="text-emerald-400 font-bold flex items-center gap-2"><Zap className="w-4 h-4 animate-pulse"/> Point at a garment tag</p>
                 </div>
-
-                <div className="w-full max-w-sm overflow-hidden rounded-[3rem] border-4 border-emerald-500/30 shadow-[0_0_80px_rgba(16,185,129,0.2)]">
-                    <div id="premium-scanner" className="w-full h-full bg-zinc-900 min-h-[300px]"></div>
+                <div className="w-full max-w-sm aspect-square overflow-hidden rounded-[3rem] border-4 border-emerald-500/20">
+                    <div id="premium-scanner" className="w-full h-full bg-zinc-900"></div>
                 </div>
-                {loading && <Loader2 className="absolute bottom-32 w-10 h-10 text-emerald-500 animate-spin" />}
             </motion.div>
         )}
 
+        {/* VIEW 3: SCAN RESULT (Confirmation) */}
         {viewState === 'PRODUCT_SHOWCASE' && scannedData && (
-            <motion.div key="showcase" initial={{ opacity: 0, y: "100%" }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="fixed inset-0 z-50 bg-zinc-950 flex flex-col">
-                
-                <div className="relative h-[45vh] w-full bg-zinc-900 rounded-b-[3rem] overflow-hidden shadow-2xl">
-                    {scannedData.scannedProduct.products?.image_url ? (
-                        <img src={scannedData.scannedProduct.products.image_url} alt="Garment" className="w-full h-full object-cover opacity-80" />
-                    ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-zinc-900"><ShoppingBag className="w-20 h-20 text-zinc-800"/></div>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent"></div>
-                    
-                    <button onClick={() => setViewState('SCANNING')} className="absolute top-12 left-6 p-4 bg-black/40 backdrop-blur-xl rounded-full text-white border border-white/10">
-                        <X className="w-6 h-6" />
-                    </button>
-                    
-                    <div className="absolute bottom-6 left-6 right-6">
-                        <div className="flex justify-between items-end">
-                            <div>
-                                <p className="text-emerald-400 text-xs font-bold tracking-widest uppercase mb-1">{scannedData.scannedProduct.id}</p>
-                                <h1 className="text-4xl font-black text-white leading-tight">{scannedData.scannedProduct.products?.name}</h1>
-                            </div>
-                            <h2 className="text-3xl font-black text-white">₹{scannedData.scannedProduct.products?.price}</h2>
-                        </div>
+            <motion.div key="showcase" initial={{ y: "100%" }} animate={{ y: 0 }} className="fixed inset-0 z- bg-zinc-950 flex flex-col p-6">
+                <div className="flex-1 rounded-[3rem] overflow-hidden relative bg-zinc-900">
+                    <img src={scannedData.scannedProduct.products?.image_url} className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent"></div>
+                    <div className="absolute bottom-8 left-8">
+                        <h2 className="text-4xl font-black">{scannedData.scannedProduct.products?.name}</h2>
+                        <p className="text-2xl font-bold text-emerald-400">₹{scannedData.scannedProduct.products?.price}</p>
                     </div>
                 </div>
-
-                <div className="p-6">
-                    <button onClick={addToCart} className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xl py-5 rounded-[2rem] flex items-center justify-center gap-3 shadow-[0_0_40px_rgba(16,185,129,0.3)] transition-all active:scale-95">
-                        <CheckCircle2 className="w-7 h-7" /> Confirm Add to Bag
-                    </button>
+                <div className="py-6 flex gap-4">
+                    <button onClick={() => setViewState('SCANNING')} className="flex-1 bg-zinc-800 py-5 rounded-[2rem] font-black">Cancel</button>
+                    <button onClick={addToCart} className="flex- bg-emerald-500 text-black py-5 rounded-[2rem] font-black shadow-lg shadow-emerald-500/20">Confirm Add</button>
                 </div>
             </motion.div>
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-          {viewState === 'CART_VIEW' && (
-              <motion.div initial={{ y: 100 }} animate={{ y: 0 }} exit={{ y: 100 }} className="fixed bottom-0 left-0 w-full p-6 z-40">
-                  <div className="max-w-md mx-auto relative bg-zinc-900/90 backdrop-blur-xl border border-zinc-800 p-4 rounded-[2.5rem] flex items-center justify-between shadow-2xl">
-                      
+      {/* FIXED BOTTOM NAVIGATION (Overlap Fixed) */}
+      {viewState === 'CART_VIEW' && (
+          <div className="fixed bottom-0 left-0 w-full p-6 z-">
+              <div className="max-w-md mx-auto relative h-28 flex items-end">
+                  
+                  {/* Floating QR Button - Moved UP to avoid overlap */}
+                  <button 
+                    onClick={() => setViewState('SCANNING')}
+                    className="absolute left-1/2 -translate-x-1/2 -top-6 bg-emerald-400 text-black p-6 rounded-full shadow-[0_15px_40px_rgba(52,211,153,0.4)] border-4 border-zinc-950 hover:scale-110 active:scale-95 transition-all z-"
+                  >
+                      <QrCode className="w-10 h-10" />
+                  </button>
+
+                  {/* Glass Checkout Bar */}
+                  <div className="w-full bg-zinc-900/80 backdrop-blur-2xl border border-zinc-800 p-4 rounded-[2.5rem] flex items-center justify-between shadow-2xl">
                       <div className="pl-4">
-                          <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest">Grand Total</p>
+                          <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">Grand Total</p>
                           <p className="text-2xl font-black text-white">₹{totalAmount}</p>
                       </div>
 
-                      <button onClick={() => setViewState('SCANNING')} className="absolute left-1/2 -translate-x-1/2 -top-8 bg-emerald-500 text-black p-5 rounded-full shadow-[0_0_40px_rgba(16,185,129,0.4)] border-4 border-zinc-950 hover:scale-110 transition-transform active:scale-95">
-                          <QrCode className="w-8 h-8" />
-                      </button>
-
-                      <button onClick={handleCheckout} disabled={cart.length === 0 || isCheckingOut} className="bg-white text-black px-6 py-4 rounded-[1.5rem] font-black flex items-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed">
-                          {isCheckingOut ? <Loader2 className="w-5 h-5 animate-spin"/> : <CreditCard className="w-5 h-5" />}
-                          Buy
+                      <button className="bg-white text-black px-8 py-4 rounded-[1.5rem] font-black flex items-center gap-2 hover:bg-zinc-200 transition-colors">
+                          <CreditCard className="w-5 h-5" /> Buy
                       </button>
                   </div>
-              </motion.div>
-          )}
-      </AnimatePresence>
+              </div>
+          </div>
+      )}
 
-      <style jsx global>{`.hide-scrollbar::-webkit-scrollbar { display: none; } .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
+      <style jsx global>{`.hide-scrollbar::-webkit-scrollbar { display: none; }`}</style>
     </main>
   );
 }
