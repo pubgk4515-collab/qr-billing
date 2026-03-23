@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { ShoppingBag, CheckCircle2, Loader2 } from 'lucide-react';
-import { useRouter } from 'next/navigation'; // 🔥 Imported the router
 
 type AddToCartProps = {
     product: any;
@@ -11,22 +10,48 @@ type AddToCartProps = {
 
 export default function AddToCart({ product, tagId }: AddToCartProps) {
     const [status, setStatus] = useState<'IDLE' | 'ADDING' | 'ADDED'>('IDLE');
-    const router = useRouter(); // 🔥 Initialized the router
 
     const handleAddToCart = async () => {
         if (status !== 'IDLE') return;
 
         setStatus('ADDING');
 
-        // FUTURE-PROOF: This is where actual database/localStorage cart logic will go
-        // For now, simulating an 800ms network delay
+        // 🔥 THE MAGIC: Saving to Browser Memory (localStorage)
+        try {
+            // Purana cart uthao (agar kuch pehle se hai)
+            const existingCartString = localStorage.getItem('premium_cart');
+            const existingCart = existingCartString ? JSON.parse(existingCartString) : [];
+
+            // Check karo ki ye tag pehle se toh nahi daala hua
+            const isAlreadyInCart = existingCart.find((item: any) => item.tagId === tagId);
+
+            if (!isAlreadyInCart) {
+                // Naya item cart array mein push karo
+                existingCart.push({
+                    tagId: tagId,
+                    productId: product.id,
+                    name: product.name,
+                    price: product.price,
+                    image_url: product.image_url,
+                    category: product.category
+                });
+                
+                // Naye cart ko wapas memory mein save kar do
+                localStorage.setItem('premium_cart', JSON.stringify(existingCart));
+            }
+        } catch (error) {
+            console.error("Cart error:", error);
+        }
+
+        // Fake loading for UI feel
         await new Promise((resolve) => setTimeout(resolve, 800));
 
         setStatus('ADDED');
 
-        // 🔥 Wait for 1 second so the user sees the success animation, then redirect!
+        // Redirect to Cart page
         setTimeout(() => {
-            router.push('/billing'); // Change to '/billing' if your cart route is named differently
+            // DHYAN RAHE: Agar aapka cart page '/billing' hai, toh isko '/billing' kijiye
+            window.location.href = '/billing'; 
         }, 1000); 
     };
 
