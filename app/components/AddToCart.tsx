@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ShoppingBag, CheckCircle2, Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation'; // 🔥 Imported the router
 
 type AddToCartProps = {
     product: any;
@@ -10,22 +11,23 @@ type AddToCartProps = {
 
 export default function AddToCart({ product, tagId }: AddToCartProps) {
     const [status, setStatus] = useState<'IDLE' | 'ADDING' | 'ADDED'>('IDLE');
+    const router = useRouter(); // 🔥 Initialized the router
 
     const handleAddToCart = async () => {
         if (status !== 'IDLE') return;
 
         setStatus('ADDING');
 
-        // 🔥 FUTURE-PROOF: Yahan hum aage chalkar Database/Cart logic lagayenge
-        // Abhi ke liye hum 1 second ka realistic loading delay simulate kar rahe hain
+        // FUTURE-PROOF: This is where actual database/localStorage cart logic will go
+        // For now, simulating an 800ms network delay
         await new Promise((resolve) => setTimeout(resolve, 800));
 
         setStatus('ADDED');
 
-        // 3 second baad button wapas normal ho jayega (agar aur items add karne ho)
+        // 🔥 Wait for 1 second so the user sees the success animation, then redirect!
         setTimeout(() => {
-            setStatus('IDLE');
-        }, 3000);
+            router.push('/cart'); // Change to '/billing' if your cart route is named differently
+        }, 1000); 
     };
 
     return (
