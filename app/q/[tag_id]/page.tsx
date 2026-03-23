@@ -1,3 +1,4 @@
+'use client';
 import { supabase } from '../../lib/supabase';
 import AddToCart from '../../components/AddToCart';
 import { PackageX, Tag, ShoppingBag } from 'lucide-react';
