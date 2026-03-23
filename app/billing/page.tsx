@@ -62,12 +62,23 @@ export default function BillingPage() {
     setTimeout(() => setSuccessMsg(''), 3000);
   };
 
+  // 🔥 FIXED: Extract tag ID from URL if present
   const handleScanSuccess = async (decodedText: string) => {
     if (isProcessingScan.current) return;
     isProcessingScan.current = true;
     if (window.navigator?.vibrate) window.navigator.vibrate(50);
 
-    const formattedTag = decodedText.trim().toUpperCase();
+    // Extract ID if it's a URL, otherwise use raw text
+    let tagId = decodedText.trim();
+    if (tagId.includes('/q/')) {
+      tagId = tagId.split('/q/').pop() || tagId;
+    } else if (tagId.includes('/')) {
+      tagId = tagId.split('/').pop() || tagId;
+    }
+
+    const formattedTag = tagId.toUpperCase();
+
+    // Check duplicate in cart
     if (cart.some(item => item.id === formattedTag)) {
       showError(`${formattedTag} is already in your bag!`);
       setViewState('CART_VIEW');
@@ -82,7 +93,7 @@ export default function BillingPage() {
         setScannedData({ scannedProduct: res.tag, relatedProducts: res.relatedProducts });
         setViewState('PRODUCT_SHOWCASE');
       } else {
-        showError(res.message || 'Invalid Tag: This QR code is not in the database.');
+        showError(res.message || `Tag ${formattedTag} not found in database.`);
         setViewState('CART_VIEW');
       }
     } catch (err) {
