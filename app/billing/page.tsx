@@ -2,11 +2,10 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { getProductByTag, processCheckout } from '../actions/billingActions';
-import { ShoppingBag, Trash2, CreditCard, Loader2, XCircle, QrCode, X, Zap, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { ShoppingBag, Trash2, CreditCard, Loader2, XCircle, QrCode, X, Zap, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
 
-// 🔄 3-State Loop Machine
 type ViewState = 'CART_VIEW' | 'SCANNING' | 'PRODUCT_SHOWCASE';
 
 export default function BillingPage() {
@@ -18,13 +17,12 @@ export default function BillingPage() {
   const [errorMsg, setErrorMsg] = useState('');
   
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
-  const scannerContainerId = "premium-scanner";
+  const isProcessingScan = useRef(false); // 🔥 PREVENTS DOUBLE SCAN CRASHES
 
-  // 📸 Camera Lifecycle Management
   useEffect(() => {
     if (viewState === 'SCANNING' && !scannerRef.current) {
         const scanner = new Html5QrcodeScanner(
-            scannerContainerId,
+            "premium-scanner",
             { 
               fps: 10, 
               qrbox: { width: 250, height: 250 }, 
@@ -34,7 +32,7 @@ export default function BillingPage() {
             },
             false
         );
-        scanner.render(handleScanSuccess, () => {}); // Ignoring continuous scan errors
+        scanner.render(handleScanSuccess, () => {});
         scannerRef.current = scanner;
     } else if (viewState !== 'SCANNING' && scannerRef.current) {
         scannerRef.current.clear().catch(console.error);
@@ -48,9 +46,11 @@ export default function BillingPage() {
     };
   }, [viewState]);
 
-  // 🎯 On Successful Scan
   const handleScanSuccess = async (decodedText: string) => {
-    if (window.navigator && window.navigator.vibrate) window.navigator.vibrate(50); // Haptic Feedback
+    if (isProcessingScan.current) return;
+    isProcessingScan.current = true;
+
+    if (window.navigator && window.navigator.vibrate) window.navigator.vibrate(50);
     
     if (scannerRef.current) {
         await scannerRef.current.clear().catch(console.error);
@@ -62,6 +62,7 @@ export default function BillingPage() {
     if (cart.some(item => item.id === formattedTag)) {
         showError(`${formattedTag} pehle se bag mein hai!`);
         setViewState('CART_VIEW');
+        isProcessingScan.current = false;
         return;
     }
 
@@ -71,16 +72,19 @@ export default function BillingPage() {
     if (res.success) {
         setScannedData({ scannedProduct: res.tag, relatedProducts: res.relatedProducts });
         setViewState('PRODUCT_SHOWCASE'); 
-    } else {
-        showError(res.message);
+        } else {
+        // Agar res.message nahi mila, toh default message dikha do
+        showError(res.message || "Item scan karne mein problem aayi, wapas try karein!");
         setViewState('CART_VIEW');
     }
+
     setLoading(false);
+    isProcessingScan.current = false;
   };
 
   const showError = (msg: string) => {
       setErrorMsg(msg);
-      setTimeout(() => setErrorMsg(''), 3000);
+      setTimeout(() => setErrorMsg(''), 4000);
   };
 
   const addToCart = () => {
@@ -108,12 +112,11 @@ export default function BillingPage() {
     setIsCheckingOut(false);
   };
 
-  const totalAmount = cart.reduce((sum, item) => sum + item.products.price, 0);
+  const totalAmount = cart.reduce((sum, item) => sum + item.products?.price || 0, 0);
 
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100 font-sans pb-32 overflow-hidden">
       
-      {/* 🔴 Custom Error Toast */}
       <AnimatePresence>
           {errorMsg && (
               <motion.div initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -50 }} className="fixed top-6 left-1/2 -translate-x-1/2 z- bg-red-500/90 backdrop-blur-md text-white font-bold px-6 py-3 rounded-full border border-red-400 shadow-2xl flex items-center gap-2 whitespace-nowrap">
@@ -124,7 +127,6 @@ export default function BillingPage() {
 
       <AnimatePresence mode="wait">
         
-        {/* ================= STATE 1: MY BAG (CART VIEW) ================= */}
         {viewState === 'CART_VIEW' && (
             <motion.div key="cart" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="min-h-screen flex flex-col">
                 <header className="px-6 pt-12 pb-6 flex items-center justify-between">
@@ -145,15 +147,15 @@ export default function BillingPage() {
                             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} key={item.id} className="bg-zinc-900/80 backdrop-blur-sm p-4 rounded-[2rem] border border-zinc-800 flex items-center justify-between shadow-xl">
                                 <div className="flex items-center gap-4">
                                     <div className="w-16 h-16 bg-zinc-800 rounded-2xl overflow-hidden border border-zinc-700">
-                                        {item.products.image_url && <img src={item.products.image_url} alt="img" className="w-full h-full object-cover" />}
+                                        {item.products?.image_url && <img src={item.products.image_url} alt="img" className="w-full h-full object-cover" />}
                                     </div>
                                     <div>
-                                        <h3 className="font-bold text-lg text-white leading-tight">{item.products.name}</h3>
+                                        <h3 className="font-bold text-lg text-white leading-tight">{item.products?.name}</h3>
                                         <p className="text-zinc-500 text-xs font-bold tracking-widest uppercase">{item.id}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-4">
-                                    <p className="text-xl font-black">₹{item.products.price}</p>
+                                    <p className="text-xl font-black">₹{item.products?.price}</p>
                                     <button onClick={() => removeFromCart(item.id)} className="p-3 text-zinc-500 hover:text-red-400 bg-zinc-950 rounded-xl transition-colors"><Trash2 className="w-5 h-5"/></button>
                                 </div>
                             </motion.div>
@@ -163,7 +165,6 @@ export default function BillingPage() {
             </motion.div>
         )}
 
-        {/* ================= STATE 2: SCANNING CAMERA ================= */}
         {viewState === 'SCANNING' && (
             <motion.div key="scan" initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center">
                 <button onClick={() => setViewState('CART_VIEW')} className="absolute top-12 right-6 p-4 bg-zinc-900/80 backdrop-blur-md rounded-full text-white z-50 border border-zinc-700">
@@ -176,19 +177,17 @@ export default function BillingPage() {
                 </div>
 
                 <div className="w-full max-w-sm overflow-hidden rounded-[3rem] border-4 border-emerald-500/30 shadow-[0_0_80px_rgba(16,185,129,0.2)]">
-                    <div id={scannerContainerId} className="w-full h-full bg-zinc-900 min-h-[300px]"></div>
+                    <div id="premium-scanner" className="w-full h-full bg-zinc-900 min-h-[300px]"></div>
                 </div>
                 {loading && <Loader2 className="absolute bottom-32 w-10 h-10 text-emerald-500 animate-spin" />}
             </motion.div>
         )}
 
-        {/* ================= STATE 3: PRODUCT SHOWCASE ================= */}
         {viewState === 'PRODUCT_SHOWCASE' && scannedData && (
             <motion.div key="showcase" initial={{ opacity: 0, y: "100%" }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="fixed inset-0 z-50 bg-zinc-950 flex flex-col">
                 
-                {/* Hero Image Section */}
                 <div className="relative h-[45vh] w-full bg-zinc-900 rounded-b-[3rem] overflow-hidden shadow-2xl">
-                    {scannedData.scannedProduct.products.image_url ? (
+                    {scannedData.scannedProduct.products?.image_url ? (
                         <img src={scannedData.scannedProduct.products.image_url} alt="Garment" className="w-full h-full object-cover opacity-80" />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center bg-zinc-900"><ShoppingBag className="w-20 h-20 text-zinc-800"/></div>
@@ -203,27 +202,25 @@ export default function BillingPage() {
                         <div className="flex justify-between items-end">
                             <div>
                                 <p className="text-emerald-400 text-xs font-bold tracking-widest uppercase mb-1">{scannedData.scannedProduct.id}</p>
-                                <h1 className="text-4xl font-black text-white leading-tight">{scannedData.scannedProduct.products.name}</h1>
+                                <h1 className="text-4xl font-black text-white leading-tight">{scannedData.scannedProduct.products?.name}</h1>
                             </div>
-                            <h2 className="text-3xl font-black text-white">₹{scannedData.scannedProduct.products.price}</h2>
+                            <h2 className="text-3xl font-black text-white">₹{scannedData.scannedProduct.products?.price}</h2>
                         </div>
                     </div>
                 </div>
 
-                {/* Add to Bag Button */}
                 <div className="p-6">
                     <button onClick={addToCart} className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xl py-5 rounded-[2rem] flex items-center justify-center gap-3 shadow-[0_0_40px_rgba(16,185,129,0.3)] transition-all active:scale-95">
                         <CheckCircle2 className="w-7 h-7" /> Add to Bag
                     </button>
                 </div>
 
-                {/* Complete The Look (Matches) */}
-                {scannedData.relatedProducts.length > 0 && (
+                {scannedData.relatedProducts?.length > 0 && (
                     <div className="mt-2 flex-1">
                         <h3 className="px-6 text-sm font-bold text-zinc-400 uppercase tracking-widest mb-4">Complete The Look</h3>
                         <div className="flex gap-4 overflow-x-auto px-6 pb-6 snap-x hide-scrollbar">
                             {scannedData.relatedProducts.map((related: any) => (
-                                <div key={related.id} onClick={() => showError(`Scan ${related.name}'s tag to add to bag!`)} className="snap-start shrink-0 w-36 bg-zinc-900/50 p-3 rounded-3xl border border-zinc-800 cursor-pointer active:scale-95 transition-transform">
+                                <div key={related.id} onClick={() => showError(`Scan ${related.name}'s tag to add!`)} className="snap-start shrink-0 w-36 bg-zinc-900/50 p-3 rounded-3xl border border-zinc-800 cursor-pointer active:scale-95 transition-transform">
                                     <div className="w-full h-36 bg-zinc-950 rounded-2xl mb-3 overflow-hidden">
                                         {related.image_url && <img src={related.image_url} alt="match" className="w-full h-full object-cover" />}
                                     </div>
@@ -238,24 +235,20 @@ export default function BillingPage() {
         )}
       </AnimatePresence>
 
-      {/* ================= FIXED BOTTOM NAVIGATION (Only shows in Cart View) ================= */}
       <AnimatePresence>
           {viewState === 'CART_VIEW' && (
               <motion.div initial={{ y: 100 }} animate={{ y: 0 }} exit={{ y: 100 }} className="fixed bottom-0 left-0 w-full p-6 z-40">
                   <div className="max-w-md mx-auto relative bg-zinc-900/90 backdrop-blur-xl border border-zinc-800 p-4 rounded-[2.5rem] flex items-center justify-between shadow-2xl">
                       
-                      {/* Left Side (Total) */}
                       <div className="pl-4">
                           <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest">Grand Total</p>
                           <p className="text-2xl font-black text-white">₹{totalAmount}</p>
                       </div>
 
-                      {/* Center FAB (Floating Action Button) for Scanner */}
                       <button onClick={() => setViewState('SCANNING')} className="absolute left-1/2 -translate-x-1/2 -top-8 bg-emerald-500 text-black p-5 rounded-full shadow-[0_0_40px_rgba(16,185,129,0.4)] border-4 border-zinc-950 hover:scale-110 transition-transform active:scale-95">
                           <QrCode className="w-8 h-8" />
                       </button>
 
-                      {/* Right Side (Checkout) */}
                       <button onClick={handleCheckout} disabled={cart.length === 0 || isCheckingOut} className="bg-white text-black px-6 py-4 rounded-[1.5rem] font-black flex items-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed">
                           {isCheckingOut ? <Loader2 className="w-5 h-5 animate-spin"/> : <CreditCard className="w-5 h-5" />}
                           Buy
