@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getProductByTag, processCheckout } from '../actions/billingActions';
 import { ShoppingBag, Trash2, CreditCard, Loader2, XCircle, QrCode, X, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -62,13 +62,13 @@ export default function BillingPage() {
     setTimeout(() => setSuccessMsg(''), 3000);
   };
 
-  // 🔥 FIXED: Extract tag ID from URL if present
-  const handleScanSuccess = async (decodedText: string) => {
+  // 🔥 handleScanSuccess wrapped in useCallback to prevent re‑creation
+  const handleScanSuccess = useCallback(async (decodedText: string) => {
     if (isProcessingScan.current) return;
     isProcessingScan.current = true;
     if (window.navigator?.vibrate) window.navigator.vibrate(50);
 
-    // Extract ID if it's a URL, otherwise use raw text
+    // Extract tag ID if it's a URL
     let tagId = decodedText.trim();
     if (tagId.includes('/q/')) {
       tagId = tagId.split('/q/').pop() || tagId;
@@ -78,7 +78,6 @@ export default function BillingPage() {
 
     const formattedTag = tagId.toUpperCase();
 
-    // Check duplicate in cart
     if (cart.some(item => item.id === formattedTag)) {
       showError(`${formattedTag} is already in your bag!`);
       setViewState('CART_VIEW');
@@ -93,87 +92,60 @@ export default function BillingPage() {
         setScannedData({ scannedProduct: res.tag, relatedProducts: res.relatedProducts });
         setViewState('PRODUCT_SHOWCASE');
       } else {
-        showError(res.message || `Tag ${formattedTag} not found in database.`);
+        showError(res.message || `Tag ${formattedTag} not found.`);
         setViewState('CART_VIEW');
       }
     } catch (err) {
-      console.error('Error fetching product:', err);
-      showError('Server error. Please try again.');
+      console.error('Fetch error:', err);
+      showError('Server error.');
       setViewState('CART_VIEW');
     } finally {
       setLoading(false);
       isProcessingScan.current = false;
     }
-  };
+  }, [cart]); // Re‑create only when cart changes
 
-  // Scanner initializer with auto‑start back camera
-  useLayoutEffect(() => {
-    if (viewState !== 'SCANNING') return;
+  // 🎯 Callback ref – bulletproof scanner initializer
+  const scannerCallbackRef = useCallback((node: HTMLDivElement | null) => {
+    if (node !== null && viewState === 'SCANNING') {
+      if (!scannerRef.current) {
+        const html5QrCode = new Html5Qrcode(node.id);
+        scannerRef.current = html5QrCode;
 
-    const timer = setTimeout(async () => {
-      const element = document.getElementById(containerId);
-      if (!element) {
-        console.error('Scanner container not found');
-        showError('Scanner error: container not found');
-        setViewState('CART_VIEW');
-        return;
-      }
-
-      const html5QrCode = new Html5Qrcode(containerId);
-      scannerRef.current = html5QrCode;
-
-      try {
-        await html5QrCode.start(
-          { facingMode: 'environment' }, // Force back camera
-          {
-            fps: 10,
-            qrbox: { width: 250, height: 250 },
-          },
-          (decodedText) => {
-            handleScanSuccess(decodedText);
-            // Stop scanner after successful scan
-            if (scannerRef.current) {
-              scannerRef.current.stop().catch(console.error);
-            }
-          },
-          (errorMessage) => {
-            // Ignore normal scanning errors (like "no QR found")
-            if (errorMessage && !errorMessage.includes('No MultiFormat Readers')) {
-              console.warn('Scanner error:', errorMessage);
-            }
-          }
-        );
-      } catch (err) {
-        console.error('Camera start error:', err);
-        showError('Camera failed. Check permissions and try again.');
-        setViewState('CART_VIEW');
-        if (scannerRef.current) {
+        // Short delay to allow any animations to finish
+        setTimeout(async () => {
           try {
-            await scannerRef.current.clear();
-          } catch (clearErr) {
-            console.error('Clear error:', clearErr);
-          }
-          scannerRef.current = null;
-        }
-      }
-    }, 300); // Small delay to ensure DOM is ready
-
-    return () => {
-      clearTimeout(timer);
-      if (scannerRef.current) {
-        // Use async IIFE to handle Promise without .catch() TypeScript error
-        (async () => {
-          try {
-            await scannerRef.current?.stop();
-            await scannerRef.current?.clear();
+            await html5QrCode.start(
+              { facingMode: 'environment' }, // Back camera
+              {
+                fps: 10,
+                qrbox: { width: 250, height: 250 },
+              },
+              (text) => {
+                handleScanSuccess(text);
+                // Stop camera after successful scan
+                html5QrCode.stop().catch(() => {});
+              },
+              () => {} // Ignore frame search errors
+            );
           } catch (err) {
-            console.error('Scanner cleanup error:', err);
-          } finally {
-            scannerRef.current = null;
+            console.error('Camera start error:', err);
+            showError('Camera failed. Check permissions.');
+            setViewState('CART_VIEW');
           }
-        })();
+        }, 100);
       }
-    };
+    } else {
+      // Cleanup when scanning view is closed
+      if (scannerRef.current) {
+        scannerRef.current.stop()
+          .then(() => scannerRef.current?.clear())
+          .catch(() => {})
+          .finally(() => {
+            scannerRef.current = null;
+          });
+      }
+    }
   }, [viewState, handleScanSuccess, showError, setViewState]);
 
   const addToCart = () => {
@@ -315,7 +287,12 @@ export default function BillingPage() {
               <X className="w-6 h-6" />
             </button>
             <div className="relative w-full max-w-md aspect-square rounded-3xl overflow-hidden shadow-2xl bg-zinc-900">
-              <div id={containerId} className="w-full h-full"></div>
+              <div
+                id={containerId}
+                ref={scannerCallbackRef}   // 🎯 The magic line
+                className="w-full h-full"
+                style={{ minHeight: '300px' }}
+              ></div>
               {/* Overlay frame for visual guidance */}
               <div className="absolute inset-0 border-[2px] border-emerald-500/30 rounded-3xl pointer-events-none"></div>
             </div>
