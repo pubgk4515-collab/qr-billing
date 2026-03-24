@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Lock, Unlock, Activity, ActivityIcon, ArrowLeft, Loader2 } from 'lucide-react';
+import { Lock, Unlock, ActivityIcon, ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { getStoreData } from '../../actions/adminActions'; // Reuse existing engine
+import { getStoreData } from '../../actions/adminActions'; 
 
 export default function AdminAnalyticsPage() {
   // 🔐 Security State
@@ -13,14 +13,14 @@ export default function AdminAnalyticsPage() {
   const [error, setError] = useState('');
   const ADMIN_PIN = '7788'; // Reuse MVP PIN
 
-  // Data States
+  // 📦 Data States
   const [data, setData] = useState<{ qrTags: any[] }>({ qrTags: [] });
   const [loading, setLoading] = useState(true);
 
   // Load fresh data when page opens (after unlock)
   async function loadData() {
     setLoading(true);
-    const response = await getStoreData(); // Same engine
+    const response = await getStoreData(); 
     if (response.success) {
       setData({ qrTags: response.qrTags || [] });
     } else {
@@ -42,17 +42,22 @@ export default function AdminAnalyticsPage() {
     }
   };
 
-  // 📊 Advanced Business Analytics Calculations
-  const soldItemsList = data.qrTags.filter(t => t.status === 'active' || t.status === 'sold');
+  // ========================================================
+  // 📊 BULLETPROOF BUSINESS ANALYTICS CALCULATIONS
+  // ========================================================
+  
+  // 1. Gross Revenue (Strictly ONLY items marked as 'sold')
+  const soldItemsList = data.qrTags.filter(t => t.status === 'sold');
   const totalRevenue = soldItemsList.reduce((sum, tag) => sum + (tag.products?.price || 0), 0);
   const averageOrderValue = soldItemsList.length > 0 ? Math.round(totalRevenue / soldItemsList.length) : 0;
   
-  // Potential Revenue (Linked items not yet sold)
-  const unsoldItemsList = data.qrTags.filter(t => t.products && t.status !== 'active' && t.status !== 'sold');
+  // 2. Inventory Value (Items linked to a product but NOT sold yet i.e., In Stock)
+  const unsoldItemsList = data.qrTags.filter(t => t.products && t.status !== 'sold');
   const potentialRevenue = unsoldItemsList.reduce((sum, tag) => sum + (tag.products?.price || 0), 0);
   
-  // Mock Scans (Placeholder for Phase 2 database counter)
-  const mockTotalScans = soldItemsList.length * 3 + 12; // Realistic UI math
+  // 3. Mock Scans (Placeholder for Phase 2 database counter logic)
+  // Ensures we only show math if there are items, avoiding weird negative/infinity numbers
+  const mockTotalScans = soldItemsList.length > 0 ? (soldItemsList.length * 3 + 12) : 0; 
   const dropOffRate = mockTotalScans > 0 ? Math.round(((mockTotalScans - soldItemsList.length) / mockTotalScans) * 100) : 0;
 
   // ==========================================
@@ -61,7 +66,6 @@ export default function AdminAnalyticsPage() {
   if (!isAuthenticated) {
     return (
       <main className="min-h-screen bg-[#09090b] flex flex-col items-center justify-center p-6 selection:bg-emerald-500/30 relative overflow-hidden">
-        {/* Ambient Glow */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-emerald-500/10 blur-[100px] rounded-full"></div>
         
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative bg-zinc-900/50 backdrop-blur-2xl p-8 rounded-[3rem] border border-white/5 shadow-2xl w-full max-w-sm text-center">
@@ -132,7 +136,7 @@ export default function AdminAnalyticsPage() {
         ) : (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-2 md:grid-cols-4 gap-6">
             
-            {/* 💸 1. Total Gross Revenue Card (Expansive Bento Box) */}
+            {/* 💸 1. Total Gross Revenue Card (Strictly Sold Items) */}
             <div className="col-span-2 md:col-span-4 bg-gradient-to-br from-emerald-500/10 to-transparent border border-emerald-500/20 p-8 rounded-[2.5rem] relative overflow-hidden shadow-2xl">
               <div className="absolute -top-20 -right-20 w-48 h-48 bg-emerald-500/10 blur-[80px] rounded-full pointer-events-none"></div>
               <div className="flex justify-between items-start mb-1 z-10 relative">
@@ -154,7 +158,7 @@ export default function AdminAnalyticsPage() {
               <p className="text-4xl font-black text-white tracking-tight">₹{averageOrderValue}</p>
             </div>
 
-            {/* 🔍 4. Scans Drop-off (UI Placeholder for Phase 2 Scan Count) */}
+            {/* 🔍 4. Scans Drop-off */}
             <div className="col-span-2 bg-white/5 border border-white/10 p-7 rounded-[2.5rem] shadow-xl flex justify-between items-center relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 blur-3xl rounded-full"></div>
                 <div className="z-10 relative">
@@ -170,11 +174,11 @@ export default function AdminAnalyticsPage() {
                 </div>
             </div>
 
-            {/* 🏭 5. Potential Revenue (linked unsold items) */}
+            {/* 🏭 5. Potential Revenue (Unsold linked items) */}
             <div className="col-span-2 bg-blue-500/5 border border-blue-500/10 p-7 rounded-[2.5rem] flex justify-between items-center shadow-xl">
                 <div>
                     <p className="text-blue-400/80 text-xs font-black uppercase tracking-widest mb-2">Inventory Value</p>
-                    <p className="text-zinc-400 text-sm font-medium">Unsold linked items value</p>
+                    <p className="text-zinc-400 text-sm font-medium">Unsold in-stock items value</p>
                 </div>
                 <p className="text-3xl font-black text-blue-400 tracking-tighter">₹{potentialRevenue.toLocaleString()}</p>
             </div>
