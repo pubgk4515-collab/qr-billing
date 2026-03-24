@@ -5,9 +5,12 @@ import { motion } from 'framer-motion';
 import { Lock, Unlock, ActivityIcon, ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { getStoreData } from '../../actions/adminActions'; 
+import { useRouter } from 'next/navigation';
+
 
 export default function AdminAnalyticsPage() {
   // 🔐 Security State
+  const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passcode, setPasscode] = useState('');
   const [error, setError] = useState('');
@@ -91,9 +94,9 @@ export default function AdminAnalyticsPage() {
             </button>
           </form>
           <div className="pt-6">
-            <Link href="/admin" className="text-zinc-500 text-xs font-bold hover:text-white flex items-center justify-center gap-2">
-                <ArrowLeft className="w-3 h-3"/> Back to Control Panel
-            </Link>
+            <button onClick={() => router.back()} className="text-zinc-500 text-xs font-bold hover:text-white flex items-center justify-center gap-2 w-full mt-6">
+    <ArrowLeft className="w-3 h-3"/> Back to Control Panel
+</button>
           </div>
         </motion.div>
       </main>
@@ -110,9 +113,9 @@ export default function AdminAnalyticsPage() {
       <header className="px-6 pt-12 pb-6 sticky top-0 z-40 bg-[#09090b]/80 backdrop-blur-xl border-b border-white/5">
         <div className="flex justify-between items-center max-w-7xl mx-auto px-4 md:px-8">
           <div className="flex items-center gap-4">
-            <Link href="/admin" className="bg-zinc-900 p-3 rounded-full border border-white/5 hover:bg-zinc-800 transition">
-              <ArrowLeft className="w-5 h-5 text-zinc-400" />
-            </Link>
+            <button onClick={() => router.back()} className="bg-zinc-900 p-3 rounded-full border border-white/5 hover:bg-zinc-800 transition">
+  <ArrowLeft className="w-5 h-5 text-zinc-400" />
+</button>
             <div>
               <h1 className="text-4xl font-black text-white flex items-center gap-3 tracking-tight">
                 <ActivityIcon className="w-9 h-9 text-emerald-400" strokeWidth={2.5}/> Analytics
