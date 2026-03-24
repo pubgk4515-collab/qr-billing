@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, QrCode, PackagePlus, Loader2, Download, X, ExternalLink,
-  Link2, Unlink, Edit2, UploadCloud, Lock, KeyRound, Plus, Tag, Hash,
+  Link2, Unlink, Edit2, UploadCloud, Activity, Lock, KeyRound, Plus, Tag, Hash,
   CheckCircle2, AlertCircle, Search, Filter, Grid, List
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
@@ -34,6 +34,8 @@ export default function AdminDashboard() {
   const [filter, setFilter] = useState<FilterType>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [searchTerm, setSearchTerm] = useState('');
+  const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
+
 
   // Modal & Interaction States
   const [selectedTag, setSelectedTag] = useState<any>(null);
@@ -217,6 +219,25 @@ export default function AdminDashboard() {
   const totalTags = data.qrTags.length;
   const soldTags = data.qrTags.filter(t => t.status === 'active').length;
   const freeTags = data.qrTags.filter(t => t.status === 'free').length;
+
+    // 📊 Advanced Business Analytics
+  // Note: Aapke database mein 'sold' items ka status 'active' ya 'sold' dono ho sakta hai
+  const soldItemsList = data.qrTags.filter(t => t.status === 'active' || t.status === 'sold');
+  
+  // Total Revenue: Sold items ki price ka sum
+  const totalRevenue = soldItemsList.reduce((sum, tag) => sum + (tag.products?.price || 0), 0);
+  
+  // Average Order Value (AOV)
+  const averageOrderValue = soldItemsList.length > 0 ? Math.round(totalRevenue / soldItemsList.length) : 0;
+  
+  // Potential Revenue (Jo samaan abhi bika nahi hai uski total value)
+  const unsoldItemsList = data.qrTags.filter(t => t.products && t.status !== 'active' && t.status !== 'sold');
+  const potentialRevenue = unsoldItemsList.reduce((sum, tag) => sum + (tag.products?.price || 0), 0);
+  
+  // Mock Scans (Isse database counter banne ke baad replace karenge)
+  const mockTotalScans = soldItemsList.length * 3 + 12; // Example math for realistic UI
+  const dropOffRate = mockTotalScans > 0 ? Math.round(((mockTotalScans - soldItemsList.length) / mockTotalScans) * 100) : 0;
+
 
   // 🔒 Lock screen UI
   if (isLocked) {
@@ -616,10 +637,28 @@ export default function AdminDashboard() {
             </div>
           </ModalWrapper>
         )}
+      {/* 🚀 FLOATING ANALYTICS BUTTON */}
+      {!isLocked && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40">
+          <button 
+            onClick={() => setIsStatsModalOpen(true)}
+            className="group flex items-center gap-3 bg-white/10 backdrop-blur-2xl border border-white/20 px-6 py-4 rounded-full shadow-[0_10px_40px_rgba(0,0,0,0.5)] hover:bg-white/20 hover:border-emerald-500/50 hover:shadow-emerald-500/20 transition-all active:scale-95"
+          >
+            <div className="bg-emerald-500 p-2 rounded-full text-black">
+              <Activity className="w-5 h-5" />
+            </div>
+            <span className="text-white font-black tracking-widest uppercase text-sm">
+              Business Stats
+            </span>
+          </button>
+        </div>
+      )}
+
       </AnimatePresence>
     </main>
   );
 }
+
 
 // ========== Reusable Components with proper types ==========
 interface StatCardProps {
