@@ -62,7 +62,7 @@ export default function BillingPage() {
     setTimeout(() => setSuccessMsg(''), 3000);
   };
 
-  // 🔥 Updated handleScanSuccess: stops camera cleanly before switching view
+  // 🔥 Updated handleScanSuccess: stops camera cleanly and uses new API response
   const handleScanSuccess = useCallback(async (decodedText: string) => {
     if (isProcessingScan.current) return;
     isProcessingScan.current = true;
@@ -99,8 +99,12 @@ export default function BillingPage() {
     setLoading(true);
     try {
       const res = await getProductByTag(formattedTag);
-      if (res && res.success && res.tag) {
-        setScannedData({ scannedProduct: res.tag, relatedProducts: res.relatedProducts || [] });
+      // ✅ NEW: use res.data instead of res directly
+      if (res && res.success && res.data) {
+        setScannedData({ 
+          scannedProduct: res.data.tag, 
+          relatedProducts: res.data.relatedProducts || [] 
+        });
 
         // Small delay to ensure camera resources are fully released
         setTimeout(() => {

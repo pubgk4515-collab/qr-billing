@@ -1,82 +1,135 @@
+// app/actions/billingActions.ts
 'use server';
 
-import { createSupabaseServer } from '../lib/supabaseServer';
+import { createClient } from '@supabase/supabase-js';
 
-// 1. Fetch Product Data from Tag ID
+// 🛡️ Supabase client initializer (safe for server actions)
+function getSupabase() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('❌ Missing Supabase environment variables');
+  }
+
+  return createClient(supabaseUrl, supabaseKey);
+}
+
+// ============================================================================
+// 🔍 1. GET PRODUCT BY TAG ID
+// ============================================================================
 export async function getProductByTag(tagId: string) {
-    const supabase = createSupabaseServer();
-    
-    const { data: tag, error } = await supabase
-        .from('qr_tags')
-        .select('*, products(*)')
-        .eq('id', tagId)
-        .single();
+  try {
+    const supabase = getSupabase();
 
-    if (error || !tag) return { success: false, message: "Tag not found in database!" };
-    if (tag.status === 'sold') return { success: false, message: "This item is already sold!" };
+    // Fetch the tag and its linked product
+    const { data: tag, error: tagError } = await supabase
+      .from('qr_tags')
+      .select('*, products(*)')
+      .eq('id', tagId)
+      .single();
 
-    // Related products logic (Complete the look)
-    const { data: related } = await supabase
+    if (tagError || !tag) {
+      return {
+        success: false,
+        message: tagError?.message || 'Tag not found',
+      };
+    }
+
+    // If the tag is free or no product linked, treat as not found
+    if (tag.status === 'free' || !tag.products) {
+      return {
+        success: false,
+        message: 'This tag is not linked to any product',
+      };
+    }
+
+    // Optionally fetch related products (same category, if exists)
+    let relatedProducts = [];
+    if (tag.products.category) {
+      const { data: related } = await supabase
         .from('products')
         .select('*')
-        .eq('category', tag.products?.category)
-        .neq('id', tag.products?.id)
-        .limit(4);
+        .eq('category', tag.products.category)
+        .neq('id', tag.products.id) // exclude the current product
+        .limit(3);
+      relatedProducts = related || [];
+    }
 
-    return { success: true, tag, relatedProducts: related || [] };
+    return {
+      success: true,
+      data: {
+        tag,
+        relatedProducts,
+      },
+    };
+  } catch (error: any) {
+    console.error('GetProductByTag error:', error);
+    return {
+      success: false,
+      message: error.message || 'Server error',
+    };
+  }
 }
 
-// 2. 🔥 The Master Checkout Logic: Marks items as sold and resets tags
+// ============================================================================
+// 🛒 2. PROCESS CHECKOUT
+// ============================================================================
 export async function processCheckout(tagIds: string[]) {
-    const supabase = createSupabaseServer();
+  try {
+    const supabase = getSupabase();
 
-    try {
-        // 1. Pehle price pata karo un tags ki jo bik rahe hain
-        const { data: tagsToSell } = await supabase
-            .from('qr_tags')
-            .select('*, products(price)')
-            .in('id', tagIds);
+    // Fetch the tags with their products to calculate total amount
+    const { data: tagsToSell, error: fetchError } = await supabase
+      .from('qr_tags')
+      .select('*, products(price)')
+      .in('id', tagIds);
 
-        let totalAmount = 0;
-        if (tagsToSell) {
-            totalAmount = tagsToSell.reduce((sum, t) => sum + (t.products?.price || 0), 0);
-        }
+    if (fetchError) throw fetchError;
 
-        // 2. 📝 NEW: Sale ka record register (Sales table) mein daalo
-        if (totalAmount > 0) {
-            await supabase.from('sales').insert({ 
-                total_amount: totalAmount, 
-                items_count: tagIds.length 
-            });
-        }
+    const totalAmount = tagsToSell?.reduce((sum, t) => sum + (t.products?.price || 0), 0) || 0;
 
-        // 3. Purana logic: Tags ko wapas FREE aur Empty kar do reuse ke liye
-        const { error: tagError } = await supabase
-            .from('qr_tags')
-            .update({ status: 'free', product_id: null })
-            .in('id', tagIds);
+    // Create a permanent sales record
+    if (totalAmount > 0) {
+      const { error: salesError } = await supabase
+        .from('sales')
+        .insert({ total_amount: totalAmount, items_count: tagIds.length });
 
-        if (tagError) throw tagError;
-
-        return { success: true };
-    } catch (error: any) {
-        console.error("Checkout Error:", error);
-        return { success: false, message: "Transaction failed." };
+      if (salesError) throw salesError;
     }
+
+    // Free the tags and remove product links
+    const { error: tagError } = await supabase
+      .from('qr_tags')
+      .update({ status: 'free', product_id: null })
+      .in('id', tagIds);
+
+    if (tagError) throw tagError;
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Checkout error:', error);
+    return { success: false, message: error.message || 'Transaction failed' };
+  }
 }
+
+// ============================================================================
+// 📊 3. GET SALES DATA (for analytics)
+// ============================================================================
 export async function getSalesData() {
-    try {
-        const supabase = createSupabaseServer();
-        const { data, error } = await supabase
-            .from('sales')
-            .select('*')
-            .order('created_at', { ascending: false });
-            
-        if (error) throw error;
-        
-        return { success: true, sales: data };
-    } catch (error: any) {
-        console.error("Sales Fetch Error:", error);
-        return { success: false, message: error.message };
-    }
+  try {
+    const supabase = getSupabase();
+
+    const { data, error } = await supabase
+      .from('sales')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    return { success: true, sales: data };
+  } catch (error: any) {
+    console.error('GetSalesData error:', error);
+    return { success: false, message: error.message || 'Failed to fetch sales' };
+  }
 }
