@@ -64,3 +64,19 @@ export async function processCheckout(tagIds: string[]) {
         return { success: false, message: "Transaction failed." };
     }
 }
+export async function getSalesData() {
+    try {
+        const supabase = createSupabaseServer();
+        const { data, error } = await supabase
+            .from('sales')
+            .select('*')
+            .order('created_at', { ascending: false });
+            
+        if (error) throw error;
+        
+        return { success: true, sales: data };
+    } catch (error: any) {
+        console.error("Sales Fetch Error:", error);
+        return { success: false, message: error.message };
+    }
+}

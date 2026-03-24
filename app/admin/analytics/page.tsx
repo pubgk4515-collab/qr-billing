@@ -4,14 +4,8 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Lock, Unlock, ActivityIcon, ArrowLeft, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
 import { getStoreData } from '../../actions/adminActions'; 
-
-// Initialize Client Supabase for fetching the new 'sales' table
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { getSalesData } from '../../actions/billingActions'; // 🎯 NEW IMPORT
 
 export default function AdminAnalyticsPage() {
   const router = useRouter();
@@ -30,22 +24,19 @@ export default function AdminAnalyticsPage() {
   async function loadData() {
     setLoading(true);
     try {
-      // 1. Fetch tags & products using existing server action
-      const response = await getStoreData(); 
-      
-      // 2. Fetch permanent sales records directly from Supabase
-      const { data: salesData, error: salesError } = await supabase
-        .from('sales')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // Dono data (Store & Sales) backend server se securely fetch karenge
+      const [storeRes, salesRes] = await Promise.all([
+        getStoreData(),
+        getSalesData()
+      ]);
 
-      if (response.success && !salesError) {
+      if (storeRes.success && salesRes.success) {
         setData({ 
-          qrTags: response.qrTags || [],
-          sales: salesData || []
+          qrTags: storeRes.qrTags || [],
+          sales: salesRes.sales || []
         });
       } else {
-        alert('❌ Error loading data. Please check connection.');
+        alert('❌ Error: ' + (salesRes.message || storeRes.message));
       }
     } catch (err) {
       console.error("Dashboard Fetch Error:", err);
@@ -53,6 +44,7 @@ export default function AdminAnalyticsPage() {
       setLoading(false);
     }
   }
+
 
   // 🔐 PIN check handler
   const handleLogin = (e: React.FormEvent) => {
