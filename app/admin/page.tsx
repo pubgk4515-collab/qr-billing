@@ -17,12 +17,15 @@ import {
   unlinkTag,
   updateProduct
 } from '../actions/adminActions';
+import { useRouter } from 'next/navigation';
+
 
 type ViewMode = 'table' | 'grid';
 type FilterType = 'all' | 'free' | 'active';
 
 export default function AdminDashboard() {
   // 🔐 Lock State
+  const router = useRouter();
   const [isLocked, setIsLocked] = useState(true);
   const [pinEntry, setPinEntry] = useState('');
   const [pinError, setPinError] = useState(false);
@@ -637,24 +640,22 @@ export default function AdminDashboard() {
             </div>
           </ModalWrapper>
         )}
-     // 🚀 FLOATING ANALYTICS BUTTON (REPLACED MODAL TRIGGER WITH PAGE NAVIGATION)
-{!isLocked && (
-  <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40">
-    {/* Maine Link component use kiya hai taaki naya dynamic route handle ho sake */}
-    <Link 
-      href="/admin/analytics" // 🎯 Dedicated premium analytics page route
-      className="group flex items-center gap-3 bg-white/10 backdrop-blur-2xl border border-white/20 px-6 py-4 rounded-full shadow-[0_10px_40px_rgba(0,0,0,0.5)] hover:bg-white/20 hover:border-emerald-500/50 hover:shadow-emerald-500/20 transition-all active:scale-95"
-    >
-      <div className="bg-emerald-500 p-2 rounded-full text-black">
-        <ActivityIcon className="w-5 h-5" /> {/* Add ActivityIcon to lucide imports at top of file */}
-      </div>
-      <span className="text-white font-black tracking-widest uppercase text-sm">
-        Business Stats
-      </span>
-    </Link>
-  </div>
-)}
-
+      {/* 🚀 FLOATING ANALYTICS BUTTON (ROUTER PUSH METHOD) */}
+      {!isLocked && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
+          <button 
+            onClick={() => router.push('/admin/analytics')}
+            className="group flex items-center gap-3 bg-white/10 backdrop-blur-2xl border border-white/20 px-6 py-4 rounded-full shadow-[0_10px_40px_rgba(0,0,0,0.5)] hover:bg-white/20 hover:border-emerald-500/50 hover:shadow-emerald-500/20 transition-all active:scale-95"
+          >
+            <div className="bg-emerald-500 p-2 rounded-full text-black">
+              <Activity className="w-5 h-5" />
+            </div>
+            <span className="text-white font-black tracking-widest uppercase text-sm">
+              Business Stats
+            </span>
+          </button>
+        </div>
+      )}
 
       </AnimatePresence>
     </main>
