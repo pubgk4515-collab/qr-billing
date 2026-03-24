@@ -1,34 +1,54 @@
+// app/admin/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getStoreData, addNewItem, generateFreeTags, linkTagToProduct, unlinkTag, updateProduct } from '../actions/adminActions';
-import { LayoutDashboard, Box, QrCode, PackagePlus, Loader2, Download, X, ExternalLink, Lock, KeyRound, Plus, Image as ImageIcon, Tag, Hash, Link2, Unlink, Edit2, UploadCloud } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+  LayoutDashboard, QrCode, PackagePlus, Loader2, Download, X, ExternalLink,
+  Link2, Unlink, Edit2, UploadCloud, Lock, KeyRound, Plus, Tag, Hash,
+  CheckCircle2, AlertCircle, Search, Filter, Grid, List
+} from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import {
+  getStoreData,
+  addNewItem,
+  generateFreeTags,
+  linkTagToProduct,
+  unlinkTag,
+  updateProduct
+} from '../actions/adminActions';
+
+type ViewMode = 'table' | 'grid';
+type FilterType = 'all' | 'free' | 'active';
 
 export default function AdminDashboard() {
+  // 🔐 Lock State
   const [isLocked, setIsLocked] = useState(true);
   const [pinEntry, setPinEntry] = useState('');
   const [pinError, setPinError] = useState(false);
-  
-  const [data, setData] = useState<any>({ products: [], qrTags: [] });
+  const CORRECT_PIN = '7788'; // MVP hardcoded PIN
+
+  // 📦 Data & UI State
+  const [data, setData] = useState<{ products: any[]; qrTags: any[] }>({ products: [], qrTags: [] });
   const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState<FilterType>('all');
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Modal & Interaction States
   const [selectedTag, setSelectedTag] = useState<any>(null);
-  
-  // Modals & Tracking States
+  const [linkingTag, setLinkingTag] = useState<any>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isFreeTagModalOpen, setIsFreeTagModalOpen] = useState(false);
-  const [linkingTag, setLinkingTag] = useState<any>(null); 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  
-  // Forms States
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Form States
   const [newItem, setNewItem] = useState({ name: '', price: '', imageUrl: '' });
   const [editItem, setEditItem] = useState({ id: '', name: '', price: '', imageUrl: '' });
   const [freeTagCount, setFreeTagCount] = useState('5');
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const CORRECT_PIN = '1234'; 
-
+  // Check session storage for unlock status
   useEffect(() => {
     const isUnlocked = sessionStorage.getItem('admin_unlocked');
     if (isUnlocked === 'true') {
@@ -37,6 +57,23 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  // Load fresh data from Supabase via server action (no caching)
+  async function loadData() {
+    setLoading(true);
+    const response = await getStoreData();
+    if (response.success) {
+      // Ensure we always have arrays
+      setData({
+        products: response.products || [],
+        qrTags: response.qrTags || []
+      });
+    } else {
+      alert('❌ Error loading data: ' + response.message);
+    }
+    setLoading(false);
+  }
+
+  // 🔐 PIN unlock handler
   const handleUnlock = (e: React.FormEvent) => {
     e.preventDefault();
     if (pinEntry === CORRECT_PIN) {
@@ -50,448 +87,778 @@ export default function AdminDashboard() {
     }
   };
 
-  async function loadData() {
-    setLoading(true);
-    const response = await getStoreData();
-    if (response.success) setData({ products: response.products, qrTags: response.qrTags });
-    else alert("🛑 Error: " + response.message);
-    setLoading(false);
-  }
-
-  // 🖼️ IMAGE UPLOAD HANDLER
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean = false) => {
+  // 🖼️ Image upload (data URL)
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>, isEdit = false) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        if (isEdit) {
-            setEditItem({ ...editItem, imageUrl: reader.result as string });
-        } else {
-            setNewItem({ ...newItem, imageUrl: reader.result as string });
-        }
+        const dataUrl = reader.result as string;
+        if (isEdit) setEditItem({ ...editItem, imageUrl: dataUrl });
+        else setNewItem({ ...newItem, imageUrl: dataUrl });
       };
       reader.readAsDataURL(file);
     }
   };
 
-  // 📦 ADD ITEM
+  // ➕ Add product
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newItem.name || !newItem.price) return alert("Naam aur Price zaroori hai!");
+    if (!newItem.name || !newItem.price) return alert('Product name and price are required');
     setIsSubmitting(true);
     const res = await addNewItem(newItem.name, Number(newItem.price), newItem.imageUrl);
     if (res.success) {
       setNewItem({ name: '', price: '', imageUrl: '' });
       setIsAddModalOpen(false);
-      loadData(); 
-    } else alert("Error adding item: " + res.message);
+      loadData();
+    } else {
+      alert('Error adding product: ' + res.message);
+    }
     setIsSubmitting(false);
   };
 
-  // ✏️ EDIT ITEM
+  // ✏️ Edit product
   const openEditModal = (tag: any) => {
-      if(tag.products) {
-          setEditItem({
-              id: tag.products.id,
-              name: tag.products.name,
-              price: tag.products.price.toString(),
-              imageUrl: tag.products.image_url || ''
-          });
-          setIsEditModalOpen(true);
-      }
-  }
-
+    if (tag.products) {
+      setEditItem({
+        id: tag.products.id,
+        name: tag.products.name,
+        price: tag.products.price.toString(),
+        imageUrl: tag.products.image_url || ''
+      });
+      setIsEditModalOpen(true);
+    }
+  };
   const handleEditItem = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     const res = await updateProduct(editItem.id, editItem.name, Number(editItem.price), editItem.imageUrl);
-    if(res.success){
-        setIsEditModalOpen(false);
-        loadData();
-    } else alert("Error updating: " + res.message);
+    if (res.success) {
+      setIsEditModalOpen(false);
+      loadData();
+    } else {
+      alert('Error updating product: ' + res.message);
+    }
     setIsSubmitting(false);
-  }
+  };
 
-  // 🏷️ FREE TAGS
+  // 🏷️ Generate free tags
   const handleGenerateFreeTags = async (e: React.FormEvent) => {
     e.preventDefault();
     const count = parseInt(freeTagCount);
-    if (isNaN(count) || count < 1 || count > 50) return alert("1 se 50 ke beech number daalein");
+    if (isNaN(count) || count < 1 || count > 50) return alert('Please enter a number between 1 and 50');
     setIsSubmitting(true);
     const res = await generateFreeTags(count);
     if (res.success) {
       setIsFreeTagModalOpen(false);
       loadData();
-    } else alert("Error: " + res.message);
+    } else {
+      alert('Error generating tags: ' + res.message);
+    }
     setIsSubmitting(false);
   };
 
-  // 🔗 MANUAL LINK / UNLINK
+  // 🔗 Link tag to product
   const handleManualLink = async (productId: string) => {
-    if(!linkingTag) return;
+    if (!linkingTag) return;
     setIsSubmitting(true);
     const res = await linkTagToProduct(linkingTag.id, productId);
-    if(res.success){
-        setLinkingTag(null);
-        loadData();
-    } else alert("Error linking: " + res.message);
-    setIsSubmitting(false);
-  }
-
-  const handleUnlink = async (tagId: string) => {
-    if(confirm(`Kya aap sach mein ${tagId} ko free karna chahte hain?`)){
-        setIsSubmitting(true);
-        const res = await unlinkTag(tagId);
-        if(res.success) loadData();
-        else alert("Error unlinking: " + res.message);
-        setIsSubmitting(false);
+    if (res.success) {
+      setLinkingTag(null);
+      loadData();
+    } else {
+      alert('Error linking: ' + res.message);
     }
-  }
+    setIsSubmitting(false);
+  };
 
+  // 🔓 Unlink tag (make free)
+  const handleUnlink = async (tagId: string) => {
+    if (!confirm(`Unlink tag ${tagId}? It will become free and available for new products.`)) return;
+    setIsSubmitting(true);
+    const res = await unlinkTag(tagId);
+    if (res.success) loadData();
+    else alert('Error unlinking: ' + res.message);
+    setIsSubmitting(false);
+  };
+
+  // 📥 Download QR as PNG
   const downloadQR = (tagId: string) => {
     const svg = document.getElementById(`qr-${tagId}`);
     if (!svg) return;
     const svgData = new XMLSerializer().serializeToString(svg);
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
     const img = new Image();
     img.onload = () => {
       canvas.width = img.width;
       canvas.height = img.height;
       ctx?.drawImage(img, 0, 0);
-      const link = document.createElement("a");
+      const link = document.createElement('a');
       link.download = `QR_${tagId}.png`;
-      link.href = canvas.toDataURL("image/png");
+      link.href = canvas.toDataURL('image/png');
       link.click();
     };
-    img.src = "data:image/svg+xml;base64," + btoa(svgData);
+    img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
   };
 
+  // 🔍 Filter & search logic
+  const filteredTags = data.qrTags.filter(tag => {
+    if (filter !== 'all' && tag.status !== filter) return false;
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      return tag.id.toLowerCase().includes(term) ||
+             (tag.products?.name?.toLowerCase().includes(term));
+    }
+    return true;
+  });
+
+  // 📊 Quick stats
+  const totalTags = data.qrTags.length;
+  const soldTags = data.qrTags.filter(t => t.status === 'active').length;
+  const freeTags = data.qrTags.filter(t => t.status === 'free').length;
+
+  // 🔒 Lock screen UI
   if (isLocked) {
     return (
-      <main className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-6 text-white selection:bg-zinc-800">
-        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="bg-zinc-900 border border-zinc-800 p-8 md:p-12 rounded-[2.5rem] w-full max-w-md shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-emerald-500/20 blur-[60px] rounded-full -z-10" />
-          <div className="flex flex-col items-center text-center mb-8">
-            <div className="w-16 h-16 bg-zinc-950 border border-zinc-800 rounded-2xl flex items-center justify-center mb-6 shadow-inner">
-              <Lock className="w-8 h-8 text-emerald-400" />
+      <main className="min-h-screen bg-zinc-950 flex items-center justify-center p-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative w-full max-w-md"
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 via-transparent to-emerald-500/20 blur-3xl rounded-full" />
+          <div className="relative bg-black/40 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 shadow-2xl">
+            <div className="flex flex-col items-center text-center mb-8">
+              <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mb-6 border border-emerald-500/30 shadow-lg">
+                <Lock className="w-10 h-10 text-emerald-400" />
+              </div>
+              <h1 className="text-3xl font-black text-white tracking-tight">Restricted Area</h1>
+              <p className="text-zinc-400 text-sm mt-1">Enter admin passcode</p>
             </div>
-            <h1 className="text-3xl font-black tracking-tighter mb-2">Restricted Area</h1>
-            <p className="text-zinc-500 text-sm font-medium uppercase tracking-widest">Enter Admin Passcode</p>
+
+            <form onSubmit={handleUnlock} className="space-y-5">
+              <div className="relative">
+                <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                <input
+                  type="password"
+                  maxLength={4}
+                  value={pinEntry}
+                  onChange={e => setPinEntry(e.target.value)}
+                  placeholder="••••"
+                  className={`w-full bg-zinc-900 border ${
+                    pinError ? 'border-red-500/50 focus:border-red-500' : 'border-white/10 focus:border-emerald-500'
+                  } rounded-2xl py-4 pl-12 pr-4 text-center text-2xl font-black tracking-[0.5em] text-white outline-none transition-all`}
+                  autoFocus
+                />
+              </div>
+              {pinError && (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-red-400 text-xs font-bold text-center"
+                >
+                  Access denied. Try again.
+                </motion.p>
+              )}
+              <button
+                type="submit"
+                className="w-full bg-emerald-500 text-black font-black py-4 rounded-2xl mt-2 hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20"
+              >
+                Unlock Terminal
+              </button>
+            </form>
           </div>
-          <form onSubmit={handleUnlock} className="space-y-4">
-            <div className="relative">
-              <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-600" />
-              <input 
-  type="password" 
-  maxLength={4} 
-  value={pinEntry} 
-  onChange={(e) => setPinEntry(e.target.value)} 
-  placeholder="••••" 
-  className={`w-full bg-zinc-950 border ${pinError ? 'border-red-500/50 focus:border-red-500' : 'border-zinc-800 focus:border-emerald-500'} rounded-2xl py-4 pl-12 pr-4 text-center text-2xl font-black tracking-[0.5em] text-white outline-none transition-all`} 
-  autoFocus 
-  suppressHydrationWarning 
-/>
-            </div>
-            {pinError && <p className="text-red-400 text-xs font-bold text-center animate-pulse">Access Denied.</p>}
-            <button type="submit" className="w-full bg-white text-black font-black py-4 rounded-2xl mt-4 hover:bg-zinc-200 transition-colors shadow-[0_0_20px_rgba(255,255,255,0.1)]">Unlock Terminal</button>
-          </form>
         </motion.div>
       </main>
     );
   }
 
+  // Loading skeleton
   if (loading && data.products.length === 0) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center text-zinc-600">
-        <Loader2 className="animate-spin w-10 h-10 mb-4" />
-        <p className="font-medium tracking-widest uppercase text-xs">Accessing Mission Control...</p>
+      <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center gap-4">
+        <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+        <p className="text-zinc-500 text-sm font-mono">Loading inventory...</p>
       </div>
     );
   }
 
-  const activeQRs = data.qrTags.filter((tag: any) => tag.status === 'active').length;
-  const freeQRs = data.qrTags.filter((tag: any) => tag.status === 'free').length;
-
   return (
-    <main className="min-h-screen bg-zinc-950 text-zinc-100 pb-20 font-sans selection:bg-zinc-800">
-      
-      <header className="bg-zinc-950/80 backdrop-blur-md p-6 sticky top-0 z-20 border-b border-zinc-900">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+    <main className="min-h-screen bg-gradient-to-br from-zinc-950 via-black to-zinc-950 text-white font-sans overflow-x-hidden">
+      {/* Background glow */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-emerald-500/10 blur-[100px] rounded-full" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500/10 blur-[100px] rounded-full" />
+      </div>
+
+      <div className="relative z-10 max-w-7xl mx-auto px-4 py-6 md:px-8">
+        {/* Header */}
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
           <div>
-            <h1 className="text-3xl font-black text-white tracking-tighter flex items-center gap-3">
-              <LayoutDashboard className="w-8 h-8 text-zinc-500" /> Control Panel
+            <h1 className="text-4xl md:text-5xl font-black bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-zinc-400 tracking-tighter">
+              Control Panel
             </h1>
+            <p className="text-zinc-500 text-sm mt-1 font-mono">Inventory & QR management</p>
           </div>
-          <button onClick={() => { sessionStorage.removeItem('admin_unlocked'); setIsLocked(true); }} className="text-xs font-bold bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-full hover:text-red-400 hover:border-red-900 transition-colors">
-            Lock Vault
+          <button
+            onClick={() => {
+              sessionStorage.removeItem('admin_unlocked');
+              setIsLocked(true);
+            }}
+            className="px-5 py-2.5 bg-white/5 backdrop-blur-xl border border-white/10 rounded-full text-xs font-bold hover:bg-red-500/20 hover:border-red-500/50 transition-all flex items-center gap-2"
+          >
+            <Lock className="w-4 h-4" /> Lock Vault
           </button>
-        </div>
-      </header>
+        </header>
 
-      <div className="max-w-7xl mx-auto p-6 mt-6">
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <StatCard title="Total Products" value={data.products.length} color="text-blue-400" icon={<Box />} />
-          <StatCard title="Active QRs" value={activeQRs} color="text-emerald-400" icon={<QrCode />} />
-          <StatCard title="Free QRs" value={freeQRs} color="text-orange-400" icon={<PackagePlus />} />
+        {/* Quick Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-12">
+          <StatCard title="Total Tags" value={totalTags} icon={<QrCode className="w-6 h-6" />} gradient="from-emerald-500/20 to-transparent" />
+          <StatCard title="Sold" value={soldTags} icon={<CheckCircle2 className="w-6 h-6" />} gradient="from-blue-500/20 to-transparent" />
+          <StatCard title="Free" value={freeTags} icon={<PackagePlus className="w-6 h-6" />} gradient="from-orange-500/20 to-transparent" />
         </div>
 
-        <div className="bg-zinc-900 rounded-3xl border border-zinc-800/80 shadow-2xl overflow-hidden">
-          <div className="p-6 md:p-8 border-b border-zinc-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <h2 className="text-2xl font-black text-white tracking-tight">Inventory Status</h2>
-            
-            <div className="flex gap-3 w-full md:w-auto">
-              <button onClick={() => setIsFreeTagModalOpen(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white px-5 py-2.5 rounded-xl font-bold transition-colors border border-zinc-700 text-sm">
-                <PackagePlus className="w-4 h-4" /> Create Free Tags
-              </button>
-
-              <button onClick={() => setIsAddModalOpen(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 px-5 py-2.5 rounded-xl font-black transition-colors shadow-lg shadow-emerald-500/20 text-sm">
-                <Plus className="w-5 h-5" /> Add Product
-              </button>
-            </div>
+        {/* Filters & Actions Bar */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+          <div className="flex gap-3">
+            <FilterTab label="All" value="all" current={filter} onClick={() => setFilter('all')} />
+            <FilterTab label="Free" value="free" current={filter} onClick={() => setFilter('free')} />
+            <FilterTab label="Sold" value="active" current={filter} onClick={() => setFilter('active')} />
           </div>
-          
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-zinc-950/50 text-zinc-500 text-[10px] uppercase tracking-[0.2em] font-black">
+          <div className="flex gap-3">
+            <button
+              onClick={() => setIsFreeTagModalOpen(true)}
+              className="px-5 py-2.5 bg-orange-500/10 border border-orange-500/20 rounded-xl text-sm font-bold text-orange-400 hover:bg-orange-500/20 transition-all flex items-center gap-2"
+            >
+              <PackagePlus className="w-4 h-4" /> Create Free Tags
+            </button>
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="px-5 py-2.5 bg-emerald-500 text-black rounded-xl text-sm font-black hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" /> Add Product
+            </button>
+          </div>
+        </div>
+
+        {/* Search & View Toggle */}
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
+          <div className="relative w-full sm:w-80">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+            <input
+              type="text"
+              placeholder="Search by tag ID or product name..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl py-3 pl-10 pr-4 text-sm text-white placeholder:text-zinc-500 focus:border-emerald-500/50 outline-none transition-all"
+            />
+          </div>
+          <div className="flex gap-2 bg-white/5 backdrop-blur-sm rounded-xl p-1 border border-white/10">
+            <button
+              onClick={() => setViewMode('table')}
+              className={`p-2 rounded-lg transition-all ${viewMode === 'table' ? 'bg-emerald-500/20 text-emerald-400' : 'text-zinc-500'}`}
+            >
+              <List className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-emerald-500/20 text-emerald-400' : 'text-zinc-500'}`}
+            >
+              <Grid className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Tags Display */}
+        {viewMode === 'table' ? (
+          <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm">
+            <table className="w-full">
+              <thead className="bg-black/40 text-zinc-400 text-xs font-black uppercase tracking-wider">
                 <tr>
-                  <th className="p-6">Tag ID</th>
-                  <th className="p-6 text-center">Status</th>
-                  <th className="p-6">Linked Product</th>
-                  <th className="p-6 text-right">Action</th>
+                  <th className="p-5 text-left">Tag ID</th>
+                  <th className="p-5 text-center">Status</th>
+                  <th className="p-5 text-left">Linked Product</th>
+                  <th className="p-5 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800">
-                {data.qrTags.map((tag: any) => (
-                  <tr key={tag.id} className="hover:bg-zinc-800/40 transition-colors group">
-                    <td className="p-6 font-bold text-white text-lg tracking-tight">{tag.id}</td>
-                    <td className="p-6 text-center">
-                      <span className={`px-4 py-1.5 rounded-full text-[10px] font-black tracking-widest border ${
-                        tag.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-orange-500/10 text-orange-400 border-orange-500/20'
-                      }`}>{tag.status.toUpperCase()}</span>
-                    </td>
-                    <td className="p-6 flex items-center gap-3 text-zinc-300 font-medium text-lg">
-                      {tag.products?.image_url && <img src={tag.products.image_url} alt="img" className="w-10 h-10 object-cover rounded-lg border border-zinc-700" />}
-                      {tag.products?.name || <span className="text-zinc-600 italic text-sm">Waiting for product...</span>}
-                    </td>
-                    <td className="p-6 text-right">
-                      <div className="flex justify-end items-center gap-2">
-                          {tag.status === 'free' ? (
-                              <button onClick={() => setLinkingTag(tag)} className="p-3 bg-zinc-800 text-orange-400 hover:bg-orange-500 hover:text-white rounded-xl transition-all duration-300 shadow-sm border border-zinc-700" title="Link to Product">
-                                  <Link2 className="w-4 h-4" />
-                              </button>
-                          ) : (
-                              <>
-                                  <button onClick={() => openEditModal(tag)} className="p-3 bg-zinc-800 text-blue-400 hover:bg-blue-500 hover:text-white rounded-xl transition-all duration-300 shadow-sm border border-zinc-700" title="Edit Product">
-                                      <Edit2 className="w-4 h-4" />
-                                  </button>
-                                  <button onClick={() => handleUnlink(tag.id)} className="p-3 bg-zinc-800 text-red-400 hover:bg-red-500 hover:text-white rounded-xl transition-all duration-300 shadow-sm border border-zinc-700" title="Unlink (Make Free)">
-                                      <Unlink className="w-4 h-4" />
-                                  </button>
-                              </>
-                          )}
-
-                          <button onClick={() => setSelectedTag(tag)} className="p-3 bg-zinc-800 hover:bg-white hover:text-zinc-950 text-white rounded-xl transition-all duration-300 shadow-sm border border-zinc-700 hover:border-white">
-                            <QrCode className="w-4 h-4" />
-                          </button>
-                      </div>
+              <tbody className="divide-y divide-white/5">
+                {filteredTags.map(tag => (
+                  <TableRow
+                    key={tag.id}
+                    tag={tag}
+                    onEdit={openEditModal}
+                    onUnlink={handleUnlink}
+                    onLink={() => setLinkingTag(tag)}
+                    onViewQR={() => setSelectedTag(tag)}
+                  />
+                ))}
+                {filteredTags.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="p-10 text-center text-zinc-500">
+                      No tags found
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
-        </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredTags.map(tag => (
+              <GridCard
+                key={tag.id}
+                tag={tag}
+                onEdit={openEditModal}
+                onUnlink={handleUnlink}
+                onLink={() => setLinkingTag(tag)}
+                onViewQR={() => setSelectedTag(tag)}
+              />
+            ))}
+            {filteredTags.length === 0 && (
+              <div className="col-span-full text-center py-20 text-zinc-500">
+                No tags match your filters.
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* 🔗 LINKING MODAL */}
+      {/* ========== MODALS (all with improved glassmorphism) ========== */}
+      {/* 🔗 Link Product Modal */}
       <AnimatePresence>
-          {linkingTag && (
-             <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setLinkingTag(null)} className="absolute inset-0 bg-black/80 backdrop-blur-xl" />
-                 <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-[2.5rem] p-8 relative z-10 shadow-2xl">
-                    <button onClick={() => setLinkingTag(null)} className="absolute top-6 right-6 text-zinc-500 hover:text-white"><X className="w-6 h-6" /></button>
-                    <h3 className="text-2xl font-black text-white mb-2">Link {linkingTag.id}</h3>
-                    <p className="text-zinc-400 text-sm mb-6">Select a product to attach to this free tag.</p>
-                    <div className="max-h-60 overflow-y-auto space-y-2 pr-2">
-                        {data.products.map((p:any) => (
-                            <button key={p.id} onClick={() => handleManualLink(p.id)} className="w-full text-left p-4 rounded-2xl bg-zinc-950 border border-zinc-800 hover:border-emerald-500 flex justify-between items-center group transition-colors">
-                                <span className="font-bold text-white group-hover:text-emerald-400">{p.name}</span>
-                                <span className="text-zinc-500 font-medium">₹{p.price}</span>
-                            </button>
-                        ))}
-                    </div>
-                 </motion.div>
-             </div> 
-          )}
-      </AnimatePresence>
-
-      {/* ➕ ADD NEW PRODUCT MODAL */}
-      <AnimatePresence>
-        {isAddModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsAddModalOpen(false)} className="absolute inset-0 bg-black/80 backdrop-blur-xl" />
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-[2.5rem] p-8 relative z-10 shadow-2xl overflow-y-auto max-h-[90vh]">
-              <button onClick={() => setIsAddModalOpen(false)} className="absolute top-6 right-6 text-zinc-500 hover:text-white"><X className="w-6 h-6" /></button>
-              
-              <div className="mb-6">
-                <h3 className="text-3xl font-black text-white tracking-tighter">New Product</h3>
+        {linkingTag && (
+          <ModalWrapper onClose={() => setLinkingTag(null)}>
+            <div className="p-6">
+              <h3 className="text-2xl font-black mb-2">Link {linkingTag.id}</h3>
+              <p className="text-zinc-400 text-sm mb-6">Select a product to attach to this free tag.</p>
+              <div className="max-h-60 overflow-y-auto space-y-2 pr-2">
+                {data.products.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => handleManualLink(p.id)}
+                    className="w-full text-left p-4 rounded-2xl bg-black/30 border border-white/10 hover:border-emerald-500 flex justify-between items-center group transition-all"
+                  >
+                    <span className="font-bold text-white group-hover:text-emerald-400">{p.name}</span>
+                    <span className="text-zinc-500">₹{p.price}</span>
+                  </button>
+                ))}
               </div>
-
-              <form onSubmit={handleAddItem} className="space-y-4">
-                
-                {/* Image Upload Area */}
-                <div>
-                  <div className={`relative border-2 border-dashed ${newItem.imageUrl ? 'border-emerald-500/50' : 'border-zinc-800'} rounded-2xl p-4 text-center hover:border-emerald-500 transition-colors flex flex-col items-center justify-center overflow-hidden min-h-[120px] bg-zinc-950`}>
-                    <input type="file" accept="image/*" onChange={(e) => handleImageChange(e, false)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
-                    {newItem.imageUrl ? (
-  <div className="relative w-full h-32 group">
-     <img src={newItem.imageUrl} alt="Preview" className="absolute inset-0 w-full h-full object-contain rounded-lg" />
-     <button 
-        type="button" 
-        onClick={(e) => { e.preventDefault(); setNewItem({...newItem, imageUrl: ''}); }} 
-        className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-500 text-white p-2 rounded-xl backdrop-blur-sm transition-all"
-     >
-        <X className="w-4 h-4"/>
-     </button>
-  </div>
-) : (
-                      <div className="flex flex-col items-center text-zinc-500"><UploadCloud className="w-8 h-8 mb-2 text-zinc-600" /><span className="text-sm font-bold text-zinc-400">Tap to upload image</span></div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="relative">
-                  <Tag className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-600" />
-                  <input type="text" required value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} placeholder="Product Name" className="w-full bg-zinc-950 border border-zinc-800 focus:border-emerald-500 rounded-2xl py-4 pl-12 pr-4 text-white font-medium outline-none transition-all" />
-                </div>
-
-                <div className="relative">
-                  <span className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-600 font-bold">₹</span>
-                  <input type="number" required value={newItem.price} onChange={e => setNewItem({...newItem, price: e.target.value})} placeholder="Price" className="w-full bg-zinc-950 border border-zinc-800 focus:border-emerald-500 rounded-2xl py-4 pl-12 pr-4 text-white font-medium outline-none transition-all" />
-                </div>
-
-                <button disabled={isSubmitting} type="submit" className="w-full bg-emerald-500 text-zinc-950 font-black py-4 rounded-2xl mt-2 hover:bg-emerald-400 transition-colors flex justify-center items-center gap-2">
-                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Save & Tag'}
-                </button>
-              </form>
-            </motion.div>
-          </div>
+            </div>
+          </ModalWrapper>
         )}
       </AnimatePresence>
 
-      {/* ✏️ EDIT PRODUCT MODAL */}
+      {/* ➕ Add Product Modal */}
+      <AnimatePresence>
+        {isAddModalOpen && (
+          <ModalWrapper onClose={() => setIsAddModalOpen(false)}>
+            <div className="p-6">
+              <h3 className="text-2xl font-black mb-6">New Product</h3>
+              <form onSubmit={handleAddItem} className="space-y-5">
+                <ImageUpload
+                  imageUrl={newItem.imageUrl}
+                  onChange={e => handleImageChange(e, false)}
+                  onClear={() => setNewItem({ ...newItem, imageUrl: '' })}
+                />
+                <div className="relative">
+                  <Tag className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                  <input
+                    type="text"
+                    required
+                    value={newItem.name}
+                    onChange={e => setNewItem({ ...newItem, name: e.target.value })}
+                    placeholder="Product Name"
+                    className="w-full bg-black/30 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white outline-none focus:border-emerald-500 transition-all"
+                  />
+                </div>
+                <div className="relative">
+                  <span className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">₹</span>
+                  <input
+                    type="number"
+                    required
+                    value={newItem.price}
+                    onChange={e => setNewItem({ ...newItem, price: e.target.value })}
+                    placeholder="Price"
+                    className="w-full bg-black/30 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white outline-none focus:border-emerald-500 transition-all"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full bg-emerald-500 text-black font-black py-4 rounded-2xl mt-2 hover:bg-emerald-400 transition-all flex justify-center items-center gap-2"
+                >
+                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Save Product'}
+                </button>
+              </form>
+            </div>
+          </ModalWrapper>
+        )}
+      </AnimatePresence>
+
+      {/* ✏️ Edit Product Modal */}
       <AnimatePresence>
         {isEditModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsEditModalOpen(false)} className="absolute inset-0 bg-black/80 backdrop-blur-xl" />
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-[2.5rem] p-8 relative z-10 shadow-2xl overflow-y-auto max-h-[90vh]">
-              <button onClick={() => setIsEditModalOpen(false)} className="absolute top-6 right-6 text-zinc-500 hover:text-white"><X className="w-6 h-6" /></button>
-              
-              <div className="mb-6">
-                <h3 className="text-3xl font-black text-white tracking-tighter">Edit Product</h3>
-              </div>
-
-              <form onSubmit={handleEditItem} className="space-y-4">
-                
-                {/* Image Upload Area */}
-                <div>
-                  <div className={`relative border-2 border-dashed ${editItem.imageUrl ? 'border-blue-500/50' : 'border-zinc-800'} rounded-2xl p-4 text-center hover:border-blue-500 transition-colors flex flex-col items-center justify-center overflow-hidden min-h-[120px] bg-zinc-950`}>
-                    <input type="file" accept="image/*" onChange={(e) => handleImageChange(e, true)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
-                    {editItem.imageUrl ? (
-                      <div className="relative w-full h-32"><img src={editItem.imageUrl} alt="Preview" className="absolute inset-0 w-full h-full object-contain rounded-lg" /></div>
-                    ) : (
-                      <div className="flex flex-col items-center text-zinc-500"><UploadCloud className="w-8 h-8 mb-2 text-zinc-600" /><span className="text-sm font-bold text-zinc-400">Tap to update image</span></div>
-                    )}
-                  </div>
-                </div>
-
+          <ModalWrapper onClose={() => setIsEditModalOpen(false)}>
+            <div className="p-6">
+              <h3 className="text-2xl font-black mb-6">Edit Product</h3>
+              <form onSubmit={handleEditItem} className="space-y-5">
+                <ImageUpload
+                  imageUrl={editItem.imageUrl}
+                  onChange={e => handleImageChange(e, true)}
+                  onClear={() => setEditItem({ ...editItem, imageUrl: '' })}
+                />
                 <div className="relative">
-                  <Tag className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-600" />
-                  <input type="text" required value={editItem.name} onChange={e => setEditItem({...editItem, name: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 focus:border-blue-500 rounded-2xl py-4 pl-12 pr-4 text-white font-medium outline-none transition-all" />
+                  <Tag className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                  <input
+                    type="text"
+                    required
+                    value={editItem.name}
+                    onChange={e => setEditItem({ ...editItem, name: e.target.value })}
+                    className="w-full bg-black/30 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white outline-none focus:border-blue-500 transition-all"
+                  />
                 </div>
-
                 <div className="relative">
-                  <span className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-600 font-bold">₹</span>
-                  <input type="number" required value={editItem.price} onChange={e => setEditItem({...editItem, price: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 focus:border-blue-500 rounded-2xl py-4 pl-12 pr-4 text-white font-medium outline-none transition-all" />
+                  <span className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">₹</span>
+                  <input
+                    type="number"
+                    required
+                    value={editItem.price}
+                    onChange={e => setEditItem({ ...editItem, price: e.target.value })}
+                    className="w-full bg-black/30 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white outline-none focus:border-blue-500 transition-all"
+                  />
                 </div>
-
-                <button disabled={isSubmitting} type="submit" className="w-full bg-blue-500 text-white font-black py-4 rounded-2xl mt-2 hover:bg-blue-400 transition-colors flex justify-center items-center gap-2">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full bg-blue-500 text-white font-black py-4 rounded-2xl mt-2 hover:bg-blue-400 transition-all flex justify-center items-center gap-2"
+                >
                   {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Update Product'}
                 </button>
               </form>
-            </motion.div>
-          </div>
+            </div>
+          </ModalWrapper>
         )}
       </AnimatePresence>
 
-      {/* 🏷️ GENERATE FREE TAGS MODAL */}
+      {/* 🏷️ Generate Free Tags Modal */}
       <AnimatePresence>
         {isFreeTagModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsFreeTagModalOpen(false)} className="absolute inset-0 bg-black/80 backdrop-blur-xl" />
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="bg-zinc-900 border border-orange-500/30 w-full max-w-sm rounded-[2.5rem] p-8 relative z-10 shadow-2xl">
-              <button onClick={() => setIsFreeTagModalOpen(false)} className="absolute top-6 right-6 text-zinc-500 hover:text-white"><X className="w-6 h-6" /></button>
-              
-              <div className="mb-8">
-                <div className="w-12 h-12 bg-orange-500/10 rounded-2xl flex items-center justify-center mb-4 border border-orange-500/20">
-                  <PackagePlus className="w-6 h-6 text-orange-400" />
-                </div>
-                <h3 className="text-2xl font-black text-white tracking-tighter">Bulk Print Tags</h3>
+          <ModalWrapper onClose={() => setIsFreeTagModalOpen(false)}>
+            <div className="p-6 text-center">
+              <div className="w-14 h-14 bg-orange-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-orange-500/20">
+                <PackagePlus className="w-7 h-7 text-orange-400" />
               </div>
-
+              <h3 className="text-2xl font-black mb-2">Bulk Print Tags</h3>
+              <p className="text-zinc-400 text-sm mb-6">Generate new free QR tags (1–50)</p>
               <form onSubmit={handleGenerateFreeTags} className="space-y-5">
                 <div className="relative">
-                  <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-600" />
-                  <input type="number" min="1" max="50" required value={freeTagCount} onChange={e => setFreeTagCount(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 focus:border-orange-500 rounded-2xl py-4 pl-12 pr-4 text-white font-black text-xl outline-none transition-all text-center" />
+                  <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                  <input
+                    type="number"
+                    min="1"
+                    max="50"
+                    required
+                    value={freeTagCount}
+                    onChange={e => setFreeTagCount(e.target.value)}
+                    className="w-full bg-black/30 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-center text-2xl font-black text-white outline-none focus:border-orange-500 transition-all"
+                  />
                 </div>
-                <button disabled={isSubmitting} type="submit" className="w-full bg-white text-black font-black py-4 rounded-2xl hover:bg-zinc-200 transition-colors shadow-xl flex justify-center items-center gap-2">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full bg-white text-black font-black py-4 rounded-2xl hover:bg-zinc-200 transition-all flex justify-center items-center gap-2"
+                >
                   {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : `Generate ${freeTagCount} Tags`}
                 </button>
               </form>
-            </motion.div>
-          </div>
+            </div>
+          </ModalWrapper>
         )}
       </AnimatePresence>
 
-      {/* 📥 QR DOWNLOAD MODAL */}
+      {/* 📥 QR Download Modal */}
       <AnimatePresence>
         {selectedTag && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedTag(null)} className="absolute inset-0 bg-black/80 backdrop-blur-xl" />
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="bg-zinc-900 border border-zinc-800 w-full max-w-sm rounded-[2.5rem] p-8 relative z-10 text-center shadow-2xl">
-              <button onClick={() => setSelectedTag(null)} className="absolute top-6 right-6 text-zinc-500 hover:text-white"><X className="w-6 h-6" /></button>
-              <div className="mb-8">
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4 border ${selectedTag.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-orange-500/10 text-orange-400 border-orange-500/20'}`}>
-                    <QrCode className="w-6 h-6" />
-                </div>
-                <h3 className="text-2xl font-black text-white tracking-tighter">QR Asset</h3>
-                <p className="text-zinc-500 text-sm mt-1 uppercase tracking-widest font-bold">Tag: {selectedTag.id}</p>
+          <ModalWrapper onClose={() => setSelectedTag(null)}>
+            <div className="p-6 text-center">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4 border ${
+                selectedTag.status === 'active' ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-orange-500/10 border-orange-500/20'
+              }`}>
+                <QrCode className={`w-6 h-6 ${selectedTag.status === 'active' ? 'text-emerald-400' : 'text-orange-400'}`} />
               </div>
-              <div className="bg-white p-6 rounded-[2.5rem] inline-block mb-8 border-4 border-zinc-800">
-                <QRCodeSVG id={`qr-${selectedTag.id}`} value={`${window.location.origin}/q/${selectedTag.id}`} size={180} level="H" includeMargin={false} />
+              <h3 className="text-2xl font-black">QR Asset</h3>
+              <p className="text-zinc-400 text-sm mt-1 uppercase tracking-widest font-bold">Tag: {selectedTag.id}</p>
+              <div className="bg-white p-6 rounded-2xl inline-block my-6 border-4 border-white/10">
+                <QRCodeSVG
+                  id={`qr-${selectedTag.id}`}
+                  value={`${window.location.origin}/q/${selectedTag.id}`}
+                  size={180}
+                  level="H"
+                  includeMargin={false}
+                />
               </div>
               <div className="space-y-3">
-                <button onClick={() => downloadQR(selectedTag.id)} className="w-full bg-white text-black font-black py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-zinc-200 transition-all shadow-xl"><Download className="w-5 h-5" /> Download Asset</button>
-                <a href={`/q/${selectedTag.id}`} target="_blank" className="w-full bg-zinc-800 text-zinc-400 font-bold py-3 rounded-2xl flex items-center justify-center gap-2 hover:bg-zinc-700 transition-all text-sm"><ExternalLink className="w-4 h-4" /> Preview Link</a>
+                <button
+                  onClick={() => downloadQR(selectedTag.id)}
+                  className="w-full bg-white text-black font-black py-3 rounded-2xl flex items-center justify-center gap-2 hover:bg-zinc-200 transition-all"
+                >
+                  <Download className="w-5 h-5" /> Download Asset
+                </button>
+                <a
+                  href={`/q/${selectedTag.id}`}
+                  target="_blank"
+                  className="w-full bg-white/5 border border-white/10 text-zinc-300 font-bold py-2.5 rounded-2xl flex items-center justify-center gap-2 hover:bg-white/10 transition-all text-sm"
+                >
+                  <ExternalLink className="w-4 h-4" /> Preview Link
+                </a>
               </div>
-            </motion.div>
-          </div>
+            </div>
+          </ModalWrapper>
         )}
       </AnimatePresence>
     </main>
   );
 }
 
-function StatCard({ title, value, color, icon }: any) {
+// ========== Reusable Components with proper types ==========
+interface StatCardProps {
+  title: string;
+  value: number;
+  icon: React.ReactNode;
+  gradient: string;
+}
+function StatCard({ title, value, icon, gradient }: StatCardProps) {
   return (
-    <div className="bg-zinc-900 p-8 rounded-3xl border border-zinc-800/80 group hover:border-zinc-700 transition-all duration-500">
-      <div className="flex justify-between items-center mb-5">
-        <p className="text-zinc-500 font-black text-[10px] uppercase tracking-[0.2em]">{title}</p>
-        <div className="text-zinc-800 group-hover:text-zinc-400 transition-colors duration-500">{icon}</div>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-white/5 to-white/0 backdrop-blur-sm border border-white/10 p-6 hover:scale-[1.02] transition-transform"
+    >
+      <div className={`absolute inset-0 bg-gradient-to-br ${gradient} pointer-events-none`} />
+      <div className="flex justify-between items-start mb-3">
+        <p className="text-zinc-400 text-xs font-black uppercase tracking-wider">{title}</p>
+        <div className="text-emerald-400/70">{icon}</div>
       </div>
-      <p className={`text-6xl font-black ${color} tracking-tighter`}>{value}</p>
+      <p className="text-5xl font-black text-white tracking-tighter">{value}</p>
+    </motion.div>
+  );
+}
+
+interface FilterTabProps {
+  label: string;
+  value: FilterType;
+  current: FilterType;
+  onClick: (value: FilterType) => void;
+}
+function FilterTab({ label, value, current, onClick }: FilterTabProps) {
+  const isActive = current === value;
+  return (
+    <button
+      onClick={() => onClick(value)}
+      className={`px-5 py-2 rounded-full text-sm font-bold transition-all ${
+        isActive
+          ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20'
+          : 'bg-white/5 text-zinc-400 hover:bg-white/10'
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+interface TableRowProps {
+  tag: any;
+  onEdit: (tag: any) => void;
+  onUnlink: (tagId: string) => void;
+  onLink: () => void;
+  onViewQR: () => void;
+}
+function TableRow({ tag, onEdit, onUnlink, onLink, onViewQR }: TableRowProps) {
+  const isActive = tag.status === 'active';
+  return (
+    <tr className="hover:bg-white/5 transition-colors group">
+      <td className="p-5 font-mono font-bold text-white">{tag.id}</td>
+      <td className="p-5 text-center">
+        <span
+          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+            isActive
+              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+              : 'bg-orange-500/10 text-orange-400 border-orange-500/20'
+          }`}
+        >
+          {isActive ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+          {isActive ? 'Sold' : 'Free'}
+        </span>
+      </td>
+      <td className="p-5">
+        <div className="flex items-center gap-3">
+          {tag.products?.image_url && (
+            <img src={tag.products.image_url} alt="" className="w-10 h-10 rounded-lg object-cover border border-white/10" />
+          )}
+          <div>
+            <p className="font-bold text-white">{tag.products?.name || '—'}</p>
+            {tag.products && <p className="text-xs text-zinc-500">₹{tag.products.price}</p>}
+          </div>
+        </div>
+      </td>
+      <td className="p-5 text-right">
+        <div className="flex justify-end gap-2">
+          {!isActive ? (
+            <ActionButton onClick={onLink} icon={<Link2 className="w-4 h-4" />} label="Link" color="orange" />
+          ) : (
+            <>
+              <ActionButton onClick={() => onEdit(tag)} icon={<Edit2 className="w-4 h-4" />} label="Edit" color="blue" />
+              <ActionButton onClick={() => onUnlink(tag.id)} icon={<Unlink className="w-4 h-4" />} label="Unlink" color="red" />
+            </>
+          )}
+          <ActionButton onClick={onViewQR} icon={<QrCode className="w-4 h-4" />} label="QR" color="white" />
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+interface GridCardProps {
+  tag: any;
+  onEdit: (tag: any) => void;
+  onUnlink: (tagId: string) => void;
+  onLink: () => void;
+  onViewQR: () => void;
+}
+function GridCard({ tag, onEdit, onUnlink, onLink, onViewQR }: GridCardProps) {
+  const isActive = tag.status === 'active';
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 hover:border-emerald-500/30 transition-all"
+    >
+      <div className="flex justify-between items-start mb-3">
+        <span className="font-mono font-bold text-white text-sm">{tag.id}</span>
+        <span
+          className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+            isActive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-orange-500/20 text-orange-400'
+          }`}
+        >
+          {isActive ? 'SOLD' : 'FREE'}
+        </span>
+      </div>
+      {tag.products ? (
+        <div className="flex items-center gap-3 mt-3">
+          {tag.products.image_url && (
+            <img src={tag.products.image_url} alt="" className="w-12 h-12 rounded-lg object-cover" />
+          )}
+          <div>
+            <p className="font-bold text-white">{tag.products.name}</p>
+            <p className="text-xs text-zinc-400">₹{tag.products.price}</p>
+          </div>
+        </div>
+      ) : (
+        <p className="text-zinc-500 text-sm mt-3 italic">No product linked</p>
+      )}
+      <div className="flex justify-between mt-5 pt-3 border-t border-white/10">
+        <div className="flex gap-2">
+          {!isActive ? (
+            <ActionButton onClick={onLink} icon={<Link2 className="w-4 h-4" />} label="" color="orange" small />
+          ) : (
+            <>
+              <ActionButton onClick={() => onEdit(tag)} icon={<Edit2 className="w-4 h-4" />} label="" color="blue" small />
+              <ActionButton onClick={() => onUnlink(tag.id)} icon={<Unlink className="w-4 h-4" />} label="" color="red" small />
+            </>
+          )}
+        </div>
+        <ActionButton onClick={onViewQR} icon={<QrCode className="w-4 h-4" />} label="" color="white" small />
+      </div>
+    </motion.div>
+  );
+}
+
+interface ActionButtonProps {
+  onClick: () => void;
+  icon: React.ReactNode;
+  label?: string;
+  color?: 'white' | 'orange' | 'blue' | 'red';
+  small?: boolean;
+}
+function ActionButton({ onClick, icon, label, color = 'white', small = false }: ActionButtonProps) {
+  const colors: Record<string, string> = {
+    white: 'bg-white/10 hover:bg-white/20 text-white',
+    orange: 'bg-orange-500/10 hover:bg-orange-500/20 text-orange-400',
+    blue: 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-400',
+    red: 'bg-red-500/10 hover:bg-red-500/20 text-red-400',
+  };
+  const colorKey = color; // already a valid key
+  return (
+    <button
+      onClick={onClick}
+      className={`p-${small ? '2' : '2.5'} rounded-xl transition-all ${colors[colorKey]} ${!label && 'w-9 h-9 flex items-center justify-center'}`}
+      title={label}
+    >
+      {icon}
+      {label && <span className="ml-1 text-xs font-bold hidden sm:inline">{label}</span>}
+    </button>
+  );
+}
+
+interface ModalWrapperProps {
+  children: React.ReactNode;
+  onClose: () => void;
+}
+function ModalWrapper({ children, onClose }: ModalWrapperProps) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-black/70 backdrop-blur-lg"
+      />
+      <motion.div
+        initial={{ scale: 0.95, y: 20, opacity: 0 }}
+        animate={{ scale: 1, y: 0, opacity: 1 }}
+        exit={{ scale: 0.95, y: 20, opacity: 0 }}
+        className="relative w-full max-w-md bg-gradient-to-br from-zinc-900/90 to-black/90 backdrop-blur-2xl border border-white/20 rounded-3xl shadow-2xl"
+      >
+        <button onClick={onClose} className="absolute top-5 right-5 text-zinc-500 hover:text-white">
+          <X className="w-5 h-5" />
+        </button>
+        {children}
+      </motion.div>
+    </div>
+  );
+}
+
+interface ImageUploadProps {
+  imageUrl: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onClear: () => void;
+}
+function ImageUpload({ imageUrl, onChange, onClear }: ImageUploadProps) {
+  return (
+    <div className="relative border-2 border-dashed border-white/10 rounded-2xl p-4 text-center hover:border-emerald-500/50 transition-colors bg-black/20">
+      <input type="file" accept="image/*" onChange={onChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+      {imageUrl ? (
+        <div className="relative w-full h-32">
+          <img src={imageUrl} alt="Preview" className="absolute inset-0 w-full h-full object-contain rounded-lg" />
+          <button
+            type="button"
+            onClick={(e) => { e.preventDefault(); onClear(); }}
+            className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-500 text-white p-2 rounded-xl backdrop-blur-sm transition-all"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center text-zinc-500 py-4">
+          <UploadCloud className="w-8 h-8 mb-2 text-zinc-600" />
+          <span className="text-sm font-bold text-zinc-400">Tap to upload image</span>
+        </div>
+      )}
     </div>
   );
 }
