@@ -4,8 +4,10 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Lock, Unlock, ActivityIcon, ArrowLeft, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+
+// 🎯 Dono data Server Actions se aayenge (No Vercel Env Errors!)
 import { getStoreData } from '../../actions/adminActions'; 
-import { getSalesData } from '../../actions/billingActions'; // 🎯 NEW IMPORT
+import { getSalesData } from '../../actions/billingActions'; 
 
 export default function AdminAnalyticsPage() {
   const router = useRouter();
@@ -14,17 +16,17 @@ export default function AdminAnalyticsPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passcode, setPasscode] = useState('');
   const [error, setError] = useState('');
-  const ADMIN_PIN = '7788'; // Reuse MVP PIN
+  const ADMIN_PIN = '7788'; 
 
-  // 📦 Data States (Now includes 'sales')
+  // 📦 Data States
   const [data, setData] = useState<{ qrTags: any[], sales: any[] }>({ qrTags: [], sales: [] });
   const [loading, setLoading] = useState(true);
 
-  // Load fresh data when page opens (after unlock)
+  // Load fresh data securely from SERVER
   async function loadData() {
     setLoading(true);
     try {
-      // Dono data (Store & Sales) backend server se securely fetch karenge
+      // Parallel server fetching - Super fast & Secure
       const [storeRes, salesRes] = await Promise.all([
         getStoreData(),
         getSalesData()
@@ -36,15 +38,15 @@ export default function AdminAnalyticsPage() {
           sales: salesRes.sales || []
         });
       } else {
-        alert('❌ Error: ' + (salesRes.message || storeRes.message));
+        alert(`❌ Error: ${salesRes.message || storeRes.message || 'Database issue'}`);
       }
     } catch (err) {
       console.error("Dashboard Fetch Error:", err);
+      alert("❌ Critical Fetch Error");
     } finally {
       setLoading(false);
     }
   }
-
 
   // 🔐 PIN check handler
   const handleLogin = (e: React.FormEvent) => {
@@ -76,12 +78,12 @@ export default function AdminAnalyticsPage() {
   const unsoldItemsList = data.qrTags.filter(t => t.products && t.status !== 'sold');
   const potentialRevenue = unsoldItemsList.reduce((sum, tag) => sum + Number(tag.products?.price || 0), 0);
   
-  // 5. Mock Scans (Placeholder for Phase 2 scan tracking)
+  // 5. Mock Scans (Placeholder)
   const mockTotalScans = totalItemsSold > 0 ? (totalItemsSold * 3 + 12) : 0; 
   const dropOffRate = mockTotalScans > 0 ? Math.round(((mockTotalScans - totalItemsSold) / mockTotalScans) * 100) : 0;
 
   // ==========================================
-  // 🔴 VIEW 1: THE SECURITY VAULT (LOCK SCREEN)
+  // 🔴 VIEW 1: THE SECURITY VAULT
   // ==========================================
   if (!isAuthenticated) {
     return (
@@ -126,7 +128,6 @@ export default function AdminAnalyticsPage() {
   return (
     <main className="min-h-screen bg-[#09090b] text-zinc-100 font-sans selection:bg-emerald-500/30">
       
-      {/* HEADER BAR */}
       <header className="px-6 pt-12 pb-6 sticky top-0 z-40 bg-[#09090b]/80 backdrop-blur-xl border-b border-white/5">
         <div className="flex justify-between items-center max-w-7xl mx-auto px-4 md:px-8">
           <div className="flex items-center gap-4">
@@ -146,7 +147,6 @@ export default function AdminAnalyticsPage() {
         </div>
       </header>
 
-      {/* DASHBOARD GRID */}
       <div className="max-w-7xl mx-auto p-6 md:p-8 space-y-8 pb-20">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-32 text-center text-zinc-600 gap-4">
@@ -156,7 +156,6 @@ export default function AdminAnalyticsPage() {
         ) : (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-2 md:grid-cols-4 gap-6">
             
-            {/* 💸 1. Total Gross Revenue Card */}
             <div className="col-span-2 md:col-span-4 bg-gradient-to-br from-emerald-500/10 to-transparent border border-emerald-500/20 p-8 rounded-[2.5rem] relative overflow-hidden shadow-2xl">
               <div className="absolute -top-20 -right-20 w-48 h-48 bg-emerald-500/10 blur-[80px] rounded-full pointer-events-none"></div>
               <div className="flex justify-between items-start mb-1 z-10 relative">
@@ -168,19 +167,16 @@ export default function AdminAnalyticsPage() {
               </p>
             </div>
 
-            {/* 🛍️ 2. Items Sold */}
             <div className="col-span-1 bg-zinc-900/50 backdrop-blur-3xl border border-white/5 p-7 rounded-[2.5rem] shadow-xl">
               <p className="text-zinc-500 text-xs font-black uppercase tracking-widest mb-2">Items Sold</p>
               <p className="text-4xl font-black text-white tracking-tight">{totalItemsSold}</p>
             </div>
 
-            {/* 🎯 3. Average Order Value */}
             <div className="col-span-1 bg-zinc-900/50 backdrop-blur-3xl border border-white/5 p-7 rounded-[2.5rem] shadow-xl">
               <p className="text-zinc-500 text-xs font-black uppercase tracking-widest mb-2">Avg. Order</p>
               <p className="text-4xl font-black text-white tracking-tight">₹{averageOrderValue.toLocaleString()}</p>
             </div>
 
-            {/* 🔍 4. Scans Drop-off */}
             <div className="col-span-2 bg-white/5 border border-white/10 p-7 rounded-[2.5rem] shadow-xl flex justify-between items-center relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 blur-3xl rounded-full"></div>
                 <div className="z-10 relative">
@@ -196,7 +192,6 @@ export default function AdminAnalyticsPage() {
                 </div>
             </div>
 
-            {/* 🏭 5. Potential Revenue (Inventory Value) */}
             <div className="col-span-2 bg-blue-500/5 border border-blue-500/10 p-7 rounded-[2.5rem] flex justify-between items-center shadow-xl">
                 <div>
                     <p className="text-blue-400/80 text-xs font-black uppercase tracking-widest mb-2">Inventory Value</p>
