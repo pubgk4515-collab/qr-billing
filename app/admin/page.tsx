@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  LayoutDashboard, QrCode, PackagePlus, Loader2, Download, X, Link, ExternalLink,
+  LayoutDashboard, QrCode, ShoppingBag, PackagePlus, Loader2, Download, X, Link, ExternalLink,
   Link2, Unlink, Edit2, UploadCloud, Activity, ActivityIcon, Lock, KeyRound, Plus, Tag, Hash,
   CheckCircle2, AlertCircle, Search, Filter, Grid, List
 } from 'lucide-react';
@@ -717,38 +717,61 @@ interface TableRowProps {
   onLink: () => void;
   onViewQR: () => void;
 }
+// Is component ko poora update karein
 function TableRow({ tag, onEdit, onUnlink, onLink, onViewQR }: TableRowProps) {
-  const isActive = tag.status === 'active';
+  
+  // 🔥 FIX 1: Hum status seedha Database se mangwaenge
+  // (Ab isActive se decide nahi hoga ki Sold hai ya nahi)
+  const isSold = tag.status === 'sold'; // If explicit status is 'sold'
+  const isLinked = tag.products !== null && !isSold; // Linked and ready to sell
+  const isFree = !tag.products && tag.status !== 'sold'; // Empty tag
+
   return (
     <tr className="hover:bg-white/5 transition-colors group">
       <td className="p-5 font-mono font-bold text-white">{tag.id}</td>
       <td className="p-5 text-center">
-        <span
-          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${
-            isActive
-              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-              : 'bg-orange-500/10 text-orange-400 border-orange-500/20'
-          }`}
-        >
-          {isActive ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
-          {isActive ? 'Sold' : 'Free'}
-        </span>
+        {/* 🔥 FIX 2: Dynamic Badge based on real status */}
+        {isSold && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border bg-red-500/10 text-red-400 border-red-500/20">
+               Sold Out
+            </span>
+        )}
+        {isLinked && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border bg-emerald-500/10 text-emerald-400 border-emerald-500/20 animate-pulse">
+               <CheckCircle2 className="w-3 h-3" /> In Stock
+            </span>
+        )}
+        {isFree && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border bg-orange-500/10 text-orange-400 border-orange-500/20">
+               <AlertCircle className="w-3 h-3" /> Free Tag
+            </span>
+        )}
       </td>
       <td className="p-5">
-        <div className="flex items-center gap-3">
-          {tag.products?.image_url && (
-            <img src={tag.products.image_url} alt="" className="w-10 h-10 rounded-lg object-cover border border-white/10" />
-          )}
-          <div>
-            <p className="font-bold text-white">{tag.products?.name || '—'}</p>
-            {tag.products && <p className="text-xs text-zinc-500">₹{tag.products.price}</p>}
-          </div>
-        </div>
-      </td>
+  <div className="flex items-center gap-3">
+    {/* 🔥 Yahan && ki jagah ? aayega */}
+    {tag.products?.image_url ? (
+      <img src={tag.products.image_url} alt="" className="w-10 h-10 rounded-lg object-cover border border-white/10" />
+    ) : (
+      <div className="w-10 h-10 rounded-lg bg-zinc-800 border border-white/5 flex items-center justify-center text-zinc-600">
+        <ShoppingBag className='w-5 h-5'/>
+      </div>
+    )}
+    <div>
+      <p className="font-bold text-white">{tag.products?.name || '—'}</p>
+      {tag.products && <p className="text-xs text-zinc-500">₹{tag.products.price}</p>}
+    </div>
+  </div>
+</td>
+
       <td className="p-5 text-right">
         <div className="flex justify-end gap-2">
-          {!isActive ? (
+          {isFree ? (
             <ActionButton onClick={onLink} icon={<Link2 className="w-4 h-4" />} label="Link" color="orange" />
+          ) : isSold ? (
+             <span className="bg-red-500/10 text-red-400 px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest border border-red-500/20">
+                Item Gone
+             </span>
           ) : (
             <>
               <ActionButton onClick={() => onEdit(tag)} icon={<Edit2 className="w-4 h-4" />} label="Edit" color="blue" />
@@ -762,6 +785,7 @@ function TableRow({ tag, onEdit, onUnlink, onLink, onViewQR }: TableRowProps) {
   );
 }
 
+
 interface GridCardProps {
   tag: any;
   onEdit: (tag: any) => void;
@@ -769,43 +793,59 @@ interface GridCardProps {
   onLink: () => void;
   onViewQR: () => void;
 }
+// Is component ko bhi update karein same logic ke saath
 function GridCard({ tag, onEdit, onUnlink, onLink, onViewQR }: GridCardProps) {
-  const isActive = tag.status === 'active';
+  // 🔥 FIX 1 (Grid): Same logic
+  const isSold = tag.status === 'sold';
+  const isLinked = tag.products !== null && !isSold;
+  const isFree = !tag.products && tag.status !== 'sold';
+
   return (
     <motion.div
       layout
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
-      className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 hover:border-emerald-500/30 transition-all"
+      className="bg-zinc-900/60 backdrop-blur-md border border-white/5 rounded-[2.5rem] p-6 hover:border-emerald-500/50 transition-all shadow-xl"
     >
       <div className="flex justify-between items-start mb-3">
         <span className="font-mono font-bold text-white text-sm">{tag.id}</span>
-        <span
-          className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-            isActive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-orange-500/20 text-orange-400'
-          }`}
-        >
-          {isActive ? 'SOLD' : 'FREE'}
-        </span>
+        {/* 🔥 FIX 2 (Grid): Dynammic Badges */}
+        {isSold && (
+            <span className="text-[10px] font-black px-3 py-1.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">
+              SOLD OUT
+            </span>
+        )}
+        {isLinked && (
+            <span className="text-[10px] font-black px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5" /> IN STOCK
+            </span>
+        )}
+        {isFree && (
+            <span className="text-[10px] font-black px-3 py-1.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20 flex items-center gap-1.5">
+               <AlertCircle className="w-3.5 h-3.5" /> FREE TAG
+            </span>
+        )}
       </div>
       {tag.products ? (
-        <div className="flex items-center gap-3 mt-3">
+        <div className="flex items-center gap-3 mt-4">
           {tag.products.image_url && (
-            <img src={tag.products.image_url} alt="" className="w-12 h-12 rounded-lg object-cover" />
+            <img src={tag.products.image_url} alt="" className="w-14 h-14 rounded-2xl object-cover border border-white/10" />
           )}
           <div>
-            <p className="font-bold text-white">{tag.products.name}</p>
-            <p className="text-xs text-zinc-400">₹{tag.products.price}</p>
+            <p className="font-bold text-white text-lg">{tag.products.name}</p>
+            <p className="text-sm text-zinc-400">₹{tag.products.price}</p>
           </div>
         </div>
       ) : (
-        <p className="text-zinc-500 text-sm mt-3 italic">No product linked</p>
+        <div className="text-zinc-500 text-sm mt-4 italic bg-white/5 p-4 rounded-xl">No product linked</div>
       )}
-      <div className="flex justify-between mt-5 pt-3 border-t border-white/10">
+      <div className="flex justify-between mt-6 pt-4 border-t border-white/5">
         <div className="flex gap-2">
-          {!isActive ? (
+          {isFree ? (
             <ActionButton onClick={onLink} icon={<Link2 className="w-4 h-4" />} label="" color="orange" small />
+          ) : isSold ? (
+             <span className="text-[10px] font-bold text-red-400 py-1.5">Sold item</span>
           ) : (
             <>
               <ActionButton onClick={() => onEdit(tag)} icon={<Edit2 className="w-4 h-4" />} label="" color="blue" small />
@@ -818,6 +858,7 @@ function GridCard({ tag, onEdit, onUnlink, onLink, onViewQR }: GridCardProps) {
     </motion.div>
   );
 }
+
 
 interface ActionButtonProps {
   onClick: () => void;
