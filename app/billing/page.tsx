@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getProductByTag, processCheckout } from '../actions/billingActions';
+import QRCode from 'react-qr-code';
+import { getProductByTag, processCheckout, checkPaymentStatus } from '../actions/billingActions';
 import { 
   ShoppingBag, Trash2, CreditCard, Loader2, XCircle, QrCode, X, 
   CheckCircle2, Smartphone, Banknote, MessageCircle, Send 
@@ -10,7 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Html5Qrcode } from 'html5-qrcode';
 
 type ViewState = 'CART_VIEW' | 'SCANNING' | 'PRODUCT_SHOWCASE';
-type PaymentStep = 'SELECT_METHOD' | 'ONLINE_PAY' | 'ONLINE_SUCCESS' | 'OFFLINE_INPUT' | 'OFFLINE_SUCCESS';
+type PaymentStep = 'SELECT_METHOD' | 'ONLINE_PAY' | 'AWAITING_APPROVAL' | 'ONLINE_SUCCESS' | 'OFFLINE_INPUT' | 'OFFLINE_SUCCESS';
 
 export default function BillingPage() {
   const [viewState, setViewState] = useState<ViewState>('CART_VIEW');
@@ -191,10 +192,17 @@ export default function BillingPage() {
     }, 300);
   };
 
-  const executeDatabaseCheckout = async (onSuccessCallback: () => void) => {
+  const executeDatabaseCheckout = async (paymentMethod: string, onSuccessCallback: () => void) => {
     setIsCheckingOut(true);
     try {
-      const res = await processCheckout(cart.map(item => item.id));
+      const cartDetails = {
+        cartId: currentCartId,
+        paymentMethod: paymentMethod,
+        customerPhone: customerPhone || 'ONLINE_USER',
+        items: cart
+      };
+      
+      const res = await processCheckout(cart.map(item => item.id), cartDetails);
       if (res && res.success) {
         onSuccessCallback();
       } else {
@@ -207,29 +215,22 @@ export default function BillingPage() {
     }
   };
 
-  const handleOnlinePaymentSuccess = () => {
-    // In real app, this is called after UPI verification webhook
-    executeDatabaseCheckout(() => setPaymentStep('ONLINE_SUCCESS'));
-  };
-
   const handleOfflineSubmit = () => {
     if (customerPhone.length < 10) {
       showError('Please enter a valid phone number');
       return;
     }
-    executeDatabaseCheckout(() => setPaymentStep('OFFLINE_SUCCESS'));
+    executeDatabaseCheckout('OFFLINE', () => setPaymentStep('OFFLINE_SUCCESS'));
   };
 
   const requestWhatsAppBill = () => {
-    // Store owner's number where customer will send the auto-message
-    const storeNumber = "919876543210"; // Replace with real number later
+    const storeNumber = "919876543210"; // Isko baad me real store owner ke number se replace kar dena
     const text = encodeURIComponent(`Hi, I just paid for ${currentCartId}. Please send my bill.`);
     window.open(`https://wa.me/${storeNumber}?text=${text}`, '_blank');
     closeAndResetModal();
   };
 
   const dispatchWhatsAppBill = () => {
-    // Here we will later add the Server Action to send PDF via Meta/Interakt API
     showSuccess(`Receipt sent to +91 ${customerPhone} via WhatsApp!`);
     closeAndResetModal();
   };
@@ -400,17 +401,46 @@ export default function BillingPage() {
                     </motion.div>
                   )}
 
-                  {/* STEP 2A: ONLINE PAYMENT PROCESSING */}
+                  {/* STEP 2A: ONLINE PAYMENT PROCESSING (UPDATED) */}
                   {paymentStep === 'ONLINE_PAY' && (
                     <motion.div key="online_pay" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="flex flex-col items-center py-4">
-                      <div className="w-48 h-48 bg-white p-2 rounded-2xl mb-6 shadow-lg flex items-center justify-center">
-                        {/* Mock QR Code - Replace with dynamic upi:// later */}
-                        <QrCode className="w-32 h-32 text-zinc-900" />
+                      <div className="bg-white p-3 rounded-2xl mb-6 shadow-lg flex items-center justify-center">
+                        {/* Real UPI QR Code */}
+                        <QRCode 
+                          value={`upi://pay?pa=merchant@ybl&pn=SME%20Garment%20Store&am=${totalAmount}&cu=INR&tn=${currentCartId}`} 
+                          size={180} 
+                        />
                       </div>
-                      <p className="text-zinc-400 mb-6 text-center">Ask customer to scan this QR to pay<br/><span className="text-white font-bold text-xl">₹{totalAmount}</span></p>
-                      <button onClick={handleOnlinePaymentSuccess} disabled={isCheckingOut} className="w-full bg-emerald-500 text-black py-4 rounded-xl font-bold flex items-center justify-center gap-2">
-                        {isCheckingOut ? <Loader2 className="w-5 h-5 animate-spin" /> : "Simulate Payment Success"}
+                      <p className="text-zinc-400 mb-6 text-center">Scan with any UPI App (GPay, PhonePe, Paytm)<br/><span className="text-white font-bold text-xl">₹{totalAmount}</span></p>
+                      
+                      {/* "I HAVE PAID" BUTTON */}
+                      <button 
+                        onClick={() => {
+                          executeDatabaseCheckout('ONLINE', () => setPaymentStep('AWAITING_APPROVAL'));
+                        }} 
+                        disabled={isCheckingOut} 
+                        className="w-full bg-emerald-500 text-black py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition active:scale-95"
+                      >
+                        {isCheckingOut ? <Loader2 className="w-5 h-5 animate-spin" /> : "I have Paid via UPI"}
                       </button>
+                    </motion.div>
+                  )}
+
+                  {/* STEP 2.5: AWAITING ADMIN APPROVAL (THE MAGIC FLOW) */}
+                  {paymentStep === 'AWAITING_APPROVAL' && (
+                    <motion.div key="awaiting" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center py-8 text-center">
+                      <div className="relative w-20 h-20 mb-6 flex items-center justify-center">
+                        <div className="absolute inset-0 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin"></div>
+                        <Banknote className="w-8 h-8 text-emerald-400" />
+                      </div>
+                      <h2 className="text-xl font-black text-white mb-2">Verifying Payment...</h2>
+                      <p className="text-zinc-400 text-sm mb-4">Please wait while the store counter confirms your payment.</p>
+                      
+                      {/* Invisible Polling Component */}
+                      <AutoStatusChecker 
+                        cartId={currentCartId} 
+                        onApproved={() => setPaymentStep('ONLINE_SUCCESS')} 
+                      />
                     </motion.div>
                   )}
 
@@ -479,7 +509,22 @@ export default function BillingPage() {
           </motion.div>
         )}
       </AnimatePresence>
-
     </main>
   );
+}
+
+// YEH COMPONENT BILLING PAGE KE BAHAR, FILE KE BOTTOM ME RAHEGA
+function AutoStatusChecker({ cartId, onApproved }: { cartId: string, onApproved: () => void }) {
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const res = await checkPaymentStatus(cartId);
+      if (res.success && res.status === 'completed') {
+        onApproved();
+      }
+    }, 3000); 
+
+    return () => clearInterval(interval);
+  }, [cartId, onApproved]);
+
+  return null;
 }

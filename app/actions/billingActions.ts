@@ -105,12 +105,16 @@ export async function processCheckout(
       };
 
       // Agar modal se naya cart details aaya hai toh unhe bhi insert karo
+            // Process Checkout ke andar insertData me yeh update karein:
       if (cartDetails) {
         insertData.cart_id = cartDetails.cartId;
         insertData.payment_method = cartDetails.paymentMethod;
         insertData.customer_phone = cartDetails.customerPhone;
         insertData.purchased_items = cartDetails.items;
+        // NEW: Set initial status based on payment method
+        insertData.payment_status = cartDetails.paymentMethod === 'ONLINE' ? 'awaiting_approval' : 'completed';
       }
+
 
       const { error: salesError } = await supabase
         .from('sales')
@@ -176,5 +180,29 @@ export async function getSaleByCartId(cartId: string) {
   } catch (error: any) {
     console.error('GetSaleByCartId error:', error);
     return { success: false, message: 'Server error while fetching order' };
+  }
+}
+
+// ============================================================================
+// 🔄 5. CHECK PAYMENT STATUS (NEW: For Magic Flow Polling)
+// ============================================================================
+export async function checkPaymentStatus(cartId: string) {
+  try {
+    const supabase = getSupabase();
+    
+    const { data, error } = await supabase
+      .from('sales')
+      .select('payment_status')
+      .eq('cart_id', cartId)
+      .single();
+
+    if (error || !data) {
+      return { success: false, message: 'Order not found' };
+    }
+
+    return { success: true, status: data.payment_status };
+  } catch (error: any) {
+    console.error('CheckPaymentStatus error:', error);
+    return { success: false, message: 'Server error' };
   }
 }
