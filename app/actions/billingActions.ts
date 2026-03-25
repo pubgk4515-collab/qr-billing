@@ -73,9 +73,17 @@ export async function getProductByTag(tagId: string) {
 }
 
 // ============================================================================
-// 🛒 2. PROCESS CHECKOUT
+// 🛒 2. PROCESS CHECKOUT (Upgraded for Database Sync & Cart Tracking)
 // ============================================================================
-export async function processCheckout(tagIds: string[]) {
+export async function processCheckout(
+  tagIds: string[], 
+  cartDetails?: { 
+    cartId: string; 
+    paymentMethod: string; 
+    customerPhone: string; 
+    items: any[] 
+  }
+) {
   try {
     const supabase = getSupabase();
 
@@ -91,9 +99,22 @@ export async function processCheckout(tagIds: string[]) {
 
     // Create a permanent sales record
     if (totalAmount > 0) {
+      const insertData: any = { 
+        total_amount: totalAmount, 
+        items_count: tagIds.length 
+      };
+
+      // Agar modal se naya cart details aaya hai toh unhe bhi insert karo
+      if (cartDetails) {
+        insertData.cart_id = cartDetails.cartId;
+        insertData.payment_method = cartDetails.paymentMethod;
+        insertData.customer_phone = cartDetails.customerPhone;
+        insertData.purchased_items = cartDetails.items;
+      }
+
       const { error: salesError } = await supabase
         .from('sales')
-        .insert({ total_amount: totalAmount, items_count: tagIds.length });
+        .insert(insertData);
 
       if (salesError) throw salesError;
     }
@@ -131,5 +152,29 @@ export async function getSalesData() {
   } catch (error: any) {
     console.error('GetSalesData error:', error);
     return { success: false, message: error.message || 'Failed to fetch sales' };
+  }
+}
+
+// ============================================================================
+// 🧾 4. GET SALE BY CART ID (NEW: For Admin Manual Receipt Feature)
+// ============================================================================
+export async function getSaleByCartId(cartId: string) {
+  try {
+    const supabase = getSupabase();
+    
+    const { data, error } = await supabase
+      .from('sales')
+      .select('*')
+      .eq('cart_id', cartId)
+      .single();
+
+    if (error || !data) {
+      return { success: false, message: 'Order not found for this Cart ID' };
+    }
+
+    return { success: true, data };
+  } catch (error: any) {
+    console.error('GetSaleByCartId error:', error);
+    return { success: false, message: 'Server error while fetching order' };
   }
 }
