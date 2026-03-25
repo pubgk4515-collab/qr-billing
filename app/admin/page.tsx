@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, QrCode, ShoppingBag, PackagePlus, Loader2, Download, X, Link, ExternalLink,
   Link2, Unlink, Edit2, UploadCloud, Activity, ActivityIcon, Lock, KeyRound, Plus, Tag, Hash,
-  CheckCircle2, AlertCircle, Search, Filter, Grid, List
+  CheckCircle2, AlertCircle, Search, Filter, Grid, List, Banknote, Send
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -15,7 +15,9 @@ import {
   generateFreeTags,
   linkTagToProduct,
   unlinkTag,
-  updateProduct
+  updateProduct,
+  getOrderByCartId,
+  approvePayment
 } from '../actions/adminActions';
 import { useRouter } from 'next/navigation';
 
@@ -47,6 +49,10 @@ export default function AdminDashboard() {
   const [isFreeTagModalOpen, setIsFreeTagModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+  const [searchCartId, setSearchCartId] = useState('');
+  const [foundOrder, setFoundOrder] = useState<any>(null);
+  const [isSearchingOrder, setIsSearchingOrder] = useState(false);
 
   // Form States
   const [newItem, setNewItem] = useState({ name: '', price: '', imageUrl: '' });
@@ -207,6 +213,41 @@ export default function AdminDashboard() {
     img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
   };
 
+    // 👇 YEH 3 NAYE FUNCTIONS PASTE KAREIN
+  const handleSearchOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchCartId) return;
+    setIsSearchingOrder(true);
+    setFoundOrder(null);
+    const res = await getOrderByCartId(searchCartId.trim());
+    if (res.success && res.data) {
+      setFoundOrder(res.data);
+    } else {
+      alert(res.message || 'Order not found');
+    }
+    setIsSearchingOrder(false);
+  };
+
+  const handleApprovePayment = async () => {
+    if (!foundOrder) return;
+    setIsSubmitting(true);
+    const res = await approvePayment(foundOrder.cart_id);
+    if (res.success) {
+      setFoundOrder({ ...foundOrder, payment_status: 'completed' });
+      loadData(); // Data refresh taaki dashboard stats update ho jayein
+    } else {
+      alert('Error approving payment: ' + res.message);
+    }
+    setIsSubmitting(false);
+  };
+
+  const dispatchManualReceipt = () => {
+    if (!foundOrder) return;
+    const text = encodeURIComponent(`Hello! Here is your receipt for order ${foundOrder.cart_id}.\nAmount Paid: ₹${foundOrder.total_amount}\nItems: ${foundOrder.items_count}\n\nThank you for shopping with us!`);
+    window.open(`https://wa.me/91${foundOrder.customer_phone}?text=${text}`, '_blank');
+  };
+
+
   // 🔍 Filter & search logic
   const filteredTags = data.qrTags.filter(tag => {
     if (filter !== 'all' && tag.status !== filter) return false;
@@ -358,6 +399,12 @@ export default function AdminDashboard() {
               <PackagePlus className="w-4 h-4" /> Create Free Tags
             </button>
             <button
+              onClick={() => setIsOrderModalOpen(true)}
+              className="px-5 py-2.5 bg-blue-500/10 border border-blue-500/20 rounded-xl text-sm font-bold text-blue-400 hover:bg-blue-500/20 transition-all flex items-center gap-2"
+            >
+              <Search className="w-4 h-4" /> Verify Payment
+            </button>
+            <button
               onClick={() => setIsAddModalOpen(true)}
               className="px-5 py-2.5 bg-emerald-500 text-black rounded-xl text-sm font-black hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2"
             >
@@ -448,7 +495,7 @@ export default function AdminDashboard() {
         )}
       </div>
 
-      {/* ========== MODALS (all with improved glassmorphism) ========== */}
+      {/* ========== MODALS ========== */}
       {/* 🔗 Link Product Modal */}
       <AnimatePresence>
         {linkingTag && (
@@ -468,6 +515,83 @@ export default function AdminDashboard() {
                   </button>
                 ))}
               </div>
+            </div>
+          </ModalWrapper>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isOrderModalOpen && (
+          <ModalWrapper onClose={() => { setIsOrderModalOpen(false); setFoundOrder(null); setSearchCartId(''); }}>
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center border border-blue-500/20">
+                  <Banknote className="w-5 h-5 text-blue-400" />
+                </div>
+                <h3 className="text-2xl font-black">Verify Payment</h3>
+              </div>
+              <p className="text-zinc-400 text-sm mb-6">Enter Cart ID to approve pending UPI transactions or send manual receipts.</p>
+
+              <form onSubmit={handleSearchOrder} className="flex gap-2 mb-6">
+                <input
+                  type="text"
+                  value={searchCartId}
+                  onChange={e => setSearchCartId(e.target.value.toUpperCase().replace(/\s/g, ''))}
+                  placeholder="e.g. CART-1234"
+                  className="flex-1 bg-black/30 border border-white/10 rounded-2xl py-3 px-4 text-white font-mono uppercase outline-none focus:border-blue-500 transition-all"
+                />
+                <button
+                  type="submit"
+                  disabled={isSearchingOrder || !searchCartId}
+                  className="bg-blue-500 text-white px-6 rounded-2xl font-bold hover:bg-blue-400 disabled:opacity-50 transition-all flex items-center justify-center shadow-lg shadow-blue-500/20"
+                >
+                  {isSearchingOrder ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Find'}
+                </button>
+              </form>
+
+              {foundOrder && (
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-4">
+                  <div className="flex justify-between items-center pb-4 border-b border-white/5">
+                    <div>
+                      <p className="text-xs text-zinc-500 uppercase font-bold tracking-widest">Amount</p>
+                      <p className="text-2xl font-black text-white">₹{foundOrder.total_amount}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-zinc-500 uppercase font-bold tracking-widest">Status</p>
+                      {foundOrder.payment_status === 'awaiting_approval' ? (
+                        <span className="text-orange-400 font-bold bg-orange-500/10 px-3 py-1 rounded-full text-xs animate-pulse border border-orange-500/20">Pending</span>
+                      ) : (
+                        <span className="text-emerald-400 font-bold bg-emerald-500/10 px-3 py-1 rounded-full text-xs border border-emerald-500/20">Completed</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-zinc-400 mb-1"><span className="font-bold text-white">Method:</span> {foundOrder.payment_method}</p>
+                    <p className="text-sm text-zinc-400 mb-1"><span className="font-bold text-white">Phone:</span> +91 {foundOrder.customer_phone}</p>
+                    <p className="text-sm text-zinc-400"><span className="font-bold text-white">Items Count:</span> {foundOrder.items_count}</p>
+                  </div>
+
+                  {foundOrder.payment_status === 'awaiting_approval' && (
+                    <button
+                      onClick={handleApprovePayment}
+                      disabled={isSubmitting}
+                      className="w-full bg-emerald-500 text-black font-black py-4 rounded-xl mt-2 hover:bg-emerald-400 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
+                    >
+                      {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />} Approve Payment
+                    </button>
+                  )}
+
+                  {foundOrder.payment_status === 'completed' && foundOrder.payment_method === 'OFFLINE' && (
+                     <button
+                       onClick={dispatchManualReceipt}
+                       className="w-full bg-[#25D366] text-white font-black py-4 rounded-xl mt-2 hover:bg-[#1ebd5a] transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#25D366]/20"
+                     >
+                       <Send className="w-5 h-5" /> Send WhatsApp Receipt
+                     </button>
+                  )}
+                </motion.div>
+              )}
             </div>
           </ModalWrapper>
         )}

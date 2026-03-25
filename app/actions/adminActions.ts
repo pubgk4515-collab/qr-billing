@@ -132,3 +132,39 @@ export async function unlinkTag(tagId: string) {
         return { success: false, message: error.message };
     }
 }
+
+// ============================================================================
+// 🏦 NEW: MAGIC FLOW APPROVAL ACTIONS (Admin Panel)
+// ============================================================================
+
+export async function getOrderByCartId(cartId: string) {
+  try {
+    const supabaseServer = createSupabaseServer();
+    const { data, error } = await supabaseServer
+      .from('sales')
+      .select('*')
+      .eq('cart_id', cartId)
+      .single();
+      
+    if (error || !data) throw new Error('Order not found for this Cart ID');
+    
+    return { success: true, data };
+  } catch (error: any) {
+    return { success: false, message: error.message };
+  }
+}
+
+export async function approvePayment(cartId: string) {
+  try {
+    const supabaseServer = createSupabaseServer();
+    const { error } = await supabaseServer
+      .from('sales')
+      .update({ payment_status: 'completed' })
+      .eq('cart_id', cartId);
+      
+    if (error) throw error;
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, message: error.message };
+  }
+}
