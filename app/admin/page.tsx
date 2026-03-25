@@ -414,32 +414,39 @@ export default function AdminDashboard() {
         </div>
 
         {/* Search & View Toggle */}
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-            <input
-              type="text"
-              placeholder="Search by tag ID or product name..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-full bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl py-3 pl-10 pr-4 text-sm text-white placeholder:text-zinc-500 focus:border-emerald-500/50 outline-none transition-all"
-            />
+                {/* Filters & Actions Bar */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+          <div className="flex gap-3">
+            <FilterTab label="All" value="all" current={filter} onClick={() => setFilter('all')} />
+            <FilterTab label="Free" value="free" current={filter} onClick={() => setFilter('free')} />
+            <FilterTab label="Sold" value="active" current={filter} onClick={() => setFilter('active')} />
           </div>
-          <div className="flex gap-2 bg-white/5 backdrop-blur-sm rounded-xl p-1 border border-white/10">
+          {/* Yahan flex-wrap add kiya taaki mobile pe theek dikhe */}
+          <div className="flex flex-wrap gap-3">
+            
+            {/* 🏦 NEW: Verify Payment Button */}
             <button
-              onClick={() => setViewMode('table')}
-              className={`p-2 rounded-lg transition-all ${viewMode === 'table' ? 'bg-emerald-500/20 text-emerald-400' : 'text-zinc-500'}`}
+              onClick={() => setIsOrderModalOpen(true)}
+              className="px-5 py-2.5 bg-blue-500/10 border border-blue-500/20 rounded-xl text-sm font-bold text-blue-400 hover:bg-blue-500/20 transition-all flex items-center gap-2"
             >
-              <List className="w-5 h-5" />
+              <Search className="w-4 h-4" /> Verify Payment
+            </button>
+
+            <button
+              onClick={() => setIsFreeTagModalOpen(true)}
+              className="px-5 py-2.5 bg-orange-500/10 border border-orange-500/20 rounded-xl text-sm font-bold text-orange-400 hover:bg-orange-500/20 transition-all flex items-center gap-2"
+            >
+              <PackagePlus className="w-4 h-4" /> Create Free Tags
             </button>
             <button
-              onClick={() => setViewMode('grid')}
-              className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-emerald-500/20 text-emerald-400' : 'text-zinc-500'}`}
+              onClick={() => setIsAddModalOpen(true)}
+              className="px-5 py-2.5 bg-emerald-500 text-black rounded-xl text-sm font-black hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2"
             >
-              <Grid className="w-5 h-5" />
+              <Plus className="w-4 h-4" /> Add Product
             </button>
           </div>
         </div>
+
 
         {/* Tags Display */}
         {viewMode === 'table' ? (
