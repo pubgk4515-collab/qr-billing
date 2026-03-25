@@ -224,7 +224,7 @@ export default function BillingPage() {
       showError('Please enter a valid phone number');
       return;
     }
-    executeDatabaseCheckout('OFFLINE', () => setPaymentStep('OFFLINE_SUCCESS'));
+    executeDatabaseCheckout('OFFLINE', () => setPaymentStep('AWAITING_APPROVAL')); 
   };
 
   const requestWhatsAppBill = () => {

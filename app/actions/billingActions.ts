@@ -112,7 +112,8 @@ export async function processCheckout(
         insertData.customer_phone = cartDetails.customerPhone;
         insertData.purchased_items = cartDetails.items;
         // NEW: Set initial status based on payment method
-        insertData.payment_status = cartDetails.paymentMethod === 'ONLINE' ? 'awaiting_approval' : 'completed';
+        insertData.payment_status = 'awaiting_approval'; // Ab chahe ONLINE ho ya OFFLINE, dono Admin ke approval ka wait karenge
+
       }
 
 

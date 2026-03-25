@@ -586,11 +586,38 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  <div>
+                                    <div>
                     <p className="text-sm text-zinc-400 mb-1"><span className="font-bold text-white">Method:</span> {foundOrder.payment_method}</p>
                     <p className="text-sm text-zinc-400 mb-1"><span className="font-bold text-white">Phone:</span> +91 {foundOrder.customer_phone}</p>
-                    <p className="text-sm text-zinc-400"><span className="font-bold text-white">Items Count:</span> {foundOrder.items_count}</p>
                   </div>
+
+                  {/* 🛡️ NEW: ANTI-THEFT ITEM DISPLAY */}
+                  {foundOrder.purchased_items && foundOrder.purchased_items.length > 0 && (
+                    <div className="mt-4 border-t border-white/5 pt-4">
+                      <p className="text-xs text-zinc-500 uppercase font-bold tracking-widest mb-3">
+                        Items to Verify ({foundOrder.purchased_items.length})
+                      </p>
+                      <div className="space-y-3 max-h-48 overflow-y-auto pr-2">
+                        {foundOrder.purchased_items.map((item: any, idx: number) => (
+                          <div key={idx} className="flex items-center gap-3 bg-black/20 p-2 rounded-xl border border-white/5">
+                            {item.products?.image_url ? (
+                              <img src={item.products.image_url} alt="img" className="w-12 h-12 rounded-lg object-cover border border-white/10" />
+                            ) : (
+                              <div className="w-12 h-12 rounded-lg bg-zinc-800 flex items-center justify-center border border-white/10">
+                                <ShoppingBag className="w-5 h-5 text-zinc-500" />
+                              </div>
+                            )}
+                            <div className="flex-1">
+                              <p className="font-bold text-white text-sm leading-tight">{item.products?.name}</p>
+                              <p className="text-[10px] text-zinc-500 font-mono mt-0.5">{item.id}</p>
+                            </div>
+                            <p className="font-bold text-emerald-400 text-sm">₹{item.products?.price}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
 
                   {foundOrder.payment_status === 'awaiting_approval' && (
                     <button
