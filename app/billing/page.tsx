@@ -175,12 +175,16 @@ export default function BillingPage() {
 
   const totalAmount = cart.reduce((sum, item) => sum + (item.products?.price || 0), 0);
 
-  // --- NEW PAYMENT LOGIC ---
+    // --- NEW PAYMENT LOGIC ---
   const openPaymentModal = () => {
-    setCurrentCartId(`CART-${Math.floor(1000 + Math.random() * 9000)}`);
+    // Sirf tabhi naya ID banao jab pehle se na ho
+    if (!currentCartId) {
+      setCurrentCartId(`CART-${Math.floor(1000 + Math.random() * 9000)}`);
+    }
     setPaymentStep('SELECT_METHOD');
     setShowPaymentModal(true);
   };
+
 
   const closeAndResetModal = () => {
     setShowPaymentModal(false);
