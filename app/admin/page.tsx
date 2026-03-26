@@ -552,22 +552,23 @@ export default function AdminDashboard() {
               </div>
               <p className="text-zinc-400 text-sm mb-6">Enter Cart ID to approve pending UPI transactions or send manual receipts.</p>
 
-              <form onSubmit={handleSearchOrder} className="flex gap-2 mb-6">
+                           <form onSubmit={handleSearchOrder} className="flex flex-col sm:flex-row gap-3 mb-6">
                 <input
                   type="text"
                   value={searchCartId}
                   onChange={e => setSearchCartId(e.target.value.toUpperCase().replace(/\s/g, ''))}
                   placeholder="e.g. CART-1234"
-                  className="flex-1 bg-black/30 border border-white/10 rounded-2xl py-3 px-4 text-white font-mono uppercase outline-none focus:border-blue-500 transition-all"
+                  className="w-full sm:flex-1 bg-black/30 border border-white/10 rounded-2xl py-4 px-5 text-white font-mono uppercase outline-none focus:border-blue-500 transition-all"
                 />
                 <button
                   type="submit"
                   disabled={isSearchingOrder || !searchCartId}
-                  className="bg-blue-500 text-white px-6 rounded-2xl font-bold hover:bg-blue-400 disabled:opacity-50 transition-all flex items-center justify-center shadow-lg shadow-blue-500/20"
+                  className="w-full sm:w-auto bg-blue-500 text-white px-8 py-4 rounded-2xl font-black hover:bg-blue-400 disabled:opacity-50 transition-all flex items-center justify-center shadow-lg shadow-blue-500/20"
                 >
-                  {isSearchingOrder ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Find'}
+                  {isSearchingOrder ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Find Order'}
                 </button>
               </form>
+
 
               {foundOrder && (
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-4">
@@ -811,9 +812,9 @@ export default function AdminDashboard() {
             </div>
           </ModalWrapper>
         )}
-      {/* 🚀 FLOATING ANALYTICS BUTTON (ROUTER PUSH METHOD) */}
-      {!isLocked && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
+            {/* 🚀 FLOATING ANALYTICS BUTTON (SMART HIDE ON MODALS) */}
+      {!isLocked && !isOrderModalOpen && !isAddModalOpen && !isEditModalOpen && !isFreeTagModalOpen && !selectedTag && !linkingTag && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40">
           <button 
             onClick={() => router.push('/admin/analytics')}
             className="group flex items-center gap-3 bg-white/10 backdrop-blur-2xl border border-white/20 px-6 py-4 rounded-full shadow-[0_10px_40px_rgba(0,0,0,0.5)] hover:bg-white/20 hover:border-emerald-500/50 hover:shadow-emerald-500/20 transition-all active:scale-95"
@@ -827,6 +828,7 @@ export default function AdminDashboard() {
           </button>
         </div>
       )}
+
 
       </AnimatePresence>
     </main>
