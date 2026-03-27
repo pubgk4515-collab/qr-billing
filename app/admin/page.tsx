@@ -1,4 +1,3 @@
-// app/admin/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -6,9 +5,16 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Lock, KeyRound, Search, Banknote, ShoppingCart, PackageSearch, 
-  ArrowRight, CheckCircle2, Loader2, Send, Activity, X, Plus 
+  ArrowRight, CheckCircle2, Loader2, Send, X, Plus 
 } from 'lucide-react';
-import { getOrderByCartId, approvePayment } from '../actions/adminActions';
+
+// CLEANED IMPORTS (No duplicates)
+import { 
+  getOrderByCartId, 
+  approvePayment, 
+  getTagForPOS, 
+  completePOSCheckout 
+} from '../actions/adminActions';
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -25,9 +31,10 @@ export default function AdminDashboard() {
   const [isSearchingOrder, setIsSearchingOrder] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 🛍️ Manual POS State (For customers without smartphones)
+  // 🛍️ Manual POS State
   const [manualTagId, setManualTagId] = useState('');
   const [posCart, setPosCart] = useState<any[]>([]);
+  const [posPhone, setPosPhone] = useState('');
   const [isProcessingPos, setIsProcessingPos] = useState(false);
 
   useEffect(() => {
@@ -49,21 +56,20 @@ export default function AdminDashboard() {
   };
 
   // --- PAYMENT VERIFICATION LOGIC ---
-    const handleSearchOrder = async (e: React.FormEvent) => {
+  const handleSearchOrder = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!searchCartNumber) return; // New state name
+    if (!searchCartNumber) return;
     setIsSearchingOrder(true);
     setFoundOrder(null);
-
-    // 🔥 Naya: Backend action call karne se pehle CART- jodenge
+    
+    // Auto-add "CART-" before checking database
     const fullCartId = `CART-${searchCartNumber.trim()}`;
     const res = await getOrderByCartId(fullCartId);
-
+    
     if (res.success && res.data) setFoundOrder(res.data);
     else alert(res.message || 'Order not found');
     setIsSearchingOrder(false);
   };
-
 
   const handleApprovePayment = async () => {
     if (!foundOrder) return;
@@ -88,12 +94,44 @@ export default function AdminDashboard() {
   const handleAddManualTag = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualTagId) return;
-    // TODO: Hum next step me iska backend action likhenge!
-    alert(`Backend API for fetching ${manualTagId} will be added in next step!`);
+    
+    const tagUpper = manualTagId.toUpperCase();
+    if (posCart.find(item => item.id === tagUpper)) {
+      alert('This item is already in the cart!');
+      setManualTagId('');
+      return;
+    }
+
+    setIsProcessingPos(true);
+    const res = await getTagForPOS(tagUpper);
+    
+    if (res.success && res.data) {
+      setPosCart([...posCart, res.data]);
+    } else {
+      alert(res.message);
+    }
+    
     setManualTagId('');
+    setIsProcessingPos(false);
   };
 
-  const posTotal = posCart.reduce((sum, item) => sum + item.price, 0);
+  const handlePOSCheckout = async () => {
+    if (posCart.length === 0) return;
+    setIsProcessingPos(true);
+    
+    const res = await completePOSCheckout(posCart, posPhone);
+    if (res.success) {
+      alert(`✅ Checkout Successful! Order ID: ${res.cartId}`);
+      window.open(`${window.location.origin}/bill/${res.cartId}`, '_blank');
+      setPosCart([]);
+      setPosPhone('');
+    } else {
+      alert('❌ Error during checkout: ' + res.message);
+    }
+    setIsProcessingPos(false);
+  };
+
+  const posTotal = posCart.reduce((sum, item) => sum + (item.products?.price || 0), 0);
 
   // 🔒 Lock Screen
   if (isLocked) {
@@ -122,18 +160,13 @@ export default function AdminDashboard() {
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white font-sans p-4 sm:p-8 pb-24">
-      {/* Top Header */}
       <header className="max-w-5xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10">
         <div>
           <h1 className="text-3xl sm:text-4xl font-black tracking-tight">Command Center</h1>
           <p className="text-zinc-400 text-sm mt-1">Manage payments & manual checkouts</p>
         </div>
         <div className="flex gap-3 w-full sm:w-auto">
-          {/* Navigation to Inventory */}
-          <button 
-            onClick={() => router.push('/admin/inventory')}
-            className="flex-1 sm:flex-none px-6 py-3 bg-white/10 border border-white/20 rounded-xl text-sm font-bold hover:bg-white/20 transition-all flex items-center justify-center gap-2"
-          >
+          <button onClick={() => router.push('/admin/inventory')} className="flex-1 sm:flex-none px-6 py-3 bg-white/10 border border-white/20 rounded-xl text-sm font-bold hover:bg-white/20 transition-all flex items-center justify-center gap-2">
             <PackageSearch className="w-4 h-4" /> Go to Inventory
           </button>
           <button onClick={() => { sessionStorage.removeItem('admin_unlocked'); setIsLocked(true); }} className="px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 hover:bg-red-500/20 transition-all">
@@ -144,9 +177,7 @@ export default function AdminDashboard() {
 
       <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8">
         
-        {/* ========================================= */}
-        {/* COLUMN 1: ONLINE PAYMENT VERIFICATION     */}
-        {/* ========================================= */}
+        {/* COLUMN 1: ONLINE PAYMENT VERIFICATION */}
         <div className="space-y-6">
           <div className="bg-gradient-to-br from-blue-900/40 to-black border border-blue-500/30 rounded-3xl p-6 relative overflow-hidden shadow-2xl shadow-blue-900/20">
             <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 blur-[80px] rounded-full pointer-events-none" />
@@ -156,32 +187,26 @@ export default function AdminDashboard() {
             </h2>
             <p className="text-zinc-400 text-sm mb-6 relative z-10">Approve payments for customers who scanned QR codes.</p>
 
-                        <form onSubmit={handleSearchOrder} className="flex gap-2 mb-6 relative z-10">
-              
-              {/* 🔥 NEW: Prefilled Input Container */}
-              <div className="relative flex-1 group">
-                {/* Static 'CART-' text inside input */}
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 font-mono font-bold select-none z-20 group-focus-within:text-blue-500 transition-colors">
+            <form onSubmit={handleSearchOrder} className="flex gap-2 mb-6 relative z-10 group">
+              <div className="relative flex-1">
+                {/* Visual prefix - unselectable and positioned over the padding */}
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-mono font-bold pointer-events-none group-focus-within:text-blue-400 transition-colors">
                   CART-
                 </div>
-                
-                {/* Real Input (only accepts numbers now) */}
+                {/* Actual input */}
                 <input 
                   type="text" 
-                  maxLength={4} // sirf 4 digit numbers
-                  value={searchCartNumber} // Use renamed state
-                  // 🛡️ Naya: Sirf numbers accept karega
+                  maxLength={4} 
+                  value={searchCartNumber} 
                   onChange={e => setSearchCartNumber(e.target.value.replace(/[^0-9]/g, ''))} 
-                  placeholder="XXXX" // Sirf number placeholder
-                  className="w-full bg-black/50 border border-white/10 rounded-xl py-3 pl-[4.5rem] pr-4 text-white font-mono uppercase outline-none focus:border-blue-500 transition-all z-10 relative" // Added left padding
+                  placeholder="XXXX" 
+                  className="w-full bg-black/50 border border-white/10 rounded-xl py-3 pl-[4.5rem] pr-4 text-white font-mono uppercase outline-none focus:border-blue-500 transition-all" 
                 />
               </div>
-
               <button type="submit" disabled={isSearchingOrder || !searchCartNumber} className="bg-blue-500 text-white px-6 rounded-xl font-bold hover:bg-blue-400 disabled:opacity-50 transition-all flex items-center justify-center">
                 {isSearchingOrder ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Find'}
               </button>
             </form>
-
 
             <AnimatePresence>
               {foundOrder && (
@@ -211,9 +236,9 @@ export default function AdminDashboard() {
                   )}
 
                   {foundOrder.payment_status === 'completed' && foundOrder.payment_method === 'OFFLINE' && (
-                     <button onClick={dispatchBillLink} className="w-full bg-gradient-to-r from-[#25D366] to-[#1ebd5a] text-white font-black py-4 rounded-xl hover:scale-[1.02] transition-transform flex items-center justify-center gap-2 shadow-lg shadow-[#25D366]/20">
-                       <Send className="w-5 h-5" /> Share Digital Bill Link
-                     </button>
+                    <button onClick={dispatchBillLink} className="w-full bg-gradient-to-r from-[#25D366] to-[#1ebd5a] text-white font-black py-4 rounded-xl hover:scale-[1.02] transition-transform flex items-center justify-center gap-2 shadow-lg shadow-[#25D366]/20">
+                      <Send className="w-5 h-5" /> Share Digital Bill Link
+                    </button>
                   )}
                 </motion.div>
               )}
@@ -221,9 +246,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* ========================================= */}
-        {/* COLUMN 2: MANUAL POS COUNTER              */}
-        {/* ========================================= */}
+        {/* COLUMN 2: MANUAL POS COUNTER */}
         <div className="space-y-6">
           <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6 relative overflow-hidden">
             <h2 className="text-2xl font-black mb-2 flex items-center gap-3">
@@ -231,18 +254,16 @@ export default function AdminDashboard() {
             </h2>
             <p className="text-zinc-400 text-sm mb-6">Create cart for walk-in customers without phones.</p>
 
-            {/* Tag Input Form */}
             <form onSubmit={handleAddManualTag} className="flex gap-2 mb-6">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                 <input type="text" value={manualTagId} onChange={e => setManualTagId(e.target.value.toUpperCase().replace(/\s/g, ''))} placeholder="Enter Tag ID (e.g. TAG001)" className="w-full bg-black/50 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white font-mono uppercase outline-none focus:border-emerald-500 transition-all" />
               </div>
-              <button type="submit" disabled={!manualTagId} className="bg-emerald-500 text-black px-6 rounded-xl font-bold hover:bg-emerald-400 disabled:opacity-50 transition-all flex items-center justify-center">
-                <Plus className="w-5 h-5" /> Add
+              <button type="submit" disabled={!manualTagId || isProcessingPos} className="bg-emerald-500 text-black px-6 rounded-xl font-bold hover:bg-emerald-400 disabled:opacity-50 transition-all flex items-center justify-center">
+                {isProcessingPos ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
               </button>
             </form>
 
-            {/* POS Cart Display */}
             <div className="bg-black/40 rounded-2xl border border-white/5 min-h-[200px] p-4 flex flex-col">
               {posCart.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-zinc-600">
@@ -250,18 +271,45 @@ export default function AdminDashboard() {
                   <p className="text-sm font-bold">Cart is empty</p>
                 </div>
               ) : (
-                <div className="space-y-3 flex-1 overflow-y-auto max-h-[300px] pr-2">
-                  {/* Items will render here in next step */}
+                <div className="space-y-3 flex-1 overflow-y-auto max-h-[250px] pr-2">
+                  {posCart.map((item, idx) => (
+                    <div key={idx} className="flex justify-between items-center bg-white/5 p-3 rounded-xl border border-white/5">
+                      <div>
+                        <p className="font-bold text-white text-sm">{item.products?.name}</p>
+                        <p className="text-[10px] font-mono text-zinc-500">{item.id}</p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <p className="font-bold text-emerald-400">₹{item.products?.price}</p>
+                        <button onClick={() => setPosCart(posCart.filter(i => i.id !== item.id))} className="text-red-400 hover:text-red-300">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
               
-              <div className="mt-4 pt-4 border-t border-white/10">
-                <div className="flex justify-between items-end mb-4">
+              <div className="mt-4 pt-4 border-t border-white/10 space-y-4">
+                <div className="flex justify-between items-end">
                   <p className="text-zinc-400 font-bold">Total Bill</p>
                   <p className="text-3xl font-black text-white">₹{posTotal}</p>
                 </div>
-                <button disabled={posCart.length === 0} className="w-full bg-white text-black font-black py-4 rounded-xl hover:bg-zinc-200 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-                  Checkout & Generate Bill <ArrowRight className="w-5 h-5" />
+                
+                <input 
+                  type="text" 
+                  placeholder="Customer Phone (Optional)" 
+                  value={posPhone}
+                  onChange={e => setPosPhone(e.target.value.replace(/[^0-9]/g, ''))}
+                  maxLength={10}
+                  className="w-full bg-black/50 border border-white/10 rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-emerald-500 transition-all"
+                />
+
+                <button 
+                  onClick={handlePOSCheckout}
+                  disabled={posCart.length === 0 || isProcessingPos} 
+                  className="w-full bg-white text-black font-black py-4 rounded-xl hover:bg-zinc-200 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isProcessingPos ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Checkout & Generate Bill <ArrowRight className="w-5 h-5" /></>}
                 </button>
               </div>
             </div>

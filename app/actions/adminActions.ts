@@ -168,3 +168,62 @@ export async function approvePayment(cartId: string) {
     return { success: false, message: error.message };
   }
 }
+
+// 🛒 NEW: Fetch Tag Details for Manual POS
+export async function getTagForPOS(tagId: string) {
+  // 👇 Yahan createSupabaseServer() use kiya hai
+  const supabaseServer = createSupabaseServer();
+  try {
+    const { data, error } = await supabaseServer
+      .from('qr_tags')
+      .select('*, products(*)')
+      .eq('id', tagId)
+      .single();
+
+    if (error || !data) return { success: false, message: 'Tag not found in system.' };
+    if (data.status === 'sold') return { success: false, message: 'This item is already sold!' };
+    if (data.status === 'free' || !data.products) return { success: false, message: 'This tag is empty (no product linked).' };
+
+    return { success: true, data };
+  } catch (err: any) {
+    return { success: false, message: err.message };
+  }
+}
+
+// 🛍️ NEW: Complete Manual POS Checkout
+export async function completePOSCheckout(cartItems: any[], customerPhone: string) {
+  // 👇 Yahan bhi createSupabaseServer() use kiya hai
+  const supabaseServer = createSupabaseServer();
+  try {
+    const cartId = `CART-${Math.floor(1000 + Math.random() * 9000)}`;
+    const totalAmount = cartItems.reduce((sum, item) => sum + item.products.price, 0);
+
+    // 1. Create the Order
+    const { error: orderError } = await supabaseServer.from('orders').insert({
+      cart_id: cartId,
+      total_amount: totalAmount,
+      payment_status: 'completed',
+      payment_method: 'OFFLINE',
+      customer_phone: customerPhone || 'WALK-IN',
+      items_count: cartItems.length
+    });
+
+    if (orderError) throw orderError;
+
+    // 2. Mark tags as sold and add to purchased_items
+    for (const item of cartItems) {
+      await supabaseServer.from('qr_tags').update({ status: 'sold' }).eq('id', item.id);
+      
+      await supabaseServer.from('purchased_items').insert({
+        cart_id: cartId,
+        tag_id: item.id,
+        product_id: item.products.id
+      });
+    }
+
+    return { success: true, cartId };
+  } catch (err: any) {
+    console.error('POS Checkout Error:', err);
+    return { success: false, message: err.message };
+  }
+}
