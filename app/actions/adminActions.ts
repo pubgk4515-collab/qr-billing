@@ -197,13 +197,13 @@ export async function completePOSCheckout(cartItems: any[], customerPhone: strin
     const cartId = `CART-${Math.floor(1000 + Math.random() * 9000)}`;
     const totalAmount = cartItems.reduce((sum, item) => sum + item.products.price, 0);
 
-    // 1. Create the Order (FIXED: Changed 'cart_id' to 'id')
+    // 1. Create the Order (FIXED: Changed 'customer_phone' to 'phone')
     const { error: orderError } = await supabaseServer.from('orders').insert({
       id: cartId, 
       total_amount: totalAmount,
       payment_status: 'completed',
       payment_method: 'OFFLINE',
-      customer_phone: customerPhone || 'WALK-IN'
+      phone: customerPhone || 'WALK-IN' // 👈 YAHAN FIX KIYA HAI
     });
 
     if (orderError) throw orderError;

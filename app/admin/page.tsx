@@ -226,7 +226,8 @@ export default function AdminDashboard() {
                   </div>
 
                   <div className="mb-4">
-                    <p className="text-sm text-zinc-400"><span className="font-bold text-white">Phone:</span> +91 {foundOrder.customer_phone}</p>
+                    <p className="text-sm text-zinc-400"><span className="font-bold text-white">Phone:</span> +91 {foundOrder.phone}</p>
+
                   </div>
 
                   {foundOrder.payment_status === 'awaiting_approval' && (
