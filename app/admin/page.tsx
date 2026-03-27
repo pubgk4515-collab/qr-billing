@@ -1,3 +1,4 @@
+// app/admin/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -5,10 +6,9 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Lock, KeyRound, Search, Banknote, ShoppingCart, PackageSearch, 
-  ArrowRight, CheckCircle2, Loader2, Send, X, Plus 
+  ArrowRight, CheckCircle2, Loader2, Send, X, Plus, ShoppingBag 
 } from 'lucide-react';
 
-// CLEANED IMPORTS (No duplicates)
 import { 
   getOrderByCartId, 
   approvePayment, 
@@ -273,14 +273,33 @@ export default function AdminDashboard() {
               ) : (
                 <div className="space-y-3 flex-1 overflow-y-auto max-h-[250px] pr-2">
                   {posCart.map((item, idx) => (
-                    <div key={idx} className="flex justify-between items-center bg-white/5 p-3 rounded-xl border border-white/5">
-                      <div>
-                        <p className="font-bold text-white text-sm">{item.products?.name}</p>
-                        <p className="text-[10px] font-mono text-zinc-500">{item.id}</p>
+                    <div key={idx} className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/5 hover:border-emerald-500/30 transition-colors">
+                      {/* Product Image */}
+                      {item.products?.image_url ? (
+                        <img 
+                          src={item.products.image_url} 
+                          alt="img" 
+                          className="w-12 h-12 rounded-lg object-cover border border-white/10" 
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-lg bg-zinc-800 flex items-center justify-center border border-white/10">
+                          <ShoppingBag className="w-5 h-5 text-zinc-500" />
+                        </div>
+                      )}
+
+                      {/* Product Details */}
+                      <div className="flex-1">
+                        <p className="font-bold text-white text-sm leading-tight">{item.products?.name}</p>
+                        <p className="text-[10px] font-mono text-zinc-500 mt-0.5">{item.id}</p>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <p className="font-bold text-emerald-400">₹{item.products?.price}</p>
-                        <button onClick={() => setPosCart(posCart.filter(i => i.id !== item.id))} className="text-red-400 hover:text-red-300">
+
+                      {/* Price and Action */}
+                      <div className="flex items-center gap-3">
+                        <p className="font-bold text-emerald-400 text-sm">₹{item.products?.price}</p>
+                        <button 
+                          onClick={() => setPosCart(posCart.filter(i => i.id !== item.id))} 
+                          className="text-red-400 hover:text-red-300 p-1"
+                        >
                           <X className="w-4 h-4" />
                         </button>
                       </div>
