@@ -20,7 +20,7 @@ export default function AdminDashboard() {
   const CORRECT_PIN = '7788';
 
   // 🏦 Verify Payment State
-  const [searchCartId, setSearchCartId] = useState('');
+  const [searchCartNumber, setSearchCartNumber] = useState('');
   const [foundOrder, setFoundOrder] = useState<any>(null);
   const [isSearchingOrder, setIsSearchingOrder] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -49,16 +49,21 @@ export default function AdminDashboard() {
   };
 
   // --- PAYMENT VERIFICATION LOGIC ---
-  const handleSearchOrder = async (e: React.FormEvent) => {
+    const handleSearchOrder = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!searchCartId) return;
+    if (!searchCartNumber) return; // New state name
     setIsSearchingOrder(true);
     setFoundOrder(null);
-    const res = await getOrderByCartId(searchCartId.trim());
+
+    // 🔥 Naya: Backend action call karne se pehle CART- jodenge
+    const fullCartId = `CART-${searchCartNumber.trim()}`;
+    const res = await getOrderByCartId(fullCartId);
+
     if (res.success && res.data) setFoundOrder(res.data);
     else alert(res.message || 'Order not found');
     setIsSearchingOrder(false);
   };
+
 
   const handleApprovePayment = async () => {
     if (!foundOrder) return;
@@ -151,12 +156,32 @@ export default function AdminDashboard() {
             </h2>
             <p className="text-zinc-400 text-sm mb-6 relative z-10">Approve payments for customers who scanned QR codes.</p>
 
-            <form onSubmit={handleSearchOrder} className="flex gap-2 mb-6 relative z-10">
-              <input type="text" value={searchCartId} onChange={e => setSearchCartId(e.target.value.toUpperCase().replace(/\s/g, ''))} placeholder="CART-XXXX" className="flex-1 bg-black/50 border border-white/10 rounded-xl py-3 px-4 text-white font-mono uppercase outline-none focus:border-blue-500 transition-all" />
-              <button type="submit" disabled={isSearchingOrder || !searchCartId} className="bg-blue-500 text-white px-6 rounded-xl font-bold hover:bg-blue-400 disabled:opacity-50 transition-all flex items-center justify-center">
+                        <form onSubmit={handleSearchOrder} className="flex gap-2 mb-6 relative z-10">
+              
+              {/* 🔥 NEW: Prefilled Input Container */}
+              <div className="relative flex-1 group">
+                {/* Static 'CART-' text inside input */}
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 font-mono font-bold select-none z-20 group-focus-within:text-blue-500 transition-colors">
+                  CART-
+                </div>
+                
+                {/* Real Input (only accepts numbers now) */}
+                <input 
+                  type="text" 
+                  maxLength={4} // sirf 4 digit numbers
+                  value={searchCartNumber} // Use renamed state
+                  // 🛡️ Naya: Sirf numbers accept karega
+                  onChange={e => setSearchCartNumber(e.target.value.replace(/[^0-9]/g, ''))} 
+                  placeholder="XXXX" // Sirf number placeholder
+                  className="w-full bg-black/50 border border-white/10 rounded-xl py-3 pl-[4.5rem] pr-4 text-white font-mono uppercase outline-none focus:border-blue-500 transition-all z-10 relative" // Added left padding
+                />
+              </div>
+
+              <button type="submit" disabled={isSearchingOrder || !searchCartNumber} className="bg-blue-500 text-white px-6 rounded-xl font-bold hover:bg-blue-400 disabled:opacity-50 transition-all flex items-center justify-center">
                 {isSearchingOrder ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Find'}
               </button>
             </form>
+
 
             <AnimatePresence>
               {foundOrder && (
