@@ -192,20 +192,18 @@ export async function getTagForPOS(tagId: string) {
 
 // 🛍️ NEW: Complete Manual POS Checkout
 export async function completePOSCheckout(cartItems: any[], customerPhone: string) {
-  // 👇 Yahan bhi createSupabaseServer() use kiya hai
   const supabaseServer = createSupabaseServer();
   try {
     const cartId = `CART-${Math.floor(1000 + Math.random() * 9000)}`;
     const totalAmount = cartItems.reduce((sum, item) => sum + item.products.price, 0);
 
-    // 1. Create the Order
+    // 1. Create the Order (FIXED: Changed 'cart_id' to 'id')
     const { error: orderError } = await supabaseServer.from('orders').insert({
-      cart_id: cartId,
+      id: cartId, 
       total_amount: totalAmount,
       payment_status: 'completed',
       payment_method: 'OFFLINE',
-      customer_phone: customerPhone || 'WALK-IN',
-      items_count: cartItems.length
+      customer_phone: customerPhone || 'WALK-IN'
     });
 
     if (orderError) throw orderError;
