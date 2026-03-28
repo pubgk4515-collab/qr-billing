@@ -980,21 +980,44 @@ interface GridCardProps {
   onDelete: (tagId: string) => void;
 }
 function GridCard({ tag, onEdit, onUnlink, onLink, onViewQR, onDelete }: GridCardProps) {
-
-  // 🔥 FIX 1 (Grid): Same logic
   const isSold = tag.status === 'sold';
   const isLinked = tag.products !== null && !isSold;
   const isFree = !tag.products && tag.status !== 'sold';
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      className="bg-zinc-900/60 backdrop-blur-md border border-white/5 rounded-[2.5rem] p-6 hover:border-emerald-500/50 transition-all shadow-xl"
-    >
-            <div className="flex justify-between mt-6 pt-4 border-t border-white/5">
+    <motion.div layout initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="bg-zinc-900/60 backdrop-blur-md border border-white/5 rounded-[2rem] p-5 hover:border-emerald-500/50 transition-all shadow-xl flex flex-col justify-between">
+      
+      {/* 🎯 TOP CENTER: TAG ID & BADGE */}
+      <div className="flex flex-col items-center mb-4">
+        <span className="text-xl font-black text-white tracking-widest">{tag.id}</span>
+        <div className="mt-2">
+          {isSold && <span className="text-[10px] font-black px-3 py-1 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">SOLD OUT</span>}
+          {isLinked && <span className="text-[10px] font-black px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> IN STOCK</span>}
+          {isFree && <span className="text-[10px] font-black px-3 py-1 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> FREE TAG</span>}
+        </div>
+      </div>
+
+      {/* 📦 MIDDLE: PRODUCT DETAILS */}
+      {tag.products ? (
+        <div className="flex items-center gap-3 bg-black/40 p-3 rounded-2xl border border-white/5 mb-4">
+          {tag.products.image_url ? (
+            <img src={tag.products.image_url} alt="" className="w-12 h-12 rounded-xl object-cover border border-white/10" />
+          ) : (
+            <div className="w-12 h-12 rounded-xl bg-zinc-800 flex items-center justify-center"><ShoppingBag className="w-5 h-5 text-zinc-500"/></div>
+          )}
+          <div>
+            <p className="font-bold text-white text-sm leading-tight">{tag.products.name}</p>
+            <p className="text-xs text-emerald-400 font-bold mt-1">₹{tag.products.price}</p>
+          </div>
+        </div>
+      ) : (
+        <div className="text-zinc-500 text-sm mb-4 text-center italic bg-black/20 py-3 rounded-2xl border border-white/5">
+          No product linked
+        </div>
+      )}
+
+      {/* ⚡ BOTTOM: ACTION BUTTONS */}
+      <div className="flex justify-between items-center pt-3 border-t border-white/5">
         <div className="flex gap-2">
           {isFree ? (
             <ActionButton onClick={onLink} icon={<Link2 className="w-4 h-4" />} label="" color="orange" small />
@@ -1011,37 +1034,6 @@ function GridCard({ tag, onEdit, onUnlink, onLink, onViewQR, onDelete }: GridCar
         </div>
       </div>
 
-      {tag.products ? (
-        <div className="flex items-center gap-3 mt-4">
-          {tag.products.image_url && (
-            <img src={tag.products.image_url} alt="" className="w-14 h-14 rounded-2xl object-cover border border-white/10" />
-          )}
-          <div>
-            <p className="font-bold text-white text-lg">{tag.products.name}</p>
-            <p className="text-sm text-zinc-400">₹{tag.products.price}</p>
-          </div>
-        </div>
-      ) : (
-        <div className="text-zinc-500 text-sm mt-4 italic bg-white/5 p-4 rounded-xl">No product linked</div>
-      )}
-      <div className="flex justify-between mt-6 pt-4 border-t border-white/5">
-        <div className="flex gap-2">
-          {isFree ? (
-            <ActionButton onClick={onLink} icon={<Link2 className="w-4 h-4" />} label="" color="orange" small />
-          ) : isSold ? (
-             <span className="text-[10px] font-bold text-red-400 py-1.5">Sold item</span>
-          ) : (
-            <>
-              <ActionButton onClick={() => onEdit(tag)} icon={<Edit2 className="w-4 h-4" />} label="" color="blue" small />
-              <ActionButton onClick={() => onUnlink(tag.id)} icon={<Unlink className="w-4 h-4" />} label="" color="red" small />
-              <ActionButton onClick={() => onDelete(tag.id)} icon={<Trash2 className="w-4 h-4" />} label="Del" color="red" />
-              <ActionButton onClick={onViewQR} icon={<QrCode className="w-4 h-4" />} label="QR" color="white" />
-
-            </>
-          )}
-        </div>
-        <ActionButton onClick={onViewQR} icon={<QrCode className="w-4 h-4" />} label="" color="white" small />
-      </div>
     </motion.div>
   );
 }
