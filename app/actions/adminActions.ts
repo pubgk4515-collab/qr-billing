@@ -221,10 +221,14 @@ export async function completePOSCheckout(cartItems: any[], customerPhone: strin
 
     if (salesError) throw salesError;
 
-    // 3. Mark tags as sold
+       // 3. Free the tags for reuse (plastic tags counter pe nikal gaye)
     for (const item of cartItems) {
-      await supabaseServer.from('qr_tags').update({ status: 'sold' }).eq('id', item.id);
+      await supabaseServer.from('qr_tags').update({ 
+        status: 'free', 
+        product_id: null 
+      }).eq('id', item.id);
     }
+
 
     return { success: true, cartId };
   } catch (err: any) {
