@@ -8,7 +8,7 @@ import { createSupabaseServer } from '../lib/supabaseServer';
 export async function getStoreData() {
   try {
     const supabaseServer = createSupabaseServer();
-    // 🔥 FIXED: Removed the 'created_at' ordering from products since that column doesn't exist!
+    // 🔥 FIXED: Removed the 'created_at' ordering from products since that column doesn't exist
     const { data: products, error: pError } = await supabaseServer.from('products').select('*');
     const { data: qrTags, error: qError } = await supabaseServer.from('qr_tags').select('*, products(*)').order('id', { ascending: true });
 
@@ -20,7 +20,6 @@ export async function getStoreData() {
     return { success: false, message: error.message };
   }
 }
-
 
 // ==========================================
 // 2. TAG MANAGEMENT (REUSABLE LOGIC)
@@ -119,7 +118,6 @@ export async function updateProduct(productId: string, name: string, price: numb
 export async function getOrderByCartId(cartId: string) {
   try {
     const supabaseServer = createSupabaseServer();
-    // 💡 Fetching from 'sales' table exactly as per your schema
     const { data, error } = await supabaseServer.from('sales').select('*').eq('cart_id', cartId).single();
     if (error || !data) return { success: false, message: 'Order not found' };
     return { success: true, data };
@@ -129,15 +127,12 @@ export async function getOrderByCartId(cartId: string) {
 export async function approvePayment(cartId: string) {
   try {
     const supabaseServer = createSupabaseServer();
-    // Fetch purchased items from the sales table first
     const { data: orderData, error: fetchError } = await supabaseServer.from('sales').select('purchased_items').eq('cart_id', cartId).single();
     if (fetchError || !orderData) throw new Error('Order not found');
 
-    // Update payment status
     const { error } = await supabaseServer.from('sales').update({ payment_status: 'completed' }).eq('cart_id', cartId);
     if (error) throw error;
 
-    // 🔥 SMART LOGIC: Free the tags since they are reusable plastic tags!
     const purchasedItems = orderData.purchased_items || [];
     for (const item of purchasedItems) {
       if (item.id) {
@@ -169,7 +164,6 @@ export async function completePOSCheckout(cartItems: any[], customerPhone: strin
       products: { id: item.products?.id, name: item.products?.name, price: item.products?.price, image_url: item.products?.image_url }
     }));
 
-    // 💡 Inserting into 'sales' table with exactly your column names
     const { error: salesError } = await supabaseServer.from('sales').insert({
       cart_id: cartId,
       total_amount: totalAmount,
@@ -182,7 +176,6 @@ export async function completePOSCheckout(cartItems: any[], customerPhone: strin
 
     if (salesError) throw salesError;
 
-    // 🔥 SMART LOGIC: Free the tags immediately for reuse!
     for (const item of cartItems) {
       await supabaseServer.from('qr_tags').update({ status: 'free', product_id: null }).eq('id', item.id);
     }
