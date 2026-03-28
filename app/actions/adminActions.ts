@@ -190,33 +190,40 @@ export async function getTagForPOS(tagId: string) {
   }
 }
 
-// 🛍️ NEW: Complete Manual POS Checkout
+// 🛍️ NEW: Complete Manual POS Checkout (FIXED FOR 'sales' TABLE SCHEMA)
 export async function completePOSCheckout(cartItems: any[], customerPhone: string) {
   const supabaseServer = createSupabaseServer();
   try {
     const cartId = `CART-${Math.floor(1000 + Math.random() * 9000)}`;
-    const totalAmount = cartItems.reduce((sum, item) => sum + item.products.price, 0);
+    const totalAmount = cartItems.reduce((sum, item) => sum + (item.products?.price || 0), 0);
 
-    // 1. Create the Order (FIXED: Changed 'customer_phone' to 'phone')
-    const { error: orderError } = await supabaseServer.from('orders').insert({
-      id: cartId, 
+    // 1. Prepare JSON format for purchased_items exactly how your bill expects it
+    const purchasedItemsJson = cartItems.map(item => ({
+      id: item.id, // Tag ID
+      products: {
+        id: item.products?.id,
+        name: item.products?.name,
+        price: item.products?.price,
+        image_url: item.products?.image_url
+      }
+    }));
+
+    // 2. Insert straight into the 'sales' table with exactly your columns
+    const { error: salesError } = await supabaseServer.from('sales').insert({
+      cart_id: cartId,
       total_amount: totalAmount,
+      items_count: cartItems.length,
       payment_status: 'completed',
       payment_method: 'OFFLINE',
-      phone: customerPhone || 'WALK-IN' // 👈 YAHAN FIX KIYA HAI
+      customer_phone: customerPhone || 'WALK-IN',
+      purchased_items: purchasedItemsJson
     });
 
-    if (orderError) throw orderError;
+    if (salesError) throw salesError;
 
-    // 2. Mark tags as sold and add to purchased_items
+    // 3. Mark tags as sold
     for (const item of cartItems) {
       await supabaseServer.from('qr_tags').update({ status: 'sold' }).eq('id', item.id);
-      
-      await supabaseServer.from('purchased_items').insert({
-        cart_id: cartId,
-        tag_id: item.id,
-        product_id: item.products.id
-      });
     }
 
     return { success: true, cartId };
