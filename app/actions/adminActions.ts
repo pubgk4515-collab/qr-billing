@@ -219,3 +219,16 @@ export async function bulkUploadProducts(items: { name: string; price: number; i
     return { success: false, message: error.message };
   }
 }
+// ==========================================
+// 6. DELETE TAG LOGIC
+// ==========================================
+export async function deleteTag(tagId: string) {
+  try {
+    const supabaseServer = createSupabaseServer();
+    const { error } = await supabaseServer.from('qr_tags').delete().eq('id', tagId);
+    if (error) throw error;
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, message: error.message };
+  }
+}

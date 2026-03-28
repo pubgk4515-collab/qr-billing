@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, QrCode, ShoppingBag, PackagePlus, Loader2, Download, X, Link, ExternalLink,
   Link2, Unlink, Edit2, UploadCloud, Activity, ActivityIcon, Lock, KeyRound, Plus, Tag, Hash,
-  CheckCircle2, AlertCircle, Search, Filter, Grid, List, Banknote, Send
+  CheckCircle2, AlertCircle, Search, Filter, Grid, List, Banknote, Send, Trash2
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -17,7 +17,8 @@ import {
   unlinkTag,
   updateProduct,
   getOrderByCartId,
-  approvePayment
+  approvePayment,
+  deleteTag
 } from '../../actions/adminActions';
 import { useRouter } from 'next/navigation';
 
@@ -37,7 +38,7 @@ export default function AdminDashboard() {
   const [data, setData] = useState<{ products: any[]; qrTags: any[] }>({ products: [], qrTags: [] });
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<FilterType>('all');
-  const [viewMode, setViewMode] = useState<ViewMode>('table');
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [searchTerm, setSearchTerm] = useState('');
   const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
 
@@ -191,6 +192,17 @@ export default function AdminDashboard() {
     if (res.success) loadData();
     else alert('Error unlinking: ' + res.message);
     setIsSubmitting(false);
+  };
+
+    const handleDeleteTag = async (tagId: string) => {
+    if (!confirm(`Are you sure you want to permanently delete ${tagId}? This cannot be undone.`)) return;
+    
+    const res = await deleteTag(tagId);
+    if (res.success) {
+      loadData(); // Dashboard refresh ho jayega
+    } else {
+      alert('Error deleting tag: ' + res.message);
+    }
   };
 
   // 📥 Download QR as PNG
@@ -482,8 +494,10 @@ export default function AdminDashboard() {
                     onUnlink={handleUnlink}
                     onLink={() => setLinkingTag(tag)}
                     onViewQR={() => setSelectedTag(tag)}
+                    onDelete={handleDeleteTag} 
                   />
                 ))}
+
                 {filteredTags.length === 0 && (
                   <tr>
                     <td colSpan={4} className="p-10 text-center text-zinc-500">
@@ -504,6 +518,7 @@ export default function AdminDashboard() {
                 onUnlink={handleUnlink}
                 onLink={() => setLinkingTag(tag)}
                 onViewQR={() => setSelectedTag(tag)}
+                onDelete={handleDeleteTag}
               />
             ))}
             {filteredTags.length === 0 && (
@@ -889,9 +904,10 @@ interface TableRowProps {
   onUnlink: (tagId: string) => void;
   onLink: () => void;
   onViewQR: () => void;
+  onDelete: (tagId: string) => void;
 }
-// Is component ko poora update karein
-function TableRow({ tag, onEdit, onUnlink, onLink, onViewQR }: TableRowProps) {
+function TableRow({ tag, onEdit, onUnlink, onLink, onViewQR, onDelete }: TableRowProps) {
+
   
   // 🔥 FIX 1: Hum status seedha Database se mangwaenge
   // (Ab isActive se decide nahi hoga ki Sold hai ya nahi)
@@ -941,11 +957,7 @@ function TableRow({ tag, onEdit, onUnlink, onLink, onViewQR }: TableRowProps) {
         <div className="flex justify-end gap-2">
           {isFree ? (
             <ActionButton onClick={onLink} icon={<Link2 className="w-4 h-4" />} label="Link" color="orange" />
-          ) : isSold ? (
-             <span className="bg-red-500/10 text-red-400 px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest border border-red-500/20">
-                Item Gone
-             </span>
-          ) : (
+          ) : isSold ? null: (
             <>
               <ActionButton onClick={() => onEdit(tag)} icon={<Edit2 className="w-4 h-4" />} label="Edit" color="blue" />
               <ActionButton onClick={() => onUnlink(tag.id)} icon={<Unlink className="w-4 h-4" />} label="Unlink" color="red" />
@@ -965,9 +977,10 @@ interface GridCardProps {
   onUnlink: (tagId: string) => void;
   onLink: () => void;
   onViewQR: () => void;
+  onDelete: (tagId: string) => void;
 }
-// Is component ko bhi update karein same logic ke saath
-function GridCard({ tag, onEdit, onUnlink, onLink, onViewQR }: GridCardProps) {
+function GridCard({ tag, onEdit, onUnlink, onLink, onViewQR, onDelete }: GridCardProps) {
+
   // 🔥 FIX 1 (Grid): Same logic
   const isSold = tag.status === 'sold';
   const isLinked = tag.products !== null && !isSold;
@@ -981,25 +994,23 @@ function GridCard({ tag, onEdit, onUnlink, onLink, onViewQR }: GridCardProps) {
       exit={{ opacity: 0, scale: 0.9 }}
       className="bg-zinc-900/60 backdrop-blur-md border border-white/5 rounded-[2.5rem] p-6 hover:border-emerald-500/50 transition-all shadow-xl"
     >
-      <div className="flex justify-between items-start mb-3">
-        <span className="font-mono font-bold text-white text-sm">{tag.id}</span>
-        {/* 🔥 FIX 2 (Grid): Dynammic Badges */}
-        {isSold && (
-            <span className="text-[10px] font-black px-3 py-1.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">
-              SOLD OUT
-            </span>
-        )}
-        {isLinked && (
-            <span className="text-[10px] font-black px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5" /> IN STOCK
-            </span>
-        )}
-        {isFree && (
-            <span className="text-[10px] font-black px-3 py-1.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20 flex items-center gap-1.5">
-               <AlertCircle className="w-3.5 h-3.5" /> FREE TAG
-            </span>
-        )}
+            <div className="flex justify-between mt-6 pt-4 border-t border-white/5">
+        <div className="flex gap-2">
+          {isFree ? (
+            <ActionButton onClick={onLink} icon={<Link2 className="w-4 h-4" />} label="" color="orange" small />
+          ) : isSold ? null : (
+            <>
+              <ActionButton onClick={() => onEdit(tag)} icon={<Edit2 className="w-4 h-4" />} label="" color="blue" small />
+              <ActionButton onClick={() => onUnlink(tag.id)} icon={<Unlink className="w-4 h-4" />} label="" color="orange" small />
+            </>
+          )}
+        </div>
+        <div className="flex gap-2">
+           <ActionButton onClick={() => onDelete(tag.id)} icon={<Trash2 className="w-4 h-4" />} label="" color="red" small />
+           <ActionButton onClick={onViewQR} icon={<QrCode className="w-4 h-4" />} label="" color="white" small />
+        </div>
       </div>
+
       {tag.products ? (
         <div className="flex items-center gap-3 mt-4">
           {tag.products.image_url && (
@@ -1023,6 +1034,9 @@ function GridCard({ tag, onEdit, onUnlink, onLink, onViewQR }: GridCardProps) {
             <>
               <ActionButton onClick={() => onEdit(tag)} icon={<Edit2 className="w-4 h-4" />} label="" color="blue" small />
               <ActionButton onClick={() => onUnlink(tag.id)} icon={<Unlink className="w-4 h-4" />} label="" color="red" small />
+              <ActionButton onClick={() => onDelete(tag.id)} icon={<Trash2 className="w-4 h-4" />} label="Del" color="red" />
+              <ActionButton onClick={onViewQR} icon={<QrCode className="w-4 h-4" />} label="QR" color="white" />
+
             </>
           )}
         </div>
