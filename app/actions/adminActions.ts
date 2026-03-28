@@ -8,7 +8,8 @@ import { createSupabaseServer } from '../lib/supabaseServer';
 export async function getStoreData() {
   try {
     const supabaseServer = createSupabaseServer();
-    const { data: products, error: pError } = await supabaseServer.from('products').select('*').order('created_at', { ascending: false });
+    // 🔥 FIXED: Removed the 'created_at' ordering from products since that column doesn't exist!
+    const { data: products, error: pError } = await supabaseServer.from('products').select('*');
     const { data: qrTags, error: qError } = await supabaseServer.from('qr_tags').select('*, products(*)').order('id', { ascending: true });
 
     if (pError) throw pError;
@@ -19,6 +20,7 @@ export async function getStoreData() {
     return { success: false, message: error.message };
   }
 }
+
 
 // ==========================================
 // 2. TAG MANAGEMENT (REUSABLE LOGIC)
