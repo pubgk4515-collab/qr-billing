@@ -225,10 +225,53 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  <div className="mb-4">
-                    <p className="text-sm text-zinc-400"><span className="font-bold text-white">Phone:</span> +91 {foundOrder.phone}</p>
-
+                                    <div className="mb-4">
+                    <p className="text-sm text-zinc-400">
+                      <span className="font-bold text-white">Phone:</span>{' '}
+                      {/* 🔥 FIX: Handling both 'phone' and 'customer_phone' safely + WALK-IN */}
+                      {(foundOrder.customer_phone || foundOrder.phone) && (foundOrder.customer_phone || foundOrder.phone) !== 'WALK-IN' 
+                        ? `+91 ${foundOrder.customer_phone || foundOrder.phone}` 
+                        : <span className="text-zinc-500 italic">Walk-in Customer (No Phone)</span>}
+                    </p>
                   </div>
+
+                  {/* 🔥 ITEMS LIST SECTION (IMAGES, PRICE, QUANTITY) */}
+                  {foundOrder.purchased_items && foundOrder.purchased_items.length > 0 && (
+                    <div className="mt-2 border-t border-white/10 pt-4 mb-6">
+                      <p className="text-xs text-zinc-400 uppercase font-bold tracking-widest mb-3">
+                        Scanned Items ({foundOrder.items_count || foundOrder.purchased_items.length})
+                      </p>
+                      <div className="space-y-3 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                        {foundOrder.purchased_items.map((item: any, idx: number) => {
+                          const product = item.products || item; // Safe extract
+                          return (
+                            <div key={idx} className="flex items-center gap-3 bg-black/40 p-3 rounded-xl border border-white/5">
+                              {/* Product Image */}
+                              {product.image_url ? (
+                                <img src={product.image_url} alt="product" className="w-12 h-12 rounded-lg object-cover border border-white/10" />
+                              ) : (
+                                <div className="w-12 h-12 rounded-lg bg-zinc-800 flex items-center justify-center border border-white/5">
+                                  <span className="text-zinc-500 text-[10px] uppercase font-bold">No Img</span>
+                                </div>
+                              )}
+                              
+                              {/* Name & Tag */}
+                              <div className="flex-1">
+                                <p className="font-bold text-white text-sm line-clamp-1">{product.name || 'Unknown Item'}</p>
+                                <p className="text-[10px] text-zinc-500 font-mono mt-0.5">Tag: {item.id}</p>
+                              </div>
+                              
+                              {/* Price & Qty */}
+                              <div className="text-right">
+                                <p className="font-bold text-emerald-400 text-sm">₹{product.price || 0}</p>
+                                <p className="text-[10px] text-zinc-500 font-bold uppercase mt-0.5">Qty: 1</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {foundOrder.payment_status === 'awaiting_approval' && (
                     <button onClick={handleApprovePayment} disabled={isSubmitting} className="w-full bg-emerald-500 text-black font-black py-4 rounded-xl hover:bg-emerald-400 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20">
@@ -241,6 +284,7 @@ export default function AdminDashboard() {
                       <Send className="w-5 h-5" /> Share Digital Bill Link
                     </button>
                   )}
+
                 </motion.div>
               )}
             </AnimatePresence>
