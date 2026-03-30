@@ -16,6 +16,7 @@ import {
   getTagForPOS, 
   completePOSCheckout 
 } from '../actions/adminActions';
+import { getSaleByCartId } from '../actions/billingActions';
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -41,12 +42,48 @@ export default function AdminDashboard() {
     // Quick WhatsApp Bill States
   const [quickCartId, setQuickCartId] = useState('');
   const [quickPhone, setQuickPhone] = useState('');
+  const [isSendingQuickBill, setIsSendingQuickBill] = useState(false);
+
 
   useEffect(() => {
     if (sessionStorage.getItem('admin_unlocked') === 'true') {
       setIsLocked(false);
     }
   }, []);
+
+    const handleQuickSendBill = async () => {
+    // 1. Basic check
+    if (!quickCartId || quickPhone.length !== 10) {
+      alert("Please enter a valid Cart ID and 10-digit phone number.");
+      return;
+    }
+    
+    setIsSendingQuickBill(true);
+    try {
+      // 2. Database me verify karo (Taaki fake/galat link na jaye)
+      // Note: Make sure getSaleByCartId is imported at the top from your actions file!
+      const res = await getSaleByCartId(`CART-${quickCartId.replace('CART-', '')}`); 
+      
+      if (res.success && res.data) {
+        // 3. CART FOUND! WhatsApp link generate karo
+        const billUrl = `${window.location.origin}/bill/${res.data.cart_id}`;
+        const text = encodeURIComponent(`Thank you for shopping at SME Premium Store! 🛍️✨\n\nHere is your digital receipt for Order ${res.data.cart_id}:\n${billUrl}\n\nVisit again!`);
+        
+        window.open(`https://wa.me/91${quickPhone}?text=${text}`, '_blank');
+        
+        // 4. Input fields saaf kar do agle customer ke liye
+        setQuickCartId('');
+        setQuickPhone('');
+      } else {
+        alert(`❌ Cart ID ${quickCartId} not found in database! Please check again.`);
+      }
+    } catch (err) {
+      alert("Error verifying Cart ID.");
+    } finally {
+      setIsSendingQuickBill(false);
+    }
+  };
+
 
   const handleUnlock = (e: React.FormEvent) => {
     e.preventDefault();
@@ -285,9 +322,14 @@ export default function AdminDashboard() {
                   )}
 
                   {foundOrder.payment_status === 'completed' && foundOrder.payment_method === 'OFFLINE' && (
-                    <button onClick={dispatchBillLink} className="w-full bg-gradient-to-r from-[#25D366] to-[#1ebd5a] text-white font-black py-4 rounded-xl hover:scale-[1.02] transition-transform flex items-center justify-center gap-2 shadow-lg shadow-[#25D366]/20">
-                      <Send className="w-5 h-5" /> Share Digital Bill Link
-                    </button>
+                                <button 
+              onClick={handleQuickSendBill}
+              disabled={isSendingQuickBill || quickPhone.length < 10 || !quickCartId}
+              className="w-full md:w-auto bg-[#25D366] text-black px-6 py-3 rounded-xl font-black hover:bg-[#1ebd5a] hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:hover:scale-100"
+            >
+              {isSendingQuickBill ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />} Send
+            </button>
+
                   )}
 
                 </motion.div>
