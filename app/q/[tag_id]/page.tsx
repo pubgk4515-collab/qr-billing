@@ -1,3 +1,4 @@
+// SYSTEM FIX
 import { createSupabaseServer } from '../../lib/supabaseServer';
 import { ShoppingBag, AlertTriangle, CheckCircle2, QrCode, ShieldCheck, Tag } from 'lucide-react';
 import AddToCart from '../../components/AddToCart'; 
