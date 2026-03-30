@@ -602,37 +602,65 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                                    <div>
+                                                      <div>
                     <p className="text-sm text-zinc-400 mb-1"><span className="font-bold text-white">Method:</span> {foundOrder.payment_method}</p>
-                    <p className="text-sm text-zinc-400 mb-1"><span className="font-bold text-white">Phone:</span> +91 {foundOrder.customer_phone}</p>
+                    <p className="text-sm text-zinc-400 mb-1">
+                      <span className="font-bold text-white">Phone:</span>{' '}
+                      {foundOrder.customer_phone && foundOrder.customer_phone !== 'WALK-IN' 
+                        ? `+91 ${foundOrder.customer_phone}` 
+                        : <span className="text-zinc-500 italic">Walk-in Customer</span>}
+                    </p>
                   </div>
 
-                  {/* 🛡️ NEW: ANTI-THEFT ITEM DISPLAY */}
-                  {foundOrder.purchased_items && foundOrder.purchased_items.length > 0 && (
+                                    {/* 🛡️ SECURITY: Purchased Items Anti-Theft Check */}
+                  {foundOrder.purchased_items && foundOrder.purchased_items.length > 0 ? (
                     <div className="mt-4 border-t border-white/5 pt-4">
-                      <p className="text-xs text-zinc-500 uppercase font-bold tracking-widest mb-3">
-                        Items to Verify ({foundOrder.purchased_items.length})
+                      <p className="text-xs text-zinc-500 uppercase font-bold tracking-widest mb-3 flex items-center gap-2">
+                        <ShoppingBag className="w-3 h-3 text-emerald-400" /> Verify These Items ({foundOrder.items_count})
                       </p>
-                      <div className="space-y-3 max-h-48 overflow-y-auto pr-2">
-                        {foundOrder.purchased_items.map((item: any, idx: number) => (
-                          <div key={idx} className="flex items-center gap-3 bg-black/20 p-2 rounded-xl border border-white/5">
-                            {item.products?.image_url ? (
-                              <img src={item.products.image_url} alt="img" className="w-12 h-12 rounded-lg object-cover border border-white/10" />
-                            ) : (
-                              <div className="w-12 h-12 rounded-lg bg-zinc-800 flex items-center justify-center border border-white/10">
-                                <ShoppingBag className="w-5 h-5 text-zinc-500" />
+                      <div className="space-y-3 max-h-56 overflow-y-auto pr-2 custom-scrollbar">
+                        {foundOrder.purchased_items.map((item: any, idx: number) => {
+                          // Extract product data safely from the stored JSONB structure we fixed yesterday
+                          const product = item.products || item; 
+                          
+                          return (
+                            <div key={idx} className="flex items-center gap-4 bg-zinc-900/60 p-3 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                              {/* Product Image */}
+                              {product.image_url ? (
+                                <img 
+                                  src={product.image_url} 
+                                  alt={product.name} 
+                                  className="w-14 h-14 rounded-lg object-cover border border-white/10 flex-shrink-0" 
+                                />
+                              ) : (
+                                <div className="w-14 h-14 rounded-lg bg-zinc-800 flex items-center justify-center border border-white/5 flex-shrink-0 relative">
+                                  <ShoppingBag className="w-6 h-6 text-zinc-600" />
+                                </div>
+                              )}
+
+                              {/* Product Details & Price */}
+                              <div className="flex-1 flex justify-between items-center gap-3">
+                                <div>
+                                  <p className="font-bold text-white text-sm leading-tight line-clamp-2">{product.name || 'Unknown Item'}</p>
+                                  <p className="text-[10px] text-zinc-500 font-mono mt-0.5 select-all">{item.id}</p> {/* This is Tag ID */}
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                   <p className="font-black text-lg text-emerald-400 tracking-tight">₹{product.price || 0}</p>
+                                   <p className="text-[9px] text-zinc-600 uppercase font-black">Qty: 1</p> {/* QR is unique, quantity per row always 1 */}
+                                </div>
                               </div>
-                            )}
-                            <div className="flex-1">
-                              <p className="font-bold text-white text-sm leading-tight">{item.products?.name}</p>
-                              <p className="text-[10px] text-zinc-500 font-mono mt-0.5">{item.id}</p>
                             </div>
-                            <p className="font-bold text-emerald-400 text-sm">₹{item.products?.price}</p>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
+                  ) : (
+                     <div className="mt-4 border-t border-white/5 pt-6 text-center text-zinc-600 italic bg-white/5 rounded-2xl py-8 flex flex-col items-center gap-3">
+                        <AlertCircle className="w-10 h-10 text-zinc-700" />
+                        <p className="text-sm">No item details found for this order.<br/>Verification not possible.</p>
+                     </div>
                   )}
+
 
 
                   {foundOrder.payment_status === 'awaiting_approval' && (
