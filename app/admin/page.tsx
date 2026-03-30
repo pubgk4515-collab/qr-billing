@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Lock, KeyRound, Search, Banknote, ShoppingCart, PackageSearch, 
-  ArrowRight, CheckCircle2, Loader2, Send, X, Plus, ShoppingBag 
+  ArrowRight, CheckCircle2, Loader2, Send, X, Plus, ShoppingBag, 
+  MessageCircle
 } from 'lucide-react';
 
 import { 
@@ -36,6 +37,10 @@ export default function AdminDashboard() {
   const [posCart, setPosCart] = useState<any[]>([]);
   const [posPhone, setPosPhone] = useState('');
   const [isProcessingPos, setIsProcessingPos] = useState(false);
+
+    // Quick WhatsApp Bill States
+  const [quickCartId, setQuickCartId] = useState('');
+  const [quickPhone, setQuickPhone] = useState('');
 
   useEffect(() => {
     if (sessionStorage.getItem('admin_unlocked') === 'true') {
@@ -290,6 +295,60 @@ export default function AdminDashboard() {
             </AnimatePresence>
           </div>
         </div>
+
+                {/* 🚀 QUICK WHATSAPP DISPATCH (NEW SECTION) */}
+        <div className="bg-gradient-to-r from-[#25D366]/10 to-transparent border border-[#25D366]/20 rounded-3xl p-4 md:p-5 flex flex-col md:flex-row items-center justify-between gap-4 shadow-lg shadow-[#25D366]/5">
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <div className="bg-[#25D366]/20 p-3 rounded-2xl">
+              <MessageCircle className="w-6 h-6 text-[#25D366]" />
+            </div>
+            <div>
+              <h3 className="text-white font-black text-sm">Quick Send Bill</h3>
+              <p className="text-zinc-400 text-xs">Dispatch to any number</p>
+            </div>
+          </div>
+          
+          <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
+            <div className="flex gap-2">
+              <input 
+                type="text" 
+                placeholder="CART-XXXX" 
+                value={quickCartId}
+                onChange={e => setQuickCartId(e.target.value.toUpperCase().replace(/\s/g, ''))}
+                className="bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-sm w-full md:w-32 outline-none focus:border-[#25D366] transition-colors" 
+              />
+              <div className="flex bg-black/50 border border-white/10 rounded-xl overflow-hidden focus-within:border-[#25D366] transition-colors w-full md:w-44">
+                <span className="px-3 py-3 text-zinc-500 font-bold bg-white/5">+91</span>
+                <input 
+                  type="tel" 
+                  placeholder="Number" 
+                  maxLength={10}
+                  value={quickPhone}
+                  onChange={e => setQuickPhone(e.target.value.replace(/\D/g, ''))}
+                  className="w-full bg-transparent text-white font-bold px-3 outline-none"
+                />
+              </div>
+            </div>
+            <button 
+              onClick={() => {
+                if(quickPhone.length === 10 && quickCartId) {
+                  // Direct magic link generation!
+                  const billUrl = `${window.location.origin}/bill/${quickCartId}`;
+                  const text = encodeURIComponent(`Thank you for your purchase! 🛍️✨\nHere is your premium digital receipt for Order ${quickCartId}:\n\n${billUrl}`);
+                  window.open(`https://wa.me/91${quickPhone}?text=${text}`, '_blank');
+                  setQuickCartId('');
+                  setQuickPhone('');
+                } else {
+                  alert('Please enter a valid CART ID and 10-digit phone number.');
+                }
+              }}
+              className="bg-[#25D366] text-black px-6 py-3 rounded-xl font-black hover:bg-[#1ebd5a] hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2"
+            >
+              <Send className="w-5 h-5" /> Send
+            </button>
+          </div>
+        </div>
+
 
         {/* COLUMN 2: MANUAL POS COUNTER */}
         <div className="space-y-6">
