@@ -2,18 +2,21 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import QRCode from 'react-qr-code';
+import { useRouter } from 'next/navigation'; // 🔥 NEXT.JS ROUTER ADDED
 import { getProductByTag, processCheckout, checkPaymentStatus } from '../actions/billingActions';
 import { 
   ShoppingBag, Trash2, CreditCard, Loader2, XCircle, QrCode, X, 
-  CheckCircle2, Smartphone, Banknote, MessageCircle, Send 
+  Smartphone, Banknote 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Html5Qrcode } from 'html5-qrcode';
 
+// 🔥 REMOVED OLD SUCCESS STEPS
 type ViewState = 'CART_VIEW' | 'SCANNING' | 'PRODUCT_SHOWCASE';
-type PaymentStep = 'SELECT_METHOD' | 'ONLINE_PAY' | 'AWAITING_APPROVAL' | 'ONLINE_SUCCESS' | 'OFFLINE_INPUT' | 'OFFLINE_SUCCESS';
+type PaymentStep = 'SELECT_METHOD' | 'ONLINE_PAY' | 'AWAITING_APPROVAL' | 'OFFLINE_INPUT';
 
 export default function BillingPage() {
+  const router = useRouter(); // 🔥 ROUTER INITIALIZED
   const [viewState, setViewState] = useState<ViewState>('CART_VIEW');
   const [cart, setCart] = useState<any[]>([]);
   const [scannedData, setScannedData] = useState<any>(null);
@@ -123,7 +126,7 @@ export default function BillingPage() {
       setLoading(false);
       isProcessingScan.current = false;
     }
-  }, [cart, showError]);
+  }, [cart]);
 
   const scannerCallbackRef = useCallback((node: HTMLDivElement | null) => {
     if (node !== null && viewState === 'SCANNING') {
@@ -150,7 +153,7 @@ export default function BillingPage() {
         scannerRef.current.stop().then(() => scannerRef.current?.clear()).catch(() => {}).finally(() => { scannerRef.current = null; });
       }
     }
-  }, [viewState, handleScanSuccess, showError]);
+  }, [viewState, handleScanSuccess]);
 
   const addToCart = () => {
     if (scannedData && scannedData.scannedProduct) {
@@ -175,25 +178,12 @@ export default function BillingPage() {
 
   const totalAmount = cart.reduce((sum, item) => sum + (item.products?.price || 0), 0);
 
-    // --- NEW PAYMENT LOGIC ---
   const openPaymentModal = () => {
-    // Sirf tabhi naya ID banao jab pehle se na ho
     if (!currentCartId) {
       setCurrentCartId(`CART-${Math.floor(1000 + Math.random() * 9000)}`);
     }
     setPaymentStep('SELECT_METHOD');
     setShowPaymentModal(true);
-  };
-
-
-  const closeAndResetModal = () => {
-    setShowPaymentModal(false);
-    setTimeout(() => {
-      setCart([]);
-      localStorage.removeItem('premium_cart');
-      setCustomerPhone('');
-      setViewState('CART_VIEW');
-    }, 300);
   };
 
   const executeDatabaseCheckout = async (paymentMethod: string, onSuccessCallback: () => void) => {
@@ -227,16 +217,18 @@ export default function BillingPage() {
     executeDatabaseCheckout('OFFLINE', () => setPaymentStep('AWAITING_APPROVAL')); 
   };
 
-  const requestWhatsAppBill = () => {
-    const storeNumber = "919876543210"; // Isko baad me real store owner ke number se replace kar dena
-    const text = encodeURIComponent(`Hi, I just paid for ${currentCartId}. Please send my bill.`);
-    window.open(`https://wa.me/${storeNumber}?text=${text}`, '_blank');
-    closeAndResetModal();
-  };
-
-  const dispatchWhatsAppBill = () => {
-    showSuccess(`Receipt sent to +91 ${customerPhone} via WhatsApp!`);
-    closeAndResetModal();
+  // 🔥 NEW MASTER REDIRECT FUNCTION (Triggered when Admin Approves)
+  const handlePaymentConfirmed = () => {
+    // 1. Clear Cart Data
+    setCart([]);
+    localStorage.removeItem('premium_cart');
+    setCustomerPhone('');
+    
+    // 2. Close Modal
+    setShowPaymentModal(false);
+    
+    // 3. 🚀 Redirect to the luxurious VIP Success Page!
+    router.push(`/success?cartId=${currentCartId}`);
   };
 
   return (
@@ -250,7 +242,7 @@ export default function BillingPage() {
         )}
         {successMsg && (
           <motion.div initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -50 }} className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-emerald-500/90 backdrop-blur-md text-white font-bold px-6 py-3 rounded-full border border-emerald-400 shadow-2xl flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5" /> {successMsg}
+            <ShoppingBag className="w-5 h-5" /> {successMsg}
           </motion.div>
         )}
       </AnimatePresence>
@@ -405,11 +397,10 @@ export default function BillingPage() {
                     </motion.div>
                   )}
 
-                  {/* STEP 2A: ONLINE PAYMENT PROCESSING (UPDATED) */}
+                  {/* STEP 2A: ONLINE PAYMENT PROCESSING */}
                   {paymentStep === 'ONLINE_PAY' && (
                     <motion.div key="online_pay" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="flex flex-col items-center py-4">
                       <div className="bg-white p-3 rounded-2xl mb-6 shadow-lg flex items-center justify-center">
-                        {/* Real UPI QR Code */}
                         <QRCode 
                           value={`upi://pay?pa=merchant@ybl&pn=SME%20Garment%20Store&am=${totalAmount}&cu=INR&tn=${currentCartId}`} 
                           size={180} 
@@ -417,7 +408,6 @@ export default function BillingPage() {
                       </div>
                       <p className="text-zinc-400 mb-6 text-center">Scan with any UPI App (GPay, PhonePe, Paytm)<br/><span className="text-white font-bold text-xl">₹{totalAmount}</span></p>
                       
-                      {/* "I HAVE PAID" BUTTON */}
                       <button 
                         onClick={() => {
                           executeDatabaseCheckout('ONLINE', () => setPaymentStep('AWAITING_APPROVAL'));
@@ -426,39 +416,6 @@ export default function BillingPage() {
                         className="w-full bg-emerald-500 text-black py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition active:scale-95"
                       >
                         {isCheckingOut ? <Loader2 className="w-5 h-5 animate-spin" /> : "I have Paid via UPI"}
-                      </button>
-                    </motion.div>
-                  )}
-
-                  {/* STEP 2.5: AWAITING ADMIN APPROVAL (THE MAGIC FLOW) */}
-                  {paymentStep === 'AWAITING_APPROVAL' && (
-                    <motion.div key="awaiting" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center py-8 text-center">
-                      <div className="relative w-20 h-20 mb-6 flex items-center justify-center">
-                        <div className="absolute inset-0 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin"></div>
-                        <Banknote className="w-8 h-8 text-emerald-400" />
-                      </div>
-                      <h2 className="text-xl font-black text-white mb-2">Verifying Payment...</h2>
-                      <p className="text-zinc-400 text-sm mb-4">Please wait while the store counter confirms your payment.</p>
-                      
-                      {/* Invisible Polling Component */}
-                      <AutoStatusChecker 
-                        cartId={currentCartId} 
-                        onApproved={() => setPaymentStep('ONLINE_SUCCESS')} 
-                      />
-                    </motion.div>
-                  )}
-
-                  {/* STEP 3A: ONLINE SUCCESS & WHATSAPP */}
-                  {paymentStep === 'ONLINE_SUCCESS' && (
-                    <motion.div key="online_success" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center py-6 text-center">
-                      <div className="w-20 h-20 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mb-6">
-                        <CheckCircle2 className="w-10 h-10" />
-                      </div>
-                      <h2 className="text-2xl font-black text-white mb-2">Payment Received!</h2>
-                      <p className="text-zinc-400 mb-8">The checkout is complete and inventory is updated.</p>
-                      
-                      <button onClick={requestWhatsAppBill} className="w-full bg-[#25D366] text-white py-4 rounded-xl font-bold flex items-center justify-center gap-3 shadow-lg shadow-[#25D366]/20 hover:bg-[#1ebd5a] transition">
-                        <MessageCircle className="w-6 h-6" /> Get your bill on WhatsApp
                       </button>
                     </motion.div>
                   )}
@@ -492,21 +449,23 @@ export default function BillingPage() {
                     </motion.div>
                   )}
 
-                  {/* STEP 3B: OFFLINE SUCCESS */}
-                  {paymentStep === 'OFFLINE_SUCCESS' && (
-                    <motion.div key="offline_success" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center py-6 text-center">
-                      <div className="w-20 h-20 bg-blue-500/20 text-blue-400 rounded-full flex items-center justify-center mb-6">
-                        <Send className="w-10 h-10 ml-1" />
+                  {/* STEP 2.5: AWAITING ADMIN APPROVAL (THE MAGIC FLOW) */}
+                  {paymentStep === 'AWAITING_APPROVAL' && (
+                    <motion.div key="awaiting" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center py-8 text-center">
+                      <div className="relative w-20 h-20 mb-6 flex items-center justify-center">
+                        <div className="absolute inset-0 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin"></div>
+                        <Banknote className="w-8 h-8 text-emerald-400" />
                       </div>
-                      <h2 className="text-2xl font-black text-white mb-2">Sale Logged!</h2>
-                      <p className="text-zinc-400 mb-8">Bill is ready to be dispatched to +91 {customerPhone}</p>
+                      <h2 className="text-xl font-black text-white mb-2">Verifying Payment...</h2>
+                      <p className="text-zinc-400 text-sm mb-4">Please wait while the store counter confirms your payment.</p>
                       
-                      <button onClick={dispatchWhatsAppBill} className="w-full bg-white text-black py-4 rounded-xl font-black flex items-center justify-center gap-3 transition">
-                        Dispatch & Close
-                      </button>
+                      {/* 🔥 INVISIBLE POLLING COMPONENT: Now calls handlePaymentConfirmed */}
+                      <AutoStatusChecker 
+                        cartId={currentCartId} 
+                        onApproved={handlePaymentConfirmed} 
+                      />
                     </motion.div>
                   )}
-
                 </AnimatePresence>
               </div>
             </motion.div>
@@ -517,7 +476,6 @@ export default function BillingPage() {
   );
 }
 
-// YEH COMPONENT BILLING PAGE KE BAHAR, FILE KE BOTTOM ME RAHEGA
 function AutoStatusChecker({ cartId, onApproved }: { cartId: string, onApproved: () => void }) {
   useEffect(() => {
     const interval = setInterval(async () => {

@@ -5,11 +5,15 @@ import { motion } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
 import { CheckCircle2, MapPin, Instagram, Facebook, Youtube, MessageCircle, ArrowRight } from 'lucide-react';
 import { Suspense } from 'react';
+import { useRouter } from 'next/navigation';
+
 
 function SuccessContent() {
   const searchParams = useSearchParams();
   const cartId = searchParams.get('cartId') || 'YOUR-ORDER';
   const storePhone = "919876543210"; // Replace with real store WhatsApp number
+  const router = useRouter();
+
 
   const handleWhatsAppBill = () => {
     const text = encodeURIComponent(`Hi! Please generate my digital bill for order ${cartId}.`);
