@@ -371,23 +371,21 @@ export default function AdminDashboard() {
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 py-6 md:px-8">
         {/* Header */}
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
+                <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
           <div>
-            <h1 className="text-4xl md:text-5xl font-black bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-zinc-400 tracking-tighter">
-              Control Panel
-            </h1>
+            <h1 className="text-4xl md:text-5xl font-black bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-zinc-400 tracking-tighter">Control Panel</h1>
             <p className="text-zinc-500 text-sm mt-1 font-mono">Inventory & QR management</p>
           </div>
-          <button
-            onClick={() => {
-              sessionStorage.removeItem('admin_unlocked');
-              setIsLocked(true);
-            }}
-            className="px-5 py-2.5 bg-white/5 backdrop-blur-xl border border-white/10 rounded-full text-xs font-bold hover:bg-red-500/20 hover:border-red-500/50 transition-all flex items-center gap-2"
-          >
-            <Lock className="w-4 h-4" /> Lock Vault
-          </button>
+          <div className="flex gap-3">
+            <button onClick={() => router.push('/admin')} className="px-5 py-2.5 bg-blue-500/10 border border-blue-500/20 rounded-full text-xs font-bold text-blue-400 hover:bg-blue-500/20 transition-all flex items-center gap-2">
+              <LayoutDashboard className="w-4 h-4" /> Admin
+            </button>
+            <button onClick={() => { sessionStorage.removeItem('admin_unlocked'); setIsLocked(true); }} className="px-5 py-2.5 bg-white/5 backdrop-blur-xl border border-white/10 rounded-full text-xs font-bold hover:bg-red-500/20 hover:border-red-500/50 transition-all flex items-center gap-2">
+              <Lock className="w-4 h-4" /> Lock Vault
+            </button>
+          </div>
         </header>
+
 
         {/* Quick Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-12">
@@ -427,7 +425,7 @@ export default function AdminDashboard() {
           <div className="flex bg-white/5 p-1 rounded-2xl border border-white/10">
             <FilterTab label="All" value="all" current={filter} onClick={() => setFilter('all')} />
             <FilterTab label="Free" value="free" current={filter} onClick={() => setFilter('free')} />
-            <FilterTab label="Sold" value="active" current={filter} onClick={() => setFilter('active')} />
+            <FilterTab label="Active" value="active" current={filter} onClick={() => setFilter('active')} />
           </div>
           <div className="flex gap-3">
             <button
@@ -660,8 +658,6 @@ export default function AdminDashboard() {
                         <p className="text-sm">No item details found for this order.<br/>Verification not possible.</p>
                      </div>
                   )}
-
-
 
                   {foundOrder.payment_status === 'awaiting_approval' && (
                     <button
