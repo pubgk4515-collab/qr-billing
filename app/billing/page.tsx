@@ -458,7 +458,7 @@ export default function BillingPage() {
                       <div className="w-full space-y-3">
                         {/* 🔥 UPI DEEP LINK BUTTON */}
                         <a 
-                          href={`upi://pay?pa=merchant@ybl&pn=SME%20Premium%20Store&am=${totalAmount}&cu=INR&tn=${currentCartId}`}
+                          href={`upi://pay?pa=8509460738-2@ybl&pn=SME%20Premium%20Store&am=${totalAmount}&cu=INR&tn=${currentCartId}`}
                           className="w-full bg-white text-black py-4 rounded-xl font-black flex items-center justify-center gap-2 transition active:scale-95 shadow-lg hover:bg-zinc-200"
                         >
                           <Zap className="w-5 h-5 text-emerald-500" /> Open UPI App (GPay, PhonePe)
