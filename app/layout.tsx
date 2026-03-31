@@ -1,4 +1,5 @@
 import "./globals.css";
+import HomeButton from "./components/HomeButton";
 
 export const metadata = {
   title: "Rampurhat Collection | Enterprise POS",
@@ -12,8 +13,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="bg-zinc-950 text-white antialiased">
+      <body>
         {children}
+        {/* 🔥 Universal Home Button */}
+        <HomeButton />
       </body>
     </html>
   );
