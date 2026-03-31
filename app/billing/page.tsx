@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'; // 🔥 NEXT.JS ROUTER ADDED
 import { getProductByTag, processCheckout, checkPaymentStatus } from '../actions/billingActions';
 import { 
   ShoppingBag, Trash2, CreditCard, Loader2, XCircle, QrCode, X, 
-  Smartphone, Banknote 
+  Smartphone, Banknote, Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -291,19 +291,47 @@ export default function BillingPage() {
           </motion.div>
         )}
 
-        {/* SCANNER VIEW */}
-        {viewState === 'SCANNING' && (
-           <motion.div key="scan" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center">
-             <button onClick={() => setViewState('CART_VIEW')} className="absolute top-12 right-6 p-4 bg-zinc-900 rounded-full text-white z-50 border border-zinc-700 hover:bg-zinc-800 transition">
-               <X className="w-6 h-6" />
-             </button>
-             <div className="relative w-full max-w-md aspect-square rounded-3xl overflow-hidden shadow-2xl bg-zinc-900">
-               <div id={containerId} ref={scannerCallbackRef} className="w-full h-full" style={{ minHeight: '300px' }}></div>
-               <div className="absolute inset-0 border-[2px] border-emerald-500/30 rounded-3xl pointer-events-none"></div>
-             </div>
-             <p className="mt-6 text-zinc-400 text-sm">Align QR code within the frame</p>
-           </motion.div>
-        )}
+                {/* 🌟 PREMIUM QR SCANNER OVERLAY 🌟 */}
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center pointer-events-none">
+          
+          {/* Dark frosted background around the scanner */}
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"></div>
+          
+          {/* 1:1 SQUARE FRAME (The actual cutout) */}
+          <div className="relative w-64 h-64 sm:w-72 sm:h-72 z-30 flex items-center justify-center">
+            
+            {/* Clear center (hides the frosted glass above it using box-shadow trick) */}
+            <div className="absolute inset-0 bg-transparent shadow-[0_0_0_4000px_rgba(0,0,0,0.5)] rounded-3xl" />
+
+            {/* Glowing Border Box */}
+            <div className="absolute inset-0 border border-white/10 rounded-3xl shadow-[0_0_50px_rgba(16,185,129,0.15)] overflow-hidden">
+              {/* Animated Laser Line */}
+              <motion.div 
+                animate={{ y: ['-100%', '400%'] }} 
+                transition={{ repeat: Infinity, duration: 2.5, ease: "linear" }}
+                className="w-full h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_15px_#34d399] opacity-80"
+              />
+            </div>
+
+            {/* 4 Premium Corner Markers */}
+            <div className="absolute -top-1 -left-1 w-12 h-12 border-t-4 border-l-4 border-emerald-400 rounded-tl-[1.6rem]"></div>
+            <div className="absolute -top-1 -right-1 w-12 h-12 border-t-4 border-r-4 border-emerald-400 rounded-tr-[1.6rem]"></div>
+            <div className="absolute -bottom-1 -left-1 w-12 h-12 border-b-4 border-l-4 border-emerald-400 rounded-bl-[1.6rem]"></div>
+            <div className="absolute -bottom-1 -right-1 w-12 h-12 border-b-4 border-r-4 border-emerald-400 rounded-br-[1.6rem]"></div>
+          </div>
+
+          {/* Helper Text */}
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="relative z-30 mt-12 bg-black/60 backdrop-blur-xl border border-white/10 px-6 py-3 rounded-full shadow-2xl"
+          >
+            <p className="text-emerald-400 font-bold tracking-[0.2em] text-xs uppercase flex items-center gap-2">
+              <Sparkles className="w-4 h-4" /> Align QR within frame
+            </p>
+          </motion.div>
+        </div>
+
 
         {/* PRODUCT SHOWCASE VIEW */}
         {viewState === 'PRODUCT_SHOWCASE' && scannedData && (
