@@ -68,12 +68,21 @@ export default function AdminDashboard() {
       }
     };
 
-    checkSession(); // Page load par check karega
+    checkSession();
 
-    // Har 30 second me background me check karega ki time over toh nahi hua
     const interval = setInterval(checkSession, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleClearOrderDetails = () => {
+    setSearchCartNumber('');
+    setFoundOrder(null);
+  };
+
+  const handleClearQuickBill = () => {
+    setQuickCartId('');
+    setQuickPhone('');
+  };
 
   const handleQuickSendBill = async () => {
     if (!quickCartId || quickPhone.length !== 10) {
@@ -83,7 +92,8 @@ export default function AdminDashboard() {
     
     setIsSendingQuickBill(true);
     try {
-      const res = await getSaleByCartId(`CART-${quickCartId.replace('CART-', '')}`); 
+      const fullCartId = `CART-${quickCartId}`;
+      const res = await getSaleByCartId(fullCartId); 
       
       if (res.success && res.data) {
         const billUrl = `${window.location.origin}/bill/${res.data.cart_id}`;
@@ -91,10 +101,9 @@ export default function AdminDashboard() {
         
         window.open(`https://wa.me/91${quickPhone}?text=${text}`, '_blank');
         
-        setQuickCartId('');
-        setQuickPhone('');
+        handleClearQuickBill();
       } else {
-        alert(`❌ Cart ID ${quickCartId} not found in database! Please check again.`);
+        alert(`❌ Cart ID ${fullCartId} not found in database! Please check again.`);
       }
     } catch (err) {
       alert("Error verifying Cart ID.");
@@ -358,12 +367,11 @@ export default function AdminDashboard() {
                   )}
 
                   {foundOrder.payment_status === 'completed' && foundOrder.payment_method === 'OFFLINE' && (
-                    <button 
-                      onClick={handleQuickSendBill}
-                      disabled={isSendingQuickBill || quickPhone.length < 10 || !quickCartId}
-                      className="w-full md:w-auto bg-[#25D366] text-black px-6 py-3 rounded-xl font-black hover:bg-[#1ebd5a] hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:hover:scale-100"
+                    <button
+                      onClick={handleClearOrderDetails}
+                      className="w-full md:w-auto bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 px-6 py-3 rounded-xl font-black transition-all flex items-center justify-center gap-2"
                     >
-                      {isSendingQuickBill ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />} Send
+                      <X className="w-5 h-5" /> Clear
                     </button>
                   )}
 
@@ -373,54 +381,68 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* 🚀 QUICK WHATSAPP DISPATCH */}
-        <div className="bg-gradient-to-r from-[#25D366]/10 to-transparent border border-[#25D366]/20 rounded-3xl p-4 md:p-5 flex flex-col md:flex-row items-center justify-between gap-4 shadow-lg shadow-[#25D366]/5">
-          <div className="flex items-center gap-3 w-full md:w-auto">
-            <div className="bg-[#25D366]/20 p-3 rounded-2xl">
+        {/* 🚀 QUICK WHATSAPP DISPATCH (NEW PREMIUM DESIGN) */}
+        <div className="bg-gradient-to-r from-[#25D366]/10 to-transparent border border-[#25D366]/20 rounded-3xl p-4 md:p-5 flex flex-col md:flex-row items-center justify-between gap-4 shadow-lg shadow-[#25D366]/5 relative">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-[#25D366]/5 blur-[80px] rounded-full pointer-events-none" />
+          
+          <div className="flex items-center gap-3 w-full md:w-auto z-10">
+            <div className="bg-[#25D366]/20 p-3 rounded-2xl border border-[#25D366]/20 shadow-inner">
               <MessageCircle className="w-6 h-6 text-[#25D366]" />
             </div>
             <div>
               <h3 className="text-white font-black text-sm">Quick Send Bill</h3>
-              <p className="text-zinc-400 text-xs">Dispatch to any number</p>
+              <p className="text-zinc-400 text-xs mt-0.5">Dispatch to any number</p>
             </div>
           </div>
           
-          <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
-            <div className="flex gap-2">
-              <input 
-                type="text" 
-                placeholder="CART-XXXX" 
-                value={quickCartId}
-                onChange={e => setQuickCartId(e.target.value.toUpperCase().replace(/\s/g, ''))}
-                className="bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-sm w-full md:w-32 outline-none focus:border-[#25D366] transition-colors" 
-              />
-              <div className="flex bg-black/50 border border-white/10 rounded-xl overflow-hidden focus-within:border-[#25D366] transition-colors w-full md:w-44">
-                <span className="px-3 py-3 text-zinc-500 font-bold bg-white/5">+91</span>
+          <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto z-10 group">
+            <div className="flex gap-2 relative">
+              
+              {/* 🔥 CART ID INPUT WITH PREFILLED VISUAL PREFIX 🔥 */}
+              <div className="relative w-full md:w-40 flex-1">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-mono font-bold pointer-events-none group-focus-within:text-[#25D366] transition-colors">
+                  CART-
+                </div>
+                <input 
+                  type="text" 
+                  maxLength={4} // Only accept 4-digit ID part
+                  placeholder="XXXX"
+                  value={quickCartId}
+                  // Smart input: strictly only alphanumeric unique ID
+                  onChange={e => setQuickCartId(e.target.value.toUpperCase().replace(/^CART-/, '').replace(/\s/g, '').replace(/[^A-Z0-9-]/g, ''))}
+                  className="w-full bg-black/50 border border-white/10 rounded-xl py-3 pl-[4.5rem] pr-4 text-white font-mono uppercase outline-none focus:border-[#25D366] transition-all" 
+                />
+              </div>
+
+              {/* PHONE INPUT */}
+              <div className="flex bg-black/50 border border-white/10 rounded-xl overflow-hidden focus-within:border-[#25D366] transition-colors w-full md:w-44 flex-1">
+                <span className="px-3.5 py-3 text-zinc-500 font-bold bg-white/5">+91</span>
                 <input 
                   type="tel" 
                   placeholder="Number" 
                   maxLength={10}
                   value={quickPhone}
                   onChange={e => setQuickPhone(e.target.value.replace(/\D/g, ''))}
-                  className="w-full bg-transparent text-white font-bold px-3 outline-none"
+                  className="w-full bg-transparent text-white font-bold px-3.5 outline-none"
                 />
               </div>
             </div>
+
+            {/* 🔥 NEW RED CLEAR BUTTON 🔥 */}
             <button 
-              onClick={() => {
-                if(quickPhone.length === 10 && quickCartId) {
-                  const billUrl = `${window.location.origin}/bill/${quickCartId}`;
-                  const text = encodeURIComponent(`Thank you for your purchase! 🛍️✨\nHere is your premium digital receipt for Order ${quickCartId}:\n\n${billUrl}`);
-                  window.open(`https://wa.me/91${quickPhone}?text=${text}`, '_blank');
-                  setQuickCartId('');
-                  setQuickPhone('');
-                } else {
-                  alert('Please enter a valid CART ID and 10-digit phone number.');
-                }
-              }}
-              className="bg-[#25D366] text-black px-6 py-3 rounded-xl font-black hover:bg-[#1ebd5a] hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2"
+              onClick={handleClearQuickBill}
+              className="bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all"
             >
-              <Send className="w-5 h-5" /> Send
+              <X className="w-4 h-4" /> Clear
+            </button>
+
+            {/* SEND BUTTON */}
+            <button 
+              onClick={handleQuickSendBill}
+              disabled={isSendingQuickBill || quickPhone.length < 10 || !quickCartId}
+              className="bg-[#25D366] text-black px-6 py-3 rounded-xl font-black hover:bg-[#1ebd5a] active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {isSendingQuickBill ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />} Send
             </button>
           </div>
         </div>
