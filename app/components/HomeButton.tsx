@@ -1,32 +1,21 @@
 'use client';
 
 import { Home } from 'lucide-react';
-import { useRouter, usePathname } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 
-export default function HomeButton() {
+export default function FloatingHomeButton() {
   const router = useRouter();
-  const pathname = usePathname();
-
-  // Agar hum pehle se hi home page par hain, toh button chhupa sakte hain (Optional)
-  if (pathname === '/') return null;
 
   return (
-    <motion.button
-      initial={{ scale: 0, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      whileHover={{ scale: 1.1 }}
-      whileTap={{ scale: 0.9 }}
-      onClick={() => router.push('/')}
-      className="fixed bottom-8 right-6 z- bg-emerald-500/20 backdrop-blur-xl border border-emerald-500/50 p-4 rounded-full shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:bg-emerald-500/30 group transition-all"
-
+    <button
+      onClick={() => router.push('/')} // Yahan apna home route daal dena (e.g., '/dashboard')
+      className="fixed bottom-8 right-6 z- bg-[#09090b] border border-emerald-500/50 p-4 rounded-full shadow-lg shadow-emerald-500/20 text-emerald-400 hover:bg-zinc-900 hover:border-emerald-400 active:scale-95 transition-all flex items-center justify-center group"
+      aria-label="Back to Home"
     >
-      <Home className="w-6 h-6 text-emerald-400 group-hover:text-white transition-colors" />
-      
-      {/* Tooltip jo hover karne par dikhega */}
-      <span className="absolute right-16 top-1/2 -translate-y-1/2 bg-zinc-800 text-white text-[10px] font-bold px-3 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none uppercase tracking-widest border border-white/10">
-        Home
-      </span>
-    </motion.button>
+      <Home 
+        className="w-6 h-6 group-hover:text-emerald-300 transition-colors" 
+        strokeWidth={2} 
+      />
+    </button>
   );
 }

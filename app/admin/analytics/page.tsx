@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Lock, Unlock, ActivityIcon, ArrowLeft, Loader2 } from 'lucide-react';
+import { ActivityIcon, ArrowLeft, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 // 🎯 Dono data Server Actions se aayenge (No Vercel Env Errors!)
@@ -11,12 +11,6 @@ import { getSalesData } from '../../actions/billingActions';
 
 export default function AdminAnalyticsPage() {
   const router = useRouter();
-  
-  // 🔐 Security State
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [passcode, setPasscode] = useState('');
-  const [error, setError] = useState('');
-  const ADMIN_PIN = '7788'; 
 
   // 📦 Data States
   const [data, setData] = useState<{ qrTags: any[], sales: any[] }>({ qrTags: [], sales: [] });
@@ -48,33 +42,25 @@ export default function AdminAnalyticsPage() {
     }
   }
 
-  // 🔐 PIN check handler
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (passcode === ADMIN_PIN) {
-      setIsAuthenticated(true);
-      loadData();
-    } else {
-      setError('Invalid PIN code');
-      setPasscode('');
-      setTimeout(() => setError(''), 3000);
-    }
-  };
+  // 🚀 Component mount hote hi data load karo (No PIN required)
+  useEffect(() => {
+    loadData();
+  }, []);
 
   // ========================================================
   // 📊 BULLETPROOF BUSINESS ANALYTICS CALCULATIONS
   // ========================================================
   
-  // 1. Gross Revenue (Fetched strictly from permanent 'sales' table)
+  // 1. Gross Revenue
   const totalRevenue = data.sales.reduce((sum, sale) => sum + Number(sale.total_amount || 0), 0);
   
-  // 2. Total Items Sold (Sum of items_count from all transactions)
+  // 2. Total Items Sold
   const totalItemsSold = data.sales.reduce((sum, sale) => sum + Number(sale.items_count || 0), 0);
   
-  // 3. Average Order Value (Total Revenue / Number of Transactions)
+  // 3. Average Order Value
   const averageOrderValue = data.sales.length > 0 ? Math.round(totalRevenue / data.sales.length) : 0;
   
-  // 4. Inventory Value (Items linked to a tag but NOT sold yet)
+  // 4. Inventory Value
   const unsoldItemsList = data.qrTags.filter(t => t.products && t.status !== 'sold');
   const potentialRevenue = unsoldItemsList.reduce((sum, tag) => sum + Number(tag.products?.price || 0), 0);
   
@@ -83,47 +69,7 @@ export default function AdminAnalyticsPage() {
   const dropOffRate = mockTotalScans > 0 ? Math.round(((mockTotalScans - totalItemsSold) / mockTotalScans) * 100) : 0;
 
   // ==========================================
-  // 🔴 VIEW 1: THE SECURITY VAULT
-  // ==========================================
-  if (!isAuthenticated) {
-    return (
-      <main className="min-h-screen bg-[#09090b] flex flex-col items-center justify-center p-6 selection:bg-emerald-500/30 relative overflow-hidden">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-emerald-500/10 blur-[100px] rounded-full pointer-events-none"></div>
-        
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative bg-zinc-900/50 backdrop-blur-2xl p-8 rounded-[3rem] border border-white/5 shadow-2xl w-full max-w-sm text-center">
-          <div className="bg-zinc-950 p-5 rounded-full inline-block mb-6 shadow-inner border border-white/5">
-            <Lock className="w-10 h-10 text-emerald-400" strokeWidth={1.5} />
-          </div>
-          <h1 className="text-3xl font-black text-white mb-2">Analytics Vault</h1>
-          <p className="text-zinc-500 text-sm font-medium mb-8">Enter your secure PIN to access business data.</p>
-          
-          <form onSubmit={handleLogin} className="space-y-4">
-            <input 
-              type="password" 
-              value={passcode}
-              onChange={(e) => setPasscode(e.target.value)}
-              placeholder="••••"
-              maxLength={4}
-              className="w-full bg-zinc-950 border border-zinc-800 text-center text-3xl tracking-[1em] text-white py-4 rounded-2xl focus:outline-none focus:border-emerald-500/50 transition-colors"
-              autoFocus
-            />
-            {error && <p className="text-red-400 text-sm font-bold">{error}</p>}
-            <button type="submit" className="w-full bg-emerald-500 text-black font-black text-lg py-4 rounded-2xl hover:bg-emerald-400 active:scale-95 transition-all shadow-lg shadow-emerald-500/20">
-              Unlock Dashboard
-            </button>
-          </form>
-          <div className="pt-6">
-            <button onClick={() => router.back()} className="text-zinc-500 text-xs font-bold hover:text-white flex items-center justify-center gap-2 w-full transition-colors">
-                <ArrowLeft className="w-3 h-3"/> Back to Control Panel
-            </button>
-          </div>
-        </motion.div>
-      </main>
-    );
-  }
-
-  // ==========================================
-  // 🟢 VIEW 2: THE PREMIUM ANALYTICS DASHBOARD
+  // 🟢 THE PREMIUM ANALYTICS DASHBOARD
   // ==========================================
   return (
     <main className="min-h-screen bg-[#09090b] text-zinc-100 font-sans selection:bg-emerald-500/30">
@@ -141,9 +87,7 @@ export default function AdminAnalyticsPage() {
               <p className="text-zinc-500 text-sm font-medium">Real-time business performance overview.</p>
             </div>
           </div>
-          <button onClick={() => setIsAuthenticated(false)} className="bg-zinc-900 p-3 rounded-full border border-white/5 hover:bg-zinc-800 transition active:scale-95" title="Lock Vault">
-            <Unlock className="w-5 h-5 text-zinc-400" />
-          </button>
+          {/* Unlock button removed from here */}
         </div>
       </header>
 
@@ -151,7 +95,7 @@ export default function AdminAnalyticsPage() {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-32 text-center text-zinc-600 gap-4">
              <Loader2 className="w-10 h-10 animate-spin text-emerald-500" />
-             <p className="font-mono text-sm">Synchronizing data vault...</p>
+             <p className="font-mono text-sm">Loading business data...</p>
           </div>
         ) : (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-2 md:grid-cols-4 gap-6">
