@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Lock, KeyRound, Search, Banknote, ShoppingCart, PackageSearch, 
   ArrowRight, CheckCircle2, Loader2, Send, X, Plus, ShoppingBag, 
-  MessageCircle
+  MessageCircle, Eye, EyeOff
 } from 'lucide-react';
 
 import { 
@@ -21,14 +21,15 @@ import { getSaleByCartId } from '../actions/billingActions';
 export default function AdminDashboard() {
   const router = useRouter();
   
-    // 🔐 Auth State
+  // 🔐 Auth State
   const [isLocked, setIsLocked] = useState(true);
   const [passwordEntry, setPasswordEntry] = useState('');
   const [authError, setAuthError] = useState(false);
+  const [showPassword, setShowPassword] = useState(false); // ✨ Naya state
   
-  // Complex Password (Future me isko hum Database ya Environment variable se connect karenge)
-  const MASTER_KEY = 'Admin@2026'; // Yahan apna complex password likho
-
+  // Complex Password & Timeout
+  const MASTER_KEY = 'Admin@2026'; 
+  const TIMEOUT_MS = 600 * 1000; // 10 minutes
 
   // 🏦 Verify Payment State
   const [searchCartNumber, setSearchCartNumber] = useState('');
@@ -42,20 +43,39 @@ export default function AdminDashboard() {
   const [posPhone, setPosPhone] = useState('');
   const [isProcessingPos, setIsProcessingPos] = useState(false);
 
-    // Quick WhatsApp Bill States
+  // Quick WhatsApp Bill States
   const [quickCartId, setQuickCartId] = useState('');
   const [quickPhone, setQuickPhone] = useState('');
   const [isSendingQuickBill, setIsSendingQuickBill] = useState(false);
 
-
+  // 🕒 Smart Auto-Lock Timer Logic
   useEffect(() => {
-    if (sessionStorage.getItem('admin_unlocked') === 'true') {
-      setIsLocked(false);
-    }
+    const checkSession = () => {
+      const unlockTime = localStorage.getItem('admin_unlock_time');
+      if (unlockTime) {
+        const timePassed = Date.now() - parseInt(unlockTime, 10);
+        if (timePassed < TIMEOUT_MS) {
+          setIsLocked(false);
+          // Agar admin screen par hai, toh timer refresh karte raho
+          localStorage.setItem('admin_unlock_time', Date.now().toString());
+        } else {
+          // 10 Min poore! Auto-Lock 🔒
+          localStorage.removeItem('admin_unlock_time');
+          setIsLocked(true);
+        }
+      } else {
+        setIsLocked(true);
+      }
+    };
+
+    checkSession(); // Page load par check karega
+
+    // Har 30 second me background me check karega ki time over toh nahi hua
+    const interval = setInterval(checkSession, 30000);
+    return () => clearInterval(interval);
   }, []);
 
-    const handleQuickSendBill = async () => {
-    // 1. Basic check
+  const handleQuickSendBill = async () => {
     if (!quickCartId || quickPhone.length !== 10) {
       alert("Please enter a valid Cart ID and 10-digit phone number.");
       return;
@@ -63,18 +83,14 @@ export default function AdminDashboard() {
     
     setIsSendingQuickBill(true);
     try {
-      // 2. Database me verify karo (Taaki fake/galat link na jaye)
-      // Note: Make sure getSaleByCartId is imported at the top from your actions file!
       const res = await getSaleByCartId(`CART-${quickCartId.replace('CART-', '')}`); 
       
       if (res.success && res.data) {
-        // 3. CART FOUND! WhatsApp link generate karo
         const billUrl = `${window.location.origin}/bill/${res.data.cart_id}`;
         const text = encodeURIComponent(`Thank you for shopping at SME Premium Store! 🛍️✨\n\nHere is your digital receipt for Order ${res.data.cart_id}:\n${billUrl}\n\nVisit again!`);
         
         window.open(`https://wa.me/91${quickPhone}?text=${text}`, '_blank');
         
-        // 4. Input fields saaf kar do agle customer ke liye
         setQuickCartId('');
         setQuickPhone('');
       } else {
@@ -87,19 +103,18 @@ export default function AdminDashboard() {
     }
   };
 
-
-    const handleUnlock = (e: React.FormEvent) => {
+  const handleUnlock = (e: React.FormEvent) => {
     e.preventDefault();
     if (passwordEntry === MASTER_KEY) {
-      sessionStorage.setItem('admin_unlocked', 'true');
+      localStorage.setItem('admin_unlock_time', Date.now().toString()); // Time stamp save
       setIsLocked(false);
+      setPasswordEntry(''); // Security ke liye input clear
     } else {
       setAuthError(true);
       setPasswordEntry('');
       setTimeout(() => setAuthError(false), 2000);
     }
   };
-
 
   // --- PAYMENT VERIFICATION LOGIC ---
   const handleSearchOrder = async (e: React.FormEvent) => {
@@ -108,7 +123,6 @@ export default function AdminDashboard() {
     setIsSearchingOrder(true);
     setFoundOrder(null);
     
-    // Auto-add "CART-" before checking database
     const fullCartId = `CART-${searchCartNumber.trim()}`;
     const res = await getOrderByCartId(fullCartId);
     
@@ -190,20 +204,31 @@ export default function AdminDashboard() {
               <Lock className="w-10 h-10 text-emerald-400" />
             </div>
             <h1 className="text-3xl font-black text-white">Owner Terminal</h1>
-            <p className="text-zinc-400 text-sm mt-1">Enter passcode to access dashboard</p>
+            <p className="text-zinc-400 text-sm mt-1">Enter Master Key to access dashboard</p>
           </div>
-                    <form onSubmit={handleUnlock} className="relative z-10 space-y-5">
+          
+          <form onSubmit={handleUnlock} className="relative z-10 space-y-5">
             <div className="relative">
               <KeyRound className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors ${authError ? 'text-red-500' : 'text-zinc-500'}`} />
+              
               <input 
-                type="password" 
+                type={showPassword ? "text" : "password"} 
                 value={passwordEntry} 
                 onChange={e => setPasswordEntry(e.target.value)} 
                 placeholder="Enter Master Key" 
-                className={`w-full bg-zinc-900 border ${authError ? 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]' : 'border-white/10 focus:border-blue-500'} rounded-2xl py-4 pl-12 pr-4 text-center text-lg font-bold tracking-widest text-white outline-none transition-all`} 
+                className={`w-full bg-zinc-900 border ${authError ? 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]' : 'border-white/10 focus:border-blue-500'} rounded-2xl py-4 pl-12 pr-12 text-center text-lg font-bold tracking-widest text-white outline-none transition-all`} 
                 autoFocus 
               />
+              
+              <button 
+                type="button" 
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors p-1"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
             </div>
+            
             <button 
               type="submit" 
               className={`w-full font-black py-4 rounded-2xl transition-all shadow-lg ${authError ? 'bg-red-500 text-white shadow-red-500/20' : 'bg-blue-500 text-white hover:bg-blue-400 shadow-blue-500/20'}`}
@@ -228,7 +253,8 @@ export default function AdminDashboard() {
           <button onClick={() => router.push('/admin/inventory')} className="flex-1 sm:flex-none px-6 py-3 bg-white/10 border border-white/20 rounded-xl text-sm font-bold hover:bg-white/20 transition-all flex items-center justify-center gap-2">
             <PackageSearch className="w-4 h-4" /> Go to Inventory
           </button>
-          <button onClick={() => { sessionStorage.removeItem('admin_unlocked'); setIsLocked(true); }} className="px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 hover:bg-red-500/20 transition-all">
+          {/* 🔥 Logout Button with localStorage logic */}
+          <button onClick={() => { localStorage.removeItem('admin_unlock_time'); setIsLocked(true); }} className="px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 hover:bg-red-500/20 transition-all">
             <Lock className="w-4 h-4" />
           </button>
         </div>
@@ -248,11 +274,9 @@ export default function AdminDashboard() {
 
             <form onSubmit={handleSearchOrder} className="flex gap-2 mb-6 relative z-10 group">
               <div className="relative flex-1">
-                {/* Visual prefix - unselectable and positioned over the padding */}
                 <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-mono font-bold pointer-events-none group-focus-within:text-blue-400 transition-colors">
                   CART-
                 </div>
-                {/* Actual input */}
                 <input 
                   type="text" 
                   maxLength={4} 
@@ -284,17 +308,15 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                                    <div className="mb-4">
+                  <div className="mb-4">
                     <p className="text-sm text-zinc-400">
                       <span className="font-bold text-white">Phone:</span>{' '}
-                      {/* 🔥 FIX: Handling both 'phone' and 'customer_phone' safely + WALK-IN */}
                       {(foundOrder.customer_phone || foundOrder.phone) && (foundOrder.customer_phone || foundOrder.phone) !== 'WALK-IN' 
                         ? `+91 ${foundOrder.customer_phone || foundOrder.phone}` 
                         : <span className="text-zinc-500 italic">Walk-in Customer (No Phone)</span>}
                     </p>
                   </div>
 
-                  {/* 🔥 ITEMS LIST SECTION (IMAGES, PRICE, QUANTITY) */}
                   {foundOrder.purchased_items && foundOrder.purchased_items.length > 0 && (
                     <div className="mt-2 border-t border-white/10 pt-4 mb-6">
                       <p className="text-xs text-zinc-400 uppercase font-bold tracking-widest mb-3">
@@ -302,10 +324,9 @@ export default function AdminDashboard() {
                       </p>
                       <div className="space-y-3 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
                         {foundOrder.purchased_items.map((item: any, idx: number) => {
-                          const product = item.products || item; // Safe extract
+                          const product = item.products || item;
                           return (
                             <div key={idx} className="flex items-center gap-3 bg-black/40 p-3 rounded-xl border border-white/5">
-                              {/* Product Image */}
                               {product.image_url ? (
                                 <img src={product.image_url} alt="product" className="w-12 h-12 rounded-lg object-cover border border-white/10" />
                               ) : (
@@ -314,13 +335,11 @@ export default function AdminDashboard() {
                                 </div>
                               )}
                               
-                              {/* Name & Tag */}
                               <div className="flex-1">
                                 <p className="font-bold text-white text-sm line-clamp-1">{product.name || 'Unknown Item'}</p>
                                 <p className="text-[10px] text-zinc-500 font-mono mt-0.5">Tag: {item.id}</p>
                               </div>
                               
-                              {/* Price & Qty */}
                               <div className="text-right">
                                 <p className="font-bold text-emerald-400 text-sm">₹{product.price || 0}</p>
                                 <p className="text-[10px] text-zinc-500 font-bold uppercase mt-0.5">Qty: 1</p>
@@ -339,14 +358,13 @@ export default function AdminDashboard() {
                   )}
 
                   {foundOrder.payment_status === 'completed' && foundOrder.payment_method === 'OFFLINE' && (
-                                <button 
-              onClick={handleQuickSendBill}
-              disabled={isSendingQuickBill || quickPhone.length < 10 || !quickCartId}
-              className="w-full md:w-auto bg-[#25D366] text-black px-6 py-3 rounded-xl font-black hover:bg-[#1ebd5a] hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:hover:scale-100"
-            >
-              {isSendingQuickBill ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />} Send
-            </button>
-
+                    <button 
+                      onClick={handleQuickSendBill}
+                      disabled={isSendingQuickBill || quickPhone.length < 10 || !quickCartId}
+                      className="w-full md:w-auto bg-[#25D366] text-black px-6 py-3 rounded-xl font-black hover:bg-[#1ebd5a] hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:hover:scale-100"
+                    >
+                      {isSendingQuickBill ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />} Send
+                    </button>
                   )}
 
                 </motion.div>
@@ -355,7 +373,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-                {/* 🚀 QUICK WHATSAPP DISPATCH (NEW SECTION) */}
+        {/* 🚀 QUICK WHATSAPP DISPATCH */}
         <div className="bg-gradient-to-r from-[#25D366]/10 to-transparent border border-[#25D366]/20 rounded-3xl p-4 md:p-5 flex flex-col md:flex-row items-center justify-between gap-4 shadow-lg shadow-[#25D366]/5">
           <div className="flex items-center gap-3 w-full md:w-auto">
             <div className="bg-[#25D366]/20 p-3 rounded-2xl">
@@ -391,7 +409,6 @@ export default function AdminDashboard() {
             <button 
               onClick={() => {
                 if(quickPhone.length === 10 && quickCartId) {
-                  // Direct magic link generation!
                   const billUrl = `${window.location.origin}/bill/${quickCartId}`;
                   const text = encodeURIComponent(`Thank you for your purchase! 🛍️✨\nHere is your premium digital receipt for Order ${quickCartId}:\n\n${billUrl}`);
                   window.open(`https://wa.me/91${quickPhone}?text=${text}`, '_blank');
@@ -407,7 +424,6 @@ export default function AdminDashboard() {
             </button>
           </div>
         </div>
-
 
         {/* COLUMN 2: MANUAL POS COUNTER */}
         <div className="space-y-6">
@@ -437,7 +453,6 @@ export default function AdminDashboard() {
                 <div className="space-y-3 flex-1 overflow-y-auto max-h-[250px] pr-2">
                   {posCart.map((item, idx) => (
                     <div key={idx} className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/5 hover:border-emerald-500/30 transition-colors">
-                      {/* Product Image */}
                       {item.products?.image_url ? (
                         <img 
                           src={item.products.image_url} 
@@ -450,13 +465,11 @@ export default function AdminDashboard() {
                         </div>
                       )}
 
-                      {/* Product Details */}
                       <div className="flex-1">
                         <p className="font-bold text-white text-sm leading-tight">{item.products?.name}</p>
                         <p className="text-[10px] font-mono text-zinc-500 mt-0.5">{item.id}</p>
                       </div>
 
-                      {/* Price and Action */}
                       <div className="flex items-center gap-3">
                         <p className="font-bold text-emerald-400 text-sm">₹{item.products?.price}</p>
                         <button 
