@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'; // 🔥 NEXT.JS ROUTER ADDED
 import { getProductByTag, processCheckout, checkPaymentStatus } from '../actions/billingActions';
 import { 
   ShoppingBag, Trash2, CreditCard, Loader2, XCircle, QrCode, X, 
-  Smartphone, Banknote, Sparkles // 🔥 Added Sparkles here
+  Smartphone, Banknote, Sparkles, SmartphoneNfc, Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -439,28 +439,46 @@ export default function BillingPage() {
                     </motion.div>
                   )}
 
-                  {/* STEP 2A: ONLINE PAYMENT PROCESSING */}
+                                    {/* STEP 2A: ONLINE PAYMENT PROCESSING */}
                   {paymentStep === 'ONLINE_PAY' && (
                     <motion.div key="online_pay" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="flex flex-col items-center py-4">
-                      <div className="bg-white p-3 rounded-2xl mb-6 shadow-lg flex items-center justify-center">
-                        <QRCode 
-                          value={`upi://pay?pa=merchant@ybl&pn=SME%20Garment%20Store&am=${totalAmount}&cu=INR&tn=${currentCartId}`} 
-                          size={180} 
-                        />
-                      </div>
-                      <p className="text-zinc-400 mb-6 text-center">Scan with any UPI App (GPay, PhonePe, Paytm)<br/><span className="text-white font-bold text-xl">₹{totalAmount}</span></p>
                       
-                      <button 
-                        onClick={() => {
-                          executeDatabaseCheckout('ONLINE', () => setPaymentStep('AWAITING_APPROVAL'));
-                        }} 
-                        disabled={isCheckingOut} 
-                        className="w-full bg-emerald-500 text-black py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition active:scale-95"
-                      >
-                        {isCheckingOut ? <Loader2 className="w-5 h-5 animate-spin" /> : "I have Paid via UPI"}
-                      </button>
+                      {/* Premium UPI Icon Graphics */}
+                      <div className="w-24 h-24 bg-emerald-500/10 rounded-full flex items-center justify-center mb-4 border border-emerald-500/20 shadow-[0_0_30px_rgba(16,185,129,0.15)] relative">
+                        <div className="absolute inset-0 border border-emerald-500/30 rounded-full animate-ping opacity-20"></div>
+                        <SmartphoneNfc className="w-10 h-10 text-emerald-400" />
+                      </div>
+
+                      <h3 className="text-4xl font-black text-white tracking-tighter mb-1">₹{totalAmount}</h3>
+                      <p className="text-zinc-400 mb-8 text-center text-sm font-medium">
+                        Pay securely using any UPI app on your phone.
+                        <br/><span className="text-[10px] uppercase tracking-widest text-zinc-600 font-bold mt-2 block">Credit/Debit Cards coming soon</span>
+                      </p>
+                      
+                      <div className="w-full space-y-3">
+                        {/* 🔥 UPI DEEP LINK BUTTON */}
+                        <a 
+                          href={`upi://pay?pa=merchant@ybl&pn=SME%20Premium%20Store&am=${totalAmount}&cu=INR&tn=${currentCartId}`}
+                          className="w-full bg-white text-black py-4 rounded-xl font-black flex items-center justify-center gap-2 transition active:scale-95 shadow-lg hover:bg-zinc-200"
+                        >
+                          <Zap className="w-5 h-5 text-emerald-500" /> Open UPI App (GPay, PhonePe)
+                        </a>
+
+                        {/* CONFIRMATION BUTTON */}
+                        <button 
+                          onClick={() => {
+                            executeDatabaseCheckout('ONLINE', () => setPaymentStep('AWAITING_APPROVAL'));
+                          }} 
+                          disabled={isCheckingOut} 
+                          className="w-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition active:scale-95 hover:bg-emerald-500/20"
+                        >
+                          {isCheckingOut ? <Loader2 className="w-5 h-5 animate-spin" /> : "I have paid, Request Approval"}
+                        </button>
+                      </div>
+
                     </motion.div>
                   )}
+
 
                   {/* STEP 2B: OFFLINE MANAGER INPUT */}
                   {paymentStep === 'OFFLINE_INPUT' && (
