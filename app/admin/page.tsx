@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Lock, KeyRound, Search, Banknote, ShoppingCart, PackageSearch, 
   ArrowRight, CheckCircle2, Loader2, Send, X, Plus, ShoppingBag, 
-  MessageCircle, Eye, EyeOff
+  MessageCircle, Eye, EyeOff, BarChart3
 } from 'lucide-react';
 
 import { 
@@ -253,21 +253,25 @@ export default function AdminDashboard() {
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white font-sans p-4 sm:p-8 pb-24">
-      <header className="max-w-5xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10">
+            <header className="max-w-5xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10">
         <div>
           <h1 className="text-3xl sm:text-4xl font-black tracking-tight">Command Center</h1>
           <p className="text-zinc-400 text-sm mt-1">Manage payments & manual checkouts</p>
         </div>
-        <div className="flex gap-3 w-full sm:w-auto">
-          <button onClick={() => router.push('/admin/inventory')} className="flex-1 sm:flex-none px-6 py-3 bg-white/10 border border-white/20 rounded-xl text-sm font-bold hover:bg-white/20 transition-all flex items-center justify-center gap-2">
-            <PackageSearch className="w-4 h-4" /> Go to Inventory
+        <div className="flex flex-wrap gap-3 w-full sm:w-auto">
+          {/* 🔥 NEW STATS BUTTON */}
+          <button onClick={() => router.push('/admin/analytics')} className="flex-1 sm:flex-none px-5 py-3 bg-purple-500/10 border border-purple-500/30 rounded-xl text-purple-400 text-sm font-bold hover:bg-purple-500/20 transition-all flex items-center justify-center gap-2">
+            <BarChart3 className="w-4 h-4" /> Stats
           </button>
-          {/* 🔥 Logout Button with localStorage logic */}
+          <button onClick={() => router.push('/admin/inventory')} className="flex-1 sm:flex-none px-5 py-3 bg-white/10 border border-white/20 rounded-xl text-sm font-bold hover:bg-white/20 transition-all flex items-center justify-center gap-2">
+            <PackageSearch className="w-4 h-4" /> Inventory
+          </button>
           <button onClick={() => { localStorage.removeItem('admin_unlock_time'); setIsLocked(true); }} className="px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 hover:bg-red-500/20 transition-all">
             <Lock className="w-4 h-4" />
           </button>
         </div>
       </header>
+
 
       <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8">
         

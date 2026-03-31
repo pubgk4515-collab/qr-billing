@@ -18,7 +18,8 @@ export default function HomeButton() {
       whileHover={{ scale: 1.1 }}
       whileTap={{ scale: 0.9 }}
       onClick={() => router.push('/')}
-      className="fixed bottom-28 right-6 z- bg-zinc-900/80 backdrop-blur-xl border border-white/20 p-4 rounded-full shadow-2xl shadow-black/50 group transition-all"
+      className="fixed bottom-8 right-6 z- bg-emerald-500/20 backdrop-blur-xl border border-emerald-500/50 p-4 rounded-full shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:bg-emerald-500/30 group transition-all"
+
     >
       <Home className="w-6 h-6 text-emerald-400 group-hover:text-white transition-colors" />
       

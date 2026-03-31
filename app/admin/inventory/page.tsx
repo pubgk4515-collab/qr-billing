@@ -3,10 +3,11 @@
 
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+
 import {
   LayoutDashboard, QrCode, ShoppingBag, PackagePlus, Loader2, Download, X, Link, ExternalLink,
   Link2, Unlink, Edit2, UploadCloud, Activity, ActivityIcon, Lock, KeyRound, Plus, Tag, Hash,
-  CheckCircle2, AlertCircle, Search, Filter, Grid, List, Banknote, Send, Trash2
+  CheckCircle2, AlertCircle, Search, Filter, Grid, List, Banknote, Send, Trash2, BarChart3
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -27,12 +28,8 @@ type ViewMode = 'table' | 'grid';
 type FilterType = 'all' | 'free' | 'active';
 
 export default function AdminDashboard() {
-  // 🔐 Lock State
   const router = useRouter();
-  const [isLocked, setIsLocked] = useState(true);
-  const [pinEntry, setPinEntry] = useState('');
-  const [pinError, setPinError] = useState(false);
-  const CORRECT_PIN = '7788'; // MVP hardcoded PIN
+
 
   // 📦 Data & UI State
   const [data, setData] = useState<{ products: any[]; qrTags: any[] }>({ products: [], qrTags: [] });
@@ -61,13 +58,10 @@ export default function AdminDashboard() {
   const [freeTagCount, setFreeTagCount] = useState('5');
 
   // Check session storage for unlock status
-  useEffect(() => {
-    const isUnlocked = sessionStorage.getItem('admin_unlocked');
-    if (isUnlocked === 'true') {
-      setIsLocked(false);
-      loadData();
-    }
+    useEffect(() => {
+    loadData();
   }, []);
+
 
   // Load fresh data from Supabase via server action (no caching)
   async function loadData() {
@@ -84,20 +78,6 @@ export default function AdminDashboard() {
     }
     setLoading(false);
   }
-
-  // 🔐 PIN unlock handler
-  const handleUnlock = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (pinEntry === CORRECT_PIN) {
-      sessionStorage.setItem('admin_unlocked', 'true');
-      setIsLocked(false);
-      loadData();
-    } else {
-      setPinError(true);
-      setPinEntry('');
-      setTimeout(() => setPinError(false), 2000);
-    }
-  };
 
   // 🖼️ Image upload (data URL)
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>, isEdit = false) => {
@@ -294,63 +274,6 @@ export default function AdminDashboard() {
   const mockTotalScans = soldItemsList.length * 3 + 12; // Example math for realistic UI
   const dropOffRate = mockTotalScans > 0 ? Math.round(((mockTotalScans - soldItemsList.length) / mockTotalScans) * 100) : 0;
 
-
-  // 🔒 Lock screen UI
-  if (isLocked) {
-    return (
-      <main className="min-h-screen bg-zinc-950 flex items-center justify-center p-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="relative w-full max-w-md"
-        >
-          <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 via-transparent to-emerald-500/20 blur-3xl rounded-full" />
-          <div className="relative bg-black/40 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 shadow-2xl">
-            <div className="flex flex-col items-center text-center mb-8">
-              <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mb-6 border border-emerald-500/30 shadow-lg">
-                <Lock className="w-10 h-10 text-emerald-400" />
-              </div>
-              <h1 className="text-3xl font-black text-white tracking-tight">Restricted Area</h1>
-              <p className="text-zinc-400 text-sm mt-1">Enter admin passcode</p>
-            </div>
-
-            <form onSubmit={handleUnlock} className="space-y-5">
-              <div className="relative">
-                <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
-                <input
-                  type="password"
-                  maxLength={4}
-                  value={pinEntry}
-                  onChange={e => setPinEntry(e.target.value)}
-                  placeholder="••••"
-                  className={`w-full bg-zinc-900 border ${
-                    pinError ? 'border-red-500/50 focus:border-red-500' : 'border-white/10 focus:border-emerald-500'
-                  } rounded-2xl py-4 pl-12 pr-4 text-center text-2xl font-black tracking-[0.5em] text-white outline-none transition-all`}
-                  autoFocus
-                />
-              </div>
-              {pinError && (
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="text-red-400 text-xs font-bold text-center"
-                >
-                  Access denied. Try again.
-                </motion.p>
-              )}
-              <button
-                type="submit"
-                className="w-full bg-emerald-500 text-black font-black py-4 rounded-2xl mt-2 hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20"
-              >
-                Unlock Terminal
-              </button>
-            </form>
-          </div>
-        </motion.div>
-      </main>
-    );
-  }
-
   // Loading skeleton
   if (loading && data.products.length === 0) {
     return (
@@ -376,14 +299,15 @@ export default function AdminDashboard() {
             <h1 className="text-4xl md:text-5xl font-black bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-zinc-400 tracking-tighter">Control Panel</h1>
             <p className="text-zinc-500 text-sm mt-1 font-mono">Inventory & QR management</p>
           </div>
-          <div className="flex gap-3">
+                    <div className="flex flex-wrap gap-3">
+            <button onClick={() => router.push('/admin/analytics')} className="px-5 py-2.5 bg-purple-500/10 border border-purple-500/20 rounded-full text-xs font-bold text-purple-400 hover:bg-purple-500/20 transition-all flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" /> Business Stats
+            </button>
             <button onClick={() => router.push('/admin')} className="px-5 py-2.5 bg-blue-500/10 border border-blue-500/20 rounded-full text-xs font-bold text-blue-400 hover:bg-blue-500/20 transition-all flex items-center gap-2">
               <LayoutDashboard className="w-4 h-4" /> Admin
             </button>
-            <button onClick={() => { sessionStorage.removeItem('admin_unlocked'); setIsLocked(true); }} className="px-5 py-2.5 bg-white/5 backdrop-blur-xl border border-white/10 rounded-full text-xs font-bold hover:bg-red-500/20 hover:border-red-500/50 transition-all flex items-center gap-2">
-              <Lock className="w-4 h-4" /> Lock Vault
-            </button>
           </div>
+
         </header>
 
 
@@ -851,24 +775,6 @@ export default function AdminDashboard() {
             </div>
           </ModalWrapper>
         )}
-            {/* 🚀 FLOATING ANALYTICS BUTTON (SMART HIDE ON MODALS) */}
-      {!isLocked && !isOrderModalOpen && !isAddModalOpen && !isEditModalOpen && !isFreeTagModalOpen && !selectedTag && !linkingTag && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40">
-          <button 
-            onClick={() => router.push('/admin/analytics')}
-            className="group flex items-center gap-3 bg-white/10 backdrop-blur-2xl border border-white/20 px-6 py-4 rounded-full shadow-[0_10px_40px_rgba(0,0,0,0.5)] hover:bg-white/20 hover:border-emerald-500/50 hover:shadow-emerald-500/20 transition-all active:scale-95"
-          >
-            <div className="bg-emerald-500 p-2 rounded-full text-black">
-              <Activity className="w-5 h-5" />
-            </div>
-            <span className="text-white font-black tracking-widest uppercase text-sm">
-              Business Stats
-            </span>
-          </button>
-        </div>
-      )}
-
-
       </AnimatePresence>
     </main>
   );
