@@ -15,8 +15,9 @@ export default function HomeButton() {
     setMounted(true);
   }, []);
 
-  // Agar user home page par hai, toh hide kar do
-  if (pathname === '/' || !mounted) return null;
+    // 🔥 Agar user home page par hai, YA FIR kisi Bill wale page par hai, toh isko hide kar do
+  if (pathname === '/' || pathname.startsWith('/bill') || !mounted) return null;
+
 
   // 🔥 React Portal isko baki saare design se azaad karke seedha <body> pe fek dega
   return createPortal(
