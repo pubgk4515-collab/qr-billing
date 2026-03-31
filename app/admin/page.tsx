@@ -21,11 +21,14 @@ import { getSaleByCartId } from '../actions/billingActions';
 export default function AdminDashboard() {
   const router = useRouter();
   
-  // 🔐 Auth State
+    // 🔐 Auth State
   const [isLocked, setIsLocked] = useState(true);
-  const [pinEntry, setPinEntry] = useState('');
-  const [pinError, setPinError] = useState(false);
-  const CORRECT_PIN = '7788';
+  const [passwordEntry, setPasswordEntry] = useState('');
+  const [authError, setAuthError] = useState(false);
+  
+  // Complex Password (Future me isko hum Database ya Environment variable se connect karenge)
+  const MASTER_KEY = 'Admin@2026'; // Yahan apna complex password likho
+
 
   // 🏦 Verify Payment State
   const [searchCartNumber, setSearchCartNumber] = useState('');
@@ -85,17 +88,18 @@ export default function AdminDashboard() {
   };
 
 
-  const handleUnlock = (e: React.FormEvent) => {
+    const handleUnlock = (e: React.FormEvent) => {
     e.preventDefault();
-    if (pinEntry === CORRECT_PIN) {
+    if (passwordEntry === MASTER_KEY) {
       sessionStorage.setItem('admin_unlocked', 'true');
       setIsLocked(false);
     } else {
-      setPinError(true);
-      setPinEntry('');
-      setTimeout(() => setPinError(false), 2000);
+      setAuthError(true);
+      setPasswordEntry('');
+      setTimeout(() => setAuthError(false), 2000);
     }
   };
+
 
   // --- PAYMENT VERIFICATION LOGIC ---
   const handleSearchOrder = async (e: React.FormEvent) => {
@@ -188,13 +192,26 @@ export default function AdminDashboard() {
             <h1 className="text-3xl font-black text-white">Owner Terminal</h1>
             <p className="text-zinc-400 text-sm mt-1">Enter passcode to access dashboard</p>
           </div>
-          <form onSubmit={handleUnlock} className="relative z-10 space-y-5">
+                    <form onSubmit={handleUnlock} className="relative z-10 space-y-5">
             <div className="relative">
-              <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
-              <input type="password" maxLength={4} value={pinEntry} onChange={e => setPinEntry(e.target.value)} placeholder="••••" className="w-full bg-zinc-900 border border-white/10 focus:border-emerald-500 rounded-2xl py-4 pl-12 pr-4 text-center text-2xl font-black tracking-[0.5em] text-white outline-none transition-all" autoFocus />
+              <KeyRound className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors ${authError ? 'text-red-500' : 'text-zinc-500'}`} />
+              <input 
+                type="password" 
+                value={passwordEntry} 
+                onChange={e => setPasswordEntry(e.target.value)} 
+                placeholder="Enter Master Key" 
+                className={`w-full bg-zinc-900 border ${authError ? 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]' : 'border-white/10 focus:border-blue-500'} rounded-2xl py-4 pl-12 pr-4 text-center text-lg font-bold tracking-widest text-white outline-none transition-all`} 
+                autoFocus 
+              />
             </div>
-            <button type="submit" className="w-full bg-emerald-500 text-black font-black py-4 rounded-2xl hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20">Unlock</button>
+            <button 
+              type="submit" 
+              className={`w-full font-black py-4 rounded-2xl transition-all shadow-lg ${authError ? 'bg-red-500 text-white shadow-red-500/20' : 'bg-blue-500 text-white hover:bg-blue-400 shadow-blue-500/20'}`}
+            >
+              {authError ? 'Access Denied' : 'Authorize Access'}
+            </button>
           </form>
+
         </motion.div>
       </main>
     );

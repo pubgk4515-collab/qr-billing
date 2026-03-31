@@ -90,15 +90,27 @@ export default function Home() {
 
         </div>
         
-        {/* Footer subtle text */}
-        <motion.p 
+                {/* Footer subtle text & Contact Agency Button */}
+        <motion.div 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8 }}
-          className="mt-20 text-zinc-600 text-[10px] tracking-[0.3em] uppercase font-black"
+          className="mt-16 flex flex-col items-center gap-5 relative z-10"
         >
-          Designed for Modern Retail
-        </motion.p>
+          <p className="text-zinc-600 text-[10px] tracking-[0.3em] uppercase font-black">
+            Designed for Modern Retail
+          </p>
+          
+          <button 
+            onClick={() => router.push('/contact')}
+            className="group flex items-center gap-2 px-6 py-2.5 rounded-full bg-zinc-900/50 border border-zinc-800 hover:border-emerald-500/50 hover:bg-emerald-500/10 transition-all duration-300"
+          >
+            <span className="text-xs font-bold tracking-widest text-zinc-400 group-hover:text-emerald-400 transition-colors uppercase">
+              Contact Agency
+            </span>
+            <ArrowRight className="w-3 h-3 text-zinc-500 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all" />
+          </button>
+        </motion.div>
       </motion.div>
     </main>
   );
