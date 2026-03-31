@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 function SuccessContent() {
   const searchParams = useSearchParams();
   const cartId = searchParams.get('cartId') || 'YOUR-ORDER';
-  const storePhone = "919876543210"; // Replace with real store WhatsApp number
+  const storePhone = "8509460738"; // Replace with real store WhatsApp number
   const router = useRouter();
 
 
