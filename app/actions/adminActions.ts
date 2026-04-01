@@ -1,22 +1,20 @@
 'use server';
 
 import { createSupabaseServer } from '../lib/supabaseServer';
-import { cookies } from 'next/headers'; // 🔥 Added cookies for future multi-tenant auth
+import { cookies } from 'next/headers'; 
 
 // ==========================================
 // 🏢 MULTI-TENANT HELPER FUNCTION
 // ==========================================
 async function getStoreId() {
-  // Await the cookies() call as required by latest Next.js
   const cookieStore = await cookies();
   const cookieStoreId = cookieStore.get('store_id')?.value;
   
-  // 🔥 IMPORTANT: Yahan apna wo Supabase UUID paste karo jo tumne SQL run karke banaya tha
-  const fallbackStoreId = 'ac7bbed3-3850-4d00-9eef-07727be90355'; // Replace with your actual store_id from Supabase
+  // Fallback UUID (Testing ke liye)
+  const fallbackStoreId = 'ac7bbed3-3850-4d00-9eef-07727be90355'; 
   
   return cookieStoreId || fallbackStoreId;
 }
-
 
 // ==========================================
 // 1. DATA FETCHING (DASHBOARD & INVENTORY)
@@ -26,7 +24,6 @@ export async function getStoreData() {
     const supabaseServer = createSupabaseServer();
     const storeId = await getStoreId();
 
-    // 🔥 Filter data strictly by store_id
     const { data: products, error: pError } = await supabaseServer
       .from('products').select('*').eq('store_id', storeId);
       
@@ -73,12 +70,10 @@ export async function generateFreeTags(count: number) {
       let tagId = '';
       while (!isUnique) {
         tagId = `TAG${currentNum.toString().padStart(3, '0')}`;
-        // Ensure uniqueness WITHIN the specific store
         const { data } = await supabaseServer.from('qr_tags').select('id').eq('id', tagId).eq('store_id', storeId).single();
         if (!data) isUnique = true;
         else currentNum++;
       }
-      // Insert with store_id
       newTags.push({ id: tagId, status: 'free', product_id: null, store_id: storeId });
       currentNum++;
     }
@@ -116,12 +111,66 @@ export async function unlinkTag(tagId: string) {
 // ==========================================
 // 3. PRODUCT MANAGEMENT
 // ==========================================
+
+// 🔥 NEW: Image upload & Tag linking function added here!
+export async function addProductToTag(tagId: string, formData: FormData) {
+  try {
+    const supabaseServer = createSupabaseServer();
+    const storeId = await getStoreId();
+    
+    if (!storeId) throw new Error("Store ID missing. Please login again.");
+
+    const name = formData.get('name') as string;
+    const price = parseFloat(formData.get('price') as string);
+    const imageFile = formData.get('image') as File | null;
+
+    let imageUrl = null;
+
+    if (imageFile && imageFile.size > 0) {
+      const fileExt = imageFile.name.split('.').pop();
+      const fileName = `${storeId}_${tagId}_${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabaseServer.storage
+        .from('product-images')
+        .upload(fileName, imageFile);
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabaseServer.storage
+        .from('product-images')
+        .getPublicUrl(fileName);
+
+      imageUrl = publicUrlData.publicUrl;
+    }
+
+    const { data: product, error: productError } = await supabaseServer
+      .from('products')
+      .insert([{ name, price, image_url: imageUrl, store_id: storeId }])
+      .select()
+      .single();
+
+    if (productError) throw productError;
+
+    const { error: tagError } = await supabaseServer
+      .from('qr_tags')
+      .update({ product_id: product.id, status: 'active' })
+      .eq('id', tagId)
+      .eq('store_id', storeId);
+
+    if (tagError) throw tagError;
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Add Product Error: ", error);
+    return { success: false, message: error.message };
+  }
+}
+
 export async function addNewItem(name: string, price: number, imageUrl: string, tagIdToLink?: string) {
   try {
     const supabaseServer = createSupabaseServer();
     const storeId = await getStoreId();
     
-    // Inject store_id during creation
     const { data: productData, error: productError } = await supabaseServer
       .from('products').insert({ name, price, image_url: imageUrl, store_id: storeId }).select().single();
 
@@ -208,7 +257,6 @@ export async function completePOSCheckout(cartItems: any[], customerPhone: strin
       products: { id: item.products?.id, name: item.products?.name, price: item.products?.price, image_url: item.products?.image_url }
     }));
 
-    // Inject store_id into sales
     const { error: salesError } = await supabaseServer.from('sales').insert({
       cart_id: cartId,
       total_amount: totalAmount,
