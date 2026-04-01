@@ -12,7 +12,7 @@ async function getStoreId() {
   const cookieStoreId = cookieStore.get('store_id')?.value;
   
   // 🔥 IMPORTANT: Yahan apna wo Supabase UUID paste karo jo tumne SQL run karke banaya tha
-  const fallbackStoreId = 'ac7bbed3-3850-4d00-9eef-07727be90355'; 
+  const fallbackStoreId = 'ac7bbed3-3850-4d00-9eef-07727be90355'; // Replace with your actual store_id from Supabase
   
   return cookieStoreId || fallbackStoreId;
 }
