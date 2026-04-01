@@ -69,7 +69,7 @@ export default function Home() {
           <motion.button
             whileHover={{ scale: 1.02, backgroundColor: "rgba(255,255,255,0.03)" }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => router.push('/admin')}
+            onClick={() => router.push('/login')}
             className="group relative bg-zinc-900/40 backdrop-blur-2xl border border-white/10 p-8 md:p-10 rounded-[2.5rem] text-left overflow-hidden transition-all hover:border-blue-500/30 shadow-2xl"
           >
             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 blur-[50px] rounded-full transition-opacity group-hover:opacity-100 opacity-0 pointer-events-none" />
