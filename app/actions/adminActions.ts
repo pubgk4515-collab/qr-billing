@@ -122,6 +122,7 @@ export async function addProductToTag(tagId: string, formData: FormData) {
 
     const name = formData.get('name') as string;
     const price = parseFloat(formData.get('price') as string);
+    const size = formData.get('size') as string || 'Free Size'; // 🔥 Naya Size Field
     const imageFile = formData.get('image') as File | null;
 
     let imageUrl = null;
@@ -143,9 +144,10 @@ export async function addProductToTag(tagId: string, formData: FormData) {
       imageUrl = publicUrlData.publicUrl;
     }
 
+    // 🔥 Size ko database me insert kar rahe hain
     const { data: product, error: productError } = await supabaseServer
       .from('products')
-      .insert([{ name, price, image_url: imageUrl, store_id: storeId }])
+      .insert([{ name, price, size, image_url: imageUrl, store_id: storeId }])
       .select()
       .single();
 
@@ -165,6 +167,7 @@ export async function addProductToTag(tagId: string, formData: FormData) {
     return { success: false, message: error.message };
   }
 }
+
 
 export async function addNewItem(name: string, price: number, imageUrl: string, tagIdToLink?: string) {
   try {

@@ -108,6 +108,7 @@ export default function AdminDashboard() {
     }
     setIsSubmitting(false);
   };
+  window.location.reload();
 
   // ✏️ Edit product
   const openEditModal = (tag: any) => {
@@ -630,6 +631,8 @@ export default function AdminDashboard() {
                     placeholder="Product Name"
                     className="w-full bg-black/30 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white outline-none focus:border-emerald-500 transition-all"
                   />
+                  <input type="text" name="size" placeholder="Size (e.g. M, XL, 32)" className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white outline-none focus:border-emerald-500 mb-3" required />
+
                 </div>
                 <div className="relative">
                   <span className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">₹</span>

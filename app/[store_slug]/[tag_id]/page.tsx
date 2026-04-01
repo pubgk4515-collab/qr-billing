@@ -13,10 +13,6 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
   const [productData, setProductData] = useState<any>(null);
   const [error, setError] = useState('');
 
-  // 📏 Demo sizes (Future: Fetch from DB)
-  const commonSizes = ['S', 'M', 'L', 'XL', '2XL'];
-  const [selectedSize, setSelectedSize] = useState('M'); // Default selected size
-
   useEffect(() => {
     async function fetchDetails() {
       try {
@@ -92,7 +88,6 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
       </header>
 
       {/* Main Content Area (Scrollable Image & Name) */}
-      {/* Note: Added padding-bottom `pb-56` so content isn't hidden by the floating bar */}
       <div className="flex-1 p-6 pb-56 flex flex-col">
         {/* Product Image */}
         <div className="w-full aspect-[4/5] bg-zinc-900 rounded-3xl overflow-hidden mb-6 relative border border-white/5 shadow-2xl">
@@ -113,23 +108,14 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
         </div>
       </div>
 
-      {/* 🔥 THE NEW FLOATING CART BAR 🔥 */}
-      {/* fixed bottom-0 left-0 right-0 p-5 makes it float */}
+      {/* 🔥 THE UPDATED FLOATING CART BAR 🔥 */}
       <div className="fixed bottom-0 left-0 right-0 p-5 bg-black/70 backdrop-blur-xl border-t border-white/10 z-40 shadow-[0_-20px_40px_rgba(0,0,0,0.5)]">
         
-        {/* Size Selector Row */}
+        {/* Size Display Row */}
         <div className="mb-4">
-          <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-2">Select Size</p>
-          <div className="flex items-center gap-2">
-            {commonSizes.map(size => (
-              <button 
-                key={size}
-                onClick={() => setSelectedSize(size)}
-                className={`w-12 h-12 rounded-xl font-bold flex items-center justify-center border-2 transition-all ${selectedSize === size ? 'bg-white text-black border-white' : 'bg-zinc-800 text-white border-white/10 hover:border-white/40'}`}
-              >
-                {size}
-              </button>
-            ))}
+          <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-2">Item Size</p>
+          <div className="w-14 h-12 rounded-xl font-black text-lg flex items-center justify-center bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.2)]">
+            {productData?.size || 'N/A'}
           </div>
         </div>
 
