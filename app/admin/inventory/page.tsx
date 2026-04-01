@@ -108,7 +108,6 @@ export default function AdminDashboard() {
     }
     setIsSubmitting(false);
   };
-  window.location.reload();
 
   // ✏️ Edit product
   const openEditModal = (tag: any) => {
