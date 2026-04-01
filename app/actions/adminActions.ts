@@ -1,6 +1,22 @@
 'use server';
 
 import { createSupabaseServer } from '../lib/supabaseServer';
+import { cookies } from 'next/headers'; // 🔥 Added cookies for future multi-tenant auth
+
+// ==========================================
+// 🏢 MULTI-TENANT HELPER FUNCTION
+// ==========================================
+async function getStoreId() {
+  // Await the cookies() call as required by latest Next.js
+  const cookieStore = await cookies();
+  const cookieStoreId = cookieStore.get('store_id')?.value;
+  
+  // 🔥 IMPORTANT: Yahan apna wo Supabase UUID paste karo jo tumne SQL run karke banaya tha
+  const fallbackStoreId = 'ac7bbed3-3850-4d00-9eef-07727be90355'; 
+  
+  return cookieStoreId || fallbackStoreId;
+}
+
 
 // ==========================================
 // 1. DATA FETCHING (DASHBOARD & INVENTORY)
@@ -8,9 +24,14 @@ import { createSupabaseServer } from '../lib/supabaseServer';
 export async function getStoreData() {
   try {
     const supabaseServer = createSupabaseServer();
-    // 🔥 FIXED: Removed the 'created_at' ordering from products since that column doesn't exist
-    const { data: products, error: pError } = await supabaseServer.from('products').select('*');
-    const { data: qrTags, error: qError } = await supabaseServer.from('qr_tags').select('*, products(*)').order('id', { ascending: true });
+    const storeId = await getStoreId();
+
+    // 🔥 Filter data strictly by store_id
+    const { data: products, error: pError } = await supabaseServer
+      .from('products').select('*').eq('store_id', storeId);
+      
+    const { data: qrTags, error: qError } = await supabaseServer
+      .from('qr_tags').select('*, products(*)').eq('store_id', storeId).order('id', { ascending: true });
 
     if (pError) throw pError;
     if (qError) throw qError;
@@ -24,8 +45,10 @@ export async function getStoreData() {
 // ==========================================
 // 2. TAG MANAGEMENT (REUSABLE LOGIC)
 // ==========================================
-async function getNextStartingNumber(supabaseServer: any) {
-  const { data, error } = await supabaseServer.from('qr_tags').select('id').order('id', { ascending: true });
+async function getNextStartingNumber(supabaseServer: any, storeId: string) {
+  const { data, error } = await supabaseServer
+    .from('qr_tags').select('id').eq('store_id', storeId).order('id', { ascending: true });
+    
   if (error || !data) return 1;
 
   const existingNumbers = data.map((t: any) => parseInt(t.id.replace('TAG', ''), 10)).filter((n: number) => !isNaN(n));
@@ -40,7 +63,8 @@ async function getNextStartingNumber(supabaseServer: any) {
 export async function generateFreeTags(count: number) {
   try {
     const supabaseServer = createSupabaseServer();
-    const startNum = await getNextStartingNumber(supabaseServer);
+    const storeId = await getStoreId();
+    const startNum = await getNextStartingNumber(supabaseServer, storeId);
     const newTags = [];
     let currentNum = startNum;
 
@@ -49,11 +73,13 @@ export async function generateFreeTags(count: number) {
       let tagId = '';
       while (!isUnique) {
         tagId = `TAG${currentNum.toString().padStart(3, '0')}`;
-        const { data } = await supabaseServer.from('qr_tags').select('id').eq('id', tagId).single();
+        // Ensure uniqueness WITHIN the specific store
+        const { data } = await supabaseServer.from('qr_tags').select('id').eq('id', tagId).eq('store_id', storeId).single();
         if (!data) isUnique = true;
         else currentNum++;
       }
-      newTags.push({ id: tagId, status: 'free', product_id: null });
+      // Insert with store_id
+      newTags.push({ id: tagId, status: 'free', product_id: null, store_id: storeId });
       currentNum++;
     }
 
@@ -68,7 +94,9 @@ export async function generateFreeTags(count: number) {
 export async function linkTagToProduct(tagId: string, productId: string) {
   try {
     const supabaseServer = createSupabaseServer();
-    const { error } = await supabaseServer.from('qr_tags').update({ product_id: productId, status: 'active' }).eq('id', tagId);
+    const storeId = await getStoreId();
+    const { error } = await supabaseServer
+      .from('qr_tags').update({ product_id: productId, status: 'active' }).eq('id', tagId).eq('store_id', storeId);
     if (error) throw error;
     return { success: true };
   } catch (error: any) { return { success: false, message: error.message }; }
@@ -77,7 +105,9 @@ export async function linkTagToProduct(tagId: string, productId: string) {
 export async function unlinkTag(tagId: string) {
   try {
     const supabaseServer = createSupabaseServer();
-    const { error } = await supabaseServer.from('qr_tags').update({ product_id: null, status: 'free' }).eq('id', tagId);
+    const storeId = await getStoreId();
+    const { error } = await supabaseServer
+      .from('qr_tags').update({ product_id: null, status: 'free' }).eq('id', tagId).eq('store_id', storeId);
     if (error) throw error;
     return { success: true };
   } catch (error: any) { return { success: false, message: error.message }; }
@@ -89,14 +119,17 @@ export async function unlinkTag(tagId: string) {
 export async function addNewItem(name: string, price: number, imageUrl: string, tagIdToLink?: string) {
   try {
     const supabaseServer = createSupabaseServer();
+    const storeId = await getStoreId();
+    
+    // Inject store_id during creation
     const { data: productData, error: productError } = await supabaseServer
-      .from('products').insert({ name, price, image_url: imageUrl }).select().single();
+      .from('products').insert({ name, price, image_url: imageUrl, store_id: storeId }).select().single();
 
     if (productError || !productData) throw productError || new Error("Failed to create product");
 
     if (tagIdToLink) {
       const { error: tagError } = await supabaseServer
-        .from('qr_tags').update({ product_id: productData.id, status: 'active' }).eq('id', tagIdToLink);
+        .from('qr_tags').update({ product_id: productData.id, status: 'active' }).eq('id', tagIdToLink).eq('store_id', storeId);
       if (tagError) throw tagError;
     }
     return { success: true };
@@ -106,7 +139,9 @@ export async function addNewItem(name: string, price: number, imageUrl: string, 
 export async function updateProduct(productId: string, name: string, price: number, imageUrl: string) {
   try {
     const supabaseServer = createSupabaseServer();
-    const { error } = await supabaseServer.from('products').update({ name, price, image_url: imageUrl }).eq('id', productId);
+    const storeId = await getStoreId();
+    const { error } = await supabaseServer
+      .from('products').update({ name, price, image_url: imageUrl }).eq('id', productId).eq('store_id', storeId);
     if (error) throw error;
     return { success: true };
   } catch (error: any) { return { success: false, message: error.message }; }
@@ -118,7 +153,9 @@ export async function updateProduct(productId: string, name: string, price: numb
 export async function getOrderByCartId(cartId: string) {
   try {
     const supabaseServer = createSupabaseServer();
-    const { data, error } = await supabaseServer.from('sales').select('*').eq('cart_id', cartId).single();
+    const storeId = await getStoreId();
+    const { data, error } = await supabaseServer
+      .from('sales').select('*').eq('cart_id', cartId).eq('store_id', storeId).single();
     if (error || !data) return { success: false, message: 'Order not found' };
     return { success: true, data };
   } catch (error: any) { return { success: false, message: error.message }; }
@@ -127,16 +164,20 @@ export async function getOrderByCartId(cartId: string) {
 export async function approvePayment(cartId: string) {
   try {
     const supabaseServer = createSupabaseServer();
-    const { data: orderData, error: fetchError } = await supabaseServer.from('sales').select('purchased_items').eq('cart_id', cartId).single();
+    const storeId = await getStoreId();
+    
+    const { data: orderData, error: fetchError } = await supabaseServer
+      .from('sales').select('purchased_items').eq('cart_id', cartId).eq('store_id', storeId).single();
     if (fetchError || !orderData) throw new Error('Order not found');
 
-    const { error } = await supabaseServer.from('sales').update({ payment_status: 'completed' }).eq('cart_id', cartId);
+    const { error } = await supabaseServer
+      .from('sales').update({ payment_status: 'completed' }).eq('cart_id', cartId).eq('store_id', storeId);
     if (error) throw error;
 
     const purchasedItems = orderData.purchased_items || [];
     for (const item of purchasedItems) {
       if (item.id) {
-        await supabaseServer.from('qr_tags').update({ status: 'free', product_id: null }).eq('id', item.id);
+        await supabaseServer.from('qr_tags').update({ status: 'free', product_id: null }).eq('id', item.id).eq('store_id', storeId);
       }
     }
     return { success: true };
@@ -145,8 +186,10 @@ export async function approvePayment(cartId: string) {
 
 export async function getTagForPOS(tagId: string) {
   const supabaseServer = createSupabaseServer();
+  const storeId = await getStoreId();
   try {
-    const { data, error } = await supabaseServer.from('qr_tags').select('*, products(*)').eq('id', tagId).single();
+    const { data, error } = await supabaseServer
+      .from('qr_tags').select('*, products(*)').eq('id', tagId).eq('store_id', storeId).single();
     if (error || !data) return { success: false, message: 'Tag not found in system.' };
     if (data.status === 'free' || !data.products) return { success: false, message: 'This tag is empty (no product linked).' };
     return { success: true, data };
@@ -155,6 +198,7 @@ export async function getTagForPOS(tagId: string) {
 
 export async function completePOSCheckout(cartItems: any[], customerPhone: string) {
   const supabaseServer = createSupabaseServer();
+  const storeId = await getStoreId();
   try {
     const cartId = `CART-${Math.floor(1000 + Math.random() * 9000)}`;
     const totalAmount = cartItems.reduce((sum, item) => sum + (item.products?.price || 0), 0);
@@ -164,6 +208,7 @@ export async function completePOSCheckout(cartItems: any[], customerPhone: strin
       products: { id: item.products?.id, name: item.products?.name, price: item.products?.price, image_url: item.products?.image_url }
     }));
 
+    // Inject store_id into sales
     const { error: salesError } = await supabaseServer.from('sales').insert({
       cart_id: cartId,
       total_amount: totalAmount,
@@ -171,13 +216,14 @@ export async function completePOSCheckout(cartItems: any[], customerPhone: strin
       payment_status: 'completed',
       payment_method: 'OFFLINE',
       customer_phone: customerPhone || 'WALK-IN',
-      purchased_items: purchasedItemsJson
+      purchased_items: purchasedItemsJson,
+      store_id: storeId
     });
 
     if (salesError) throw salesError;
 
     for (const item of cartItems) {
-      await supabaseServer.from('qr_tags').update({ status: 'free', product_id: null }).eq('id', item.id);
+      await supabaseServer.from('qr_tags').update({ status: 'free', product_id: null }).eq('id', item.id).eq('store_id', storeId);
     }
 
     return { success: true, cartId };
@@ -192,22 +238,23 @@ export async function completePOSCheckout(cartItems: any[], customerPhone: strin
 // ==========================================
 export async function bulkUploadProducts(items: { name: string; price: number; imageUrl: string }[]) {
   const supabaseServer = createSupabaseServer();
+  const storeId = await getStoreId();
   try {
     let successCount = 0;
-    const startNum = await getNextStartingNumber(supabaseServer);
+    const startNum = await getNextStartingNumber(supabaseServer, storeId);
     let currentNum = startNum;
 
     for (const item of items) {
       if (!item.name || !item.price) continue;
       
       const { data: productData, error: productError } = await supabaseServer
-        .from('products').insert({ name: item.name, price: item.price, image_url: item.imageUrl || null }).select().single();
+        .from('products').insert({ name: item.name, price: item.price, image_url: item.imageUrl || null, store_id: storeId }).select().single();
         
       if (productError || !productData) continue;
       
       const uniqueTag = `TAG${currentNum.toString().padStart(3, '0')}`;
       const { error: tagError } = await supabaseServer
-        .from('qr_tags').insert({ id: uniqueTag, product_id: productData.id, status: 'active' });
+        .from('qr_tags').insert({ id: uniqueTag, product_id: productData.id, status: 'active', store_id: storeId });
         
       if (!tagError) {
         successCount++;
@@ -219,13 +266,16 @@ export async function bulkUploadProducts(items: { name: string; price: number; i
     return { success: false, message: error.message };
   }
 }
+
 // ==========================================
 // 6. DELETE TAG LOGIC
 // ==========================================
 export async function deleteTag(tagId: string) {
   try {
     const supabaseServer = createSupabaseServer();
-    const { error } = await supabaseServer.from('qr_tags').delete().eq('id', tagId);
+    const storeId = await getStoreId();
+    const { error } = await supabaseServer
+      .from('qr_tags').delete().eq('id', tagId).eq('store_id', storeId);
     if (error) throw error;
     return { success: true };
   } catch (error: any) {
