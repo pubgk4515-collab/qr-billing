@@ -16,9 +16,14 @@ export async function loginStore(phone: string, passcode: string) {
       .eq('passcode', passcode)
       .single();
 
-    if (error || !store) {
-      return { success: false, message: 'Invalid phone number or passcode' };
+        if (error) {
+      // Yeh asli error screen par dikhayega
+      return { success: false, message: `Supabase Error: ${error.message}` }; 
     }
+    if (!store) {
+      return { success: false, message: 'No match found in database.' };
+    }
+
 
     // 🔥 SECRET WEAPON: HTTP-Only Cookie set kar rahe hain (7 din ke liye)
     const cookieStore = await cookies();
