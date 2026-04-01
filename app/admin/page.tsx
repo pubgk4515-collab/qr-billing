@@ -1,13 +1,13 @@
 // app/admin/page.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Lock, KeyRound, Search, Banknote, ShoppingCart, PackageSearch, 
+  Search, Banknote, ShoppingCart, PackageSearch, 
   ArrowRight, CheckCircle2, Loader2, Send, X, Plus, ShoppingBag, 
-  MessageCircle, Eye, EyeOff, BarChart3
+  MessageCircle, BarChart3, LogOut 
 } from 'lucide-react';
 
 import { 
@@ -21,16 +21,6 @@ import { getSaleByCartId } from '../actions/billingActions';
 export default function AdminDashboard() {
   const router = useRouter();
   
-  // 🔐 Auth State
-  const [isLocked, setIsLocked] = useState(true);
-  const [passwordEntry, setPasswordEntry] = useState('');
-  const [authError, setAuthError] = useState(false);
-  const [showPassword, setShowPassword] = useState(false); // ✨ Naya state
-  
-  // Complex Password & Timeout
-  const MASTER_KEY = 'Admin@2026'; 
-  const TIMEOUT_MS = 600 * 1000; // 10 minutes
-
   // 🏦 Verify Payment State
   const [searchCartNumber, setSearchCartNumber] = useState('');
   const [foundOrder, setFoundOrder] = useState<any>(null);
@@ -47,32 +37,6 @@ export default function AdminDashboard() {
   const [quickCartId, setQuickCartId] = useState('');
   const [quickPhone, setQuickPhone] = useState('');
   const [isSendingQuickBill, setIsSendingQuickBill] = useState(false);
-
-  // 🕒 Smart Auto-Lock Timer Logic
-  useEffect(() => {
-    const checkSession = () => {
-      const unlockTime = localStorage.getItem('admin_unlock_time');
-      if (unlockTime) {
-        const timePassed = Date.now() - parseInt(unlockTime, 10);
-        if (timePassed < TIMEOUT_MS) {
-          setIsLocked(false);
-          // Agar admin screen par hai, toh timer refresh karte raho
-          localStorage.setItem('admin_unlock_time', Date.now().toString());
-        } else {
-          // 10 Min poore! Auto-Lock 🔒
-          localStorage.removeItem('admin_unlock_time');
-          setIsLocked(true);
-        }
-      } else {
-        setIsLocked(true);
-      }
-    };
-
-    checkSession();
-
-    const interval = setInterval(checkSession, 30000);
-    return () => clearInterval(interval);
-  }, []);
 
   const handleClearOrderDetails = () => {
     setSearchCartNumber('');
@@ -109,19 +73,6 @@ export default function AdminDashboard() {
       alert("Error verifying Cart ID.");
     } finally {
       setIsSendingQuickBill(false);
-    }
-  };
-
-  const handleUnlock = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (passwordEntry === MASTER_KEY) {
-      localStorage.setItem('admin_unlock_time', Date.now().toString()); // Time stamp save
-      setIsLocked(false);
-      setPasswordEntry(''); // Security ke liye input clear
-    } else {
-      setAuthError(true);
-      setPasswordEntry('');
-      setTimeout(() => setAuthError(false), 2000);
     }
   };
 
@@ -202,58 +153,9 @@ export default function AdminDashboard() {
 
   const posTotal = posCart.reduce((sum, item) => sum + (item.products?.price || 0), 0);
 
-  // 🔒 Lock Screen
-  if (isLocked) {
-    return (
-      <main className="min-h-screen bg-zinc-950 flex items-center justify-center p-6">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md bg-black/40 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-emerald-500/20 blur-[50px] rounded-full" />
-          <div className="relative z-10 flex flex-col items-center text-center mb-8">
-            <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mb-6 border border-emerald-500/30">
-              <Lock className="w-10 h-10 text-emerald-400" />
-            </div>
-            <h1 className="text-3xl font-black text-white">Owner Terminal</h1>
-            <p className="text-zinc-400 text-sm mt-1">Enter Master Key to access dashboard</p>
-          </div>
-          
-          <form onSubmit={handleUnlock} className="relative z-10 space-y-5">
-            <div className="relative">
-              <KeyRound className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors ${authError ? 'text-red-500' : 'text-zinc-500'}`} />
-              
-              <input 
-                type={showPassword ? "text" : "password"} 
-                value={passwordEntry} 
-                onChange={e => setPasswordEntry(e.target.value)} 
-                placeholder="Enter Master Key" 
-                className={`w-full bg-zinc-900 border ${authError ? 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]' : 'border-white/10 focus:border-blue-500'} rounded-2xl py-4 pl-12 pr-12 text-center text-lg font-bold tracking-widest text-white outline-none transition-all`} 
-                autoFocus 
-              />
-              
-              <button 
-                type="button" 
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors p-1"
-              >
-                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              </button>
-            </div>
-            
-            <button 
-              type="submit" 
-              className={`w-full font-black py-4 rounded-2xl transition-all shadow-lg ${authError ? 'bg-red-500 text-white shadow-red-500/20' : 'bg-blue-500 text-white hover:bg-blue-400 shadow-blue-500/20'}`}
-            >
-              {authError ? 'Access Denied' : 'Authorize Access'}
-            </button>
-          </form>
-
-        </motion.div>
-      </main>
-    );
-  }
-
   return (
     <main className="min-h-screen bg-zinc-950 text-white font-sans p-4 sm:p-8 pb-24">
-            <header className="max-w-5xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10">
+      <header className="max-w-5xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10">
         <div>
           <h1 className="text-3xl sm:text-4xl font-black tracking-tight">Command Center</h1>
           <p className="text-zinc-400 text-sm mt-1">Manage payments & manual checkouts</p>
@@ -266,12 +168,12 @@ export default function AdminDashboard() {
           <button onClick={() => router.push('/admin/inventory')} className="flex-1 sm:flex-none px-5 py-3 bg-white/10 border border-white/20 rounded-xl text-sm font-bold hover:bg-white/20 transition-all flex items-center justify-center gap-2">
             <PackageSearch className="w-4 h-4" /> Inventory
           </button>
-          <button onClick={() => { localStorage.removeItem('admin_unlock_time'); setIsLocked(true); }} className="px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 hover:bg-red-500/20 transition-all">
-            <Lock className="w-4 h-4" />
+          {/* EXIT BUTTON */}
+          <button onClick={() => router.push('/')} title="Exit Dashboard" className="px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 hover:bg-red-500/20 transition-all">
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
       </header>
-
 
       <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8">
         
@@ -373,7 +275,7 @@ export default function AdminDashboard() {
                   {foundOrder.payment_status === 'completed' && foundOrder.payment_method === 'OFFLINE' && (
                     <button
                       onClick={handleClearOrderDetails}
-                      className="w-full md:w-auto bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 px-6 py-3 rounded-xl font-black transition-all flex items-center justify-center gap-2"
+                      className="w-full md:w-auto mt-4 bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 px-6 py-3 rounded-xl font-black transition-all flex items-center justify-center gap-2"
                     >
                       <X className="w-5 h-5" /> Clear
                     </button>
@@ -386,7 +288,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* 🚀 QUICK WHATSAPP DISPATCH (NEW PREMIUM DESIGN) */}
-        <div className="bg-gradient-to-r from-[#25D366]/10 to-transparent border border-[#25D366]/20 rounded-3xl p-4 md:p-5 flex flex-col md:flex-row items-center justify-between gap-4 shadow-lg shadow-[#25D366]/5 relative">
+        <div className="bg-gradient-to-r from-[#25D366]/10 to-transparent border border-[#25D366]/20 rounded-3xl p-4 md:p-5 flex flex-col md:flex-row items-center justify-between gap-4 shadow-lg shadow-[#25D366]/5 relative lg:col-span-2">
           <div className="absolute top-0 right-0 w-64 h-64 bg-[#25D366]/5 blur-[80px] rounded-full pointer-events-none" />
           
           <div className="flex items-center gap-3 w-full md:w-auto z-10">
@@ -412,7 +314,6 @@ export default function AdminDashboard() {
                   maxLength={4} // Only accept 4-digit ID part
                   placeholder="XXXX"
                   value={quickCartId}
-                  // Smart input: strictly only alphanumeric unique ID
                   onChange={e => setQuickCartId(e.target.value.toUpperCase().replace(/^CART-/, '').replace(/\s/g, '').replace(/[^A-Z0-9-]/g, ''))}
                   className="w-full bg-black/50 border border-white/10 rounded-xl py-3 pl-[4.5rem] pr-4 text-white font-mono uppercase outline-none focus:border-[#25D366] transition-all" 
                 />
@@ -452,7 +353,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* COLUMN 2: MANUAL POS COUNTER */}
-        <div className="space-y-6">
+        <div className="space-y-6 lg:col-start-2 lg:row-start-1">
           <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6 relative overflow-hidden">
             <h2 className="text-2xl font-black mb-2 flex items-center gap-3">
               <ShoppingCart className="w-6 h-6 text-emerald-400" /> Manual POS
