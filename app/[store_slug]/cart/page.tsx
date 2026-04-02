@@ -2,7 +2,11 @@
 
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Trash2, ShoppingBag, Loader2, ShieldCheck, CreditCard, Banknote, Smartphone, CheckCircle2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Trash2, ShoppingBag, ArrowRight, Loader2, 
+  ShieldCheck, CreditCard, Banknote, Smartphone, X, ScanLine 
+} from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { processCheckout, checkPaymentStatus } from '../../actions/billingActions';
 
@@ -18,12 +22,13 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
   // Checkout States
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState('ONLINE'); // ONLINE or OFFLINE
+  const [paymentMethod, setPaymentMethod] = useState('ONLINE'); 
   const [phone, setPhone] = useState('');
   
-  // Success / Waiting States
+  // Success / Waiting & Scanner States
   const [generatedCartId, setGeneratedCartId] = useState('');
   const [isWaitingForAdmin, setIsWaitingForAdmin] = useState(false);
+  const [isScanning, setIsScanning] = useState(false); // 🔥 Naya Scanner State
 
   useEffect(() => {
     async function fetchStoreAndCart() {
@@ -77,11 +82,8 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     });
 
     if (res.success) {
-      // Clear Local Storage Cart
       localStorage.removeItem(`cart_${store_slug}`);
       setCartItems([]);
-      
-      // Enter Waiting State
       setGeneratedCartId(cartId);
       setIsWaitingForAdmin(true);
       setShowCheckoutModal(false);
@@ -99,10 +101,9 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         const res = await checkPaymentStatus(generatedCartId);
         if (res.success && res.status === 'completed') {
           clearInterval(interval);
-          // Redirect to final bill page
           router.push(`/bill/${generatedCartId}`);
         }
-      }, 3000); // Check every 3 seconds
+      }, 3000); 
     }
     return () => clearInterval(interval);
   }, [isWaitingForAdmin, generatedCartId, router]);
@@ -125,20 +126,14 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
           <div className="absolute inset-0 rounded-full border-t-2 border-blue-500 animate-spin"></div>
           <ShieldCheck className="w-8 h-8 text-blue-400" />
         </div>
-        
         <h1 className="text-2xl font-black mb-2">Awaiting Confirmation</h1>
         <p className="text-zinc-400 text-sm mb-8">Please show this Cart ID at the billing counter.</p>
-        
         <div className="bg-white/5 border border-white/10 p-6 rounded-3xl w-full max-w-sm mb-8">
           <p className="text-xs text-zinc-500 font-bold tracking-widest uppercase mb-1">Your Cart ID</p>
           <p className="text-4xl font-mono font-black tracking-widest" style={{ color: storeData?.theme_color || '#10b981' }}>
             {generatedCartId.replace('CART-', '')}
           </p>
         </div>
-
-        <p className="text-xs text-zinc-500 animate-pulse flex items-center gap-2">
-          <Loader2 className="w-3 h-3 animate-spin" /> Waiting for store admin to approve payment...
-        </p>
       </div>
     );
   }
@@ -146,8 +141,13 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
   return (
     <main className="min-h-screen bg-zinc-950 text-white flex flex-col relative font-sans selection:bg-white/20">
       
-      {/* 👑 PREMIUM BRANDED HEADER */}
-      <header className="px-5 py-4 flex items-center gap-3 sticky top-0 z-40 shadow-2xl" style={{ backgroundColor: storeData?.theme_color || '#18181b', backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.6) 100%)' }}>
+      {/* 👑 PREMIUM BRANDED HEADER - FIXED AT TOP */}
+      <header 
+        className="fixed top-0 left-0 right-0 px-5 py-4 flex items-center gap-3 z-40 shadow-2xl backdrop-blur-md" 
+        style={{ 
+          backgroundColor: storeData?.theme_color ? `${storeData.theme_color}e6` : 'rgba(24, 24, 27, 0.9)' // Added opacity for blur
+        }}
+      >
         {storeData?.logo_url ? (
           <img src={storeData.logo_url} alt="logo" className="w-10 h-10 rounded-full object-cover border border-white/20 shadow-lg" />
         ) : (
@@ -161,24 +161,24 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
             <ShieldCheck className="w-3 h-3" /> Secure Checkout
           </p>
         </div>
-        <div className="bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 text-xs font-bold">
+        <div className="bg-black/40 px-3 py-1.5 rounded-full border border-white/10 text-xs font-bold shadow-inner">
           {totalItems} {totalItems === 1 ? 'Item' : 'Items'}
         </div>
       </header>
 
-      {/* 🛍️ CART ITEMS */}
-      <div className="flex-1 p-5 pb-40 flex flex-col gap-4">
+      {/* 🛍️ CART ITEMS (Added pt-24 to offset the fixed header) */}
+      <div className="flex-1 p-5 pt-24 pb-40 flex flex-col gap-4">
         <h2 className="text-2xl font-black mb-2">My Bag</h2>
 
         {cartItems.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-zinc-600 gap-4 mt-20">
+          <div className="flex-1 flex flex-col items-center justify-center text-zinc-600 gap-4 mt-10">
             <div className="w-24 h-24 bg-zinc-900 rounded-full flex items-center justify-center border border-white/5"><ShoppingBag className="w-10 h-10 opacity-50" /></div>
             <div className="text-center"><h3 className="text-white font-bold text-lg">Your bag is empty</h3></div>
           </div>
         ) : (
           <div className="space-y-4">
             {cartItems.map((item) => (
-              <div key={item.tag_id} className="bg-zinc-900/60 border border-white/10 p-3 rounded-2xl flex gap-4 items-center relative overflow-hidden">
+              <div key={item.tag_id} className="bg-zinc-900/60 border border-white/10 p-3 rounded-2xl flex gap-4 items-center relative overflow-hidden shadow-lg">
                 <div className="w-20 h-24 bg-black rounded-xl overflow-hidden flex-shrink-0 border border-white/5">
                   {item.image_url ? <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><ShoppingBag className="w-6 h-6 text-zinc-700" /></div>}
                 </div>
@@ -196,70 +196,138 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         )}
       </div>
 
-      {/* 🔥 BOTTOM CHECKOUT BAR */}
-      {cartItems.length > 0 && !showCheckoutModal && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 sm:p-6 bg-gradient-to-t from-black via-black/95 to-transparent z-40 pointer-events-none">
-          <div className="bg-zinc-900/90 backdrop-blur-2xl border border-white/10 p-2 pl-6 rounded-[2rem] flex items-center justify-between shadow-[0_20px_50px_rgba(0,0,0,0.9)] pointer-events-auto">
-            <div className="flex flex-col justify-center">
-              <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest mb-0.5">Grand Total</p>
-              <p className="text-2xl font-black text-white leading-none tracking-tight">₹{subtotal}</p>
+      {/* 🔥 NEW PREMIUM FLOATING DOCK (Merged UI) */}
+      {!showCheckoutModal && !isScanning && (
+        <div className="fixed bottom-6 left-4 right-4 z-40 max-w-md mx-auto">
+          <div className="bg-zinc-900/90 backdrop-blur-3xl border border-white/10 p-2 rounded-[2.5rem] flex items-center justify-between shadow-[0_20px_50px_rgba(0,0,0,0.9)]">
+            
+            {/* 1. Grand Total */}
+            <div className="pl-5 flex flex-col justify-center min-w-[80px]">
+              <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest mb-0.5">Total</p>
+              <p className="text-xl font-black text-white leading-none tracking-tight">₹{subtotal}</p>
             </div>
-            <button 
-              onClick={() => setShowCheckoutModal(true)}
-              style={{ backgroundColor: storeData?.theme_color || '#10b981', color: '#000' }}
-              className="font-black px-8 py-4 rounded-[1.5rem] flex items-center justify-center gap-2 hover:opacity-90 transition-all active:scale-95 shadow-xl"
-            >
-              <CreditCard className="w-5 h-5" /> Checkout
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* 💳 CHECKOUT MODAL (Slides up) */}
-      {showCheckoutModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 backdrop-blur-sm sm:items-center sm:p-6">
-          <div className="bg-zinc-950 w-full sm:max-w-md rounded-t-[2rem] sm:rounded-[2rem] border-t sm:border border-white/10 p-6 shadow-2xl animate-in slide-in-from-bottom-full duration-300">
-            <div className="flex justify-between items-center mb-6 border-b border-white/10 pb-4">
-              <h3 className="text-xl font-black">Complete Payment</h3>
-              <button onClick={() => setShowCheckoutModal(false)} className="text-zinc-500 hover:text-white bg-white/5 p-2 rounded-full"><Trash2 className="w-4 h-4 opacity-0" /> <span className="absolute top-8 right-8 font-bold text-lg">✕</span></button>
-            </div>
-
-            <div className="space-y-6">
-              {/* Phone Input */}
-              <div>
-                <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2 block">WhatsApp Number (For Bill)</label>
-                <div className="flex bg-black/50 border border-white/10 rounded-2xl overflow-hidden focus-within:border-white/30 transition-colors">
-                  <span className="px-4 py-4 text-zinc-500 font-bold bg-white/5">+91</span>
-                  <input type="tel" maxLength={10} value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, ''))} placeholder="Enter 10 digits" className="w-full bg-transparent text-white font-bold px-4 outline-none placeholder:text-zinc-700" />
-                </div>
-              </div>
-
-              {/* Payment Method Toggle */}
-              <div>
-                <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2 block">Payment Method</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button onClick={() => setPaymentMethod('ONLINE')} className={`py-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${paymentMethod === 'ONLINE' ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400' : 'border-white/5 bg-black/50 text-zinc-500'}`}>
-                    <Smartphone className="w-6 h-6" /> <span className="text-xs font-bold">UPI / Scan</span>
-                  </button>
-                  <button onClick={() => setPaymentMethod('OFFLINE')} className={`py-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${paymentMethod === 'OFFLINE' ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400' : 'border-white/5 bg-black/50 text-zinc-500'}`}>
-                    <Banknote className="w-6 h-6" /> <span className="text-xs font-bold">Cash at Counter</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Confirm Button */}
+            
+            <div className="flex items-center gap-2 pr-1">
+              {/* 2. QR Scan Button */}
               <button 
-                onClick={handleConfirmOrder}
-                disabled={isProcessing}
-                style={{ backgroundColor: storeData?.theme_color || '#10b981', color: '#000' }}
-                className="w-full font-black py-4 rounded-2xl flex justify-center items-center gap-2 mt-4 shadow-xl disabled:opacity-50"
+                onClick={() => setIsScanning(true)}
+                className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-all border border-white/5 shadow-inner"
               >
-                {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Pay ₹{subtotal} & Generate Bill</>}
+                <ScanLine className="w-5 h-5 text-white" />
+              </button>
+
+              {/* 3. Checkout Button */}
+              <button 
+                onClick={() => {
+                  if(cartItems.length > 0) setShowCheckoutModal(true);
+                  else alert("Bag is empty! Scan items first.");
+                }}
+                style={{ backgroundColor: storeData?.theme_color || '#10b981', color: '#000' }}
+                className={`h-12 px-6 rounded-full font-black flex items-center justify-center gap-2 transition-all shadow-xl ${cartItems.length === 0 ? 'opacity-50 grayscale' : 'hover:opacity-90 active:scale-95'}`}
+              >
+                Checkout <ArrowRight className="w-4 h-4" />
               </button>
             </div>
+
           </div>
         </div>
       )}
+
+      {/* 📷 FUTURISTIC SCANNER UI MODAL */}
+      <AnimatePresence>
+        {isScanning && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }}
+            className="fixed inset-0 z- bg-black flex flex-col"
+          >
+            {/* Scanner Header */}
+            <div className="flex justify-between items-center p-6 relative z-10">
+              <h3 className="text-white font-bold tracking-widest uppercase text-sm">Scan QR Code</h3>
+              <button onClick={() => setIsScanning(false)} className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-colors">
+                <X className="w-5 h-5"/>
+              </button>
+            </div>
+
+            {/* Viewfinder Area */}
+            <div className="flex-1 flex items-center justify-center p-8 relative">
+              <div className="absolute inset-0 bg-zinc-900/40" /> {/* Dark overlay outside scanner */}
+              
+              <div className="relative w-64 h-64 border border-white/10 rounded-[2rem] overflow-hidden shadow-[0_0_0_9999px_rgba(0,0,0,0.85)] z-10 flex items-center justify-center bg-transparent">
+                
+                {/* 4 Corner Markers */}
+                <div className="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4 rounded-tl-[2rem]" style={{ borderColor: storeData?.theme_color || '#10b981' }} />
+                <div className="absolute top-0 right-0 w-10 h-10 border-t-4 border-r-4 rounded-tr-[2rem]" style={{ borderColor: storeData?.theme_color || '#10b981' }} />
+                <div className="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4 rounded-bl-[2rem]" style={{ borderColor: storeData?.theme_color || '#10b981' }} />
+                <div className="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4 rounded-br-[2rem]" style={{ borderColor: storeData?.theme_color || '#10b981' }} />
+                
+                {/* Animated Laser Line */}
+                <motion.div 
+                  animate={{ y: [-110, 110, -110] }}
+                  transition={{ repeat: Infinity, duration: 2.5, ease: "linear" }}
+                  className="w-[90%] h-1 rounded-full shadow-[0_0_20px_rgba(255,255,255,0.8)]"
+                  style={{ backgroundColor: storeData?.theme_color || '#10b981' }}
+                />
+              </div>
+            </div>
+
+            {/* Scanner Footer */}
+            <div className="p-8 pb-12 text-center z-10 bg-gradient-to-t from-black to-transparent">
+              <ScanLine className="w-8 h-8 text-white/50 mx-auto mb-4" />
+              <p className="text-zinc-400 text-sm max-w-[250px] mx-auto leading-relaxed">
+                Point your camera at the physical QR tag on the product to add it to your bag.
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 💳 CHECKOUT MODAL (Slides up) */}
+      <AnimatePresence>
+        {showCheckoutModal && (
+          <div className="fixed inset-0 z- flex items-end justify-center bg-black/80 backdrop-blur-md sm:items-center sm:p-6">
+            <motion.div 
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="bg-zinc-950 w-full sm:max-w-md rounded-t-[2rem] sm:rounded-[2rem] border-t sm:border border-white/10 p-6 shadow-2xl relative"
+            >
+              <div className="flex justify-between items-center mb-6 border-b border-white/10 pb-4">
+                <h3 className="text-xl font-black flex items-center gap-2"><CreditCard className="w-5 h-5"/> Complete Payment</h3>
+                <button onClick={() => setShowCheckoutModal(false)} className="text-zinc-500 hover:text-white bg-white/5 p-2 rounded-full"><X className="w-4 h-4"/></button>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2 block">WhatsApp Number (For Bill)</label>
+                  <div className="flex bg-zinc-900 border border-white/10 rounded-2xl overflow-hidden focus-within:border-white/30 transition-colors">
+                    <span className="px-4 py-4 text-zinc-500 font-bold bg-white/5">+91</span>
+                    <input type="tel" maxLength={10} value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, ''))} placeholder="Enter 10 digits" className="w-full bg-transparent text-white font-bold px-4 outline-none placeholder:text-zinc-700" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2 block">Payment Method</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button onClick={() => setPaymentMethod('ONLINE')} className={`py-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${paymentMethod === 'ONLINE' ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400' : 'border-white/5 bg-zinc-900 text-zinc-500'}`}>
+                      <Smartphone className="w-6 h-6" /> <span className="text-xs font-bold">UPI / Scan</span>
+                    </button>
+                    <button onClick={() => setPaymentMethod('OFFLINE')} className={`py-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${paymentMethod === 'OFFLINE' ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400' : 'border-white/5 bg-zinc-900 text-zinc-500'}`}>
+                      <Banknote className="w-6 h-6" /> <span className="text-xs font-bold">Cash at Counter</span>
+                    </button>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={handleConfirmOrder}
+                  disabled={isProcessing}
+                  style={{ backgroundColor: storeData?.theme_color || '#10b981', color: '#000' }}
+                  className="w-full font-black py-4 rounded-2xl flex justify-center items-center gap-2 mt-4 shadow-xl disabled:opacity-50 active:scale-95 transition-transform"
+                >
+                  {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Pay ₹{subtotal} & Generate Bill</>}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
       
     </main>
   );
