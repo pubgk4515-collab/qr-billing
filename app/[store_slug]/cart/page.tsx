@@ -196,42 +196,43 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         )}
       </div>
 
-      {/* 🔥 NEW PREMIUM FLOATING DOCK (Merged UI) */}
+            {/* 🔥 NEW PREMIUM FLOATING DOCK (Massive Buttons) */}
       {!showCheckoutModal && !isScanning && (
         <div className="fixed bottom-6 left-4 right-4 z-40 max-w-md mx-auto">
-          <div className="bg-zinc-900/90 backdrop-blur-3xl border border-white/10 p-2 rounded-[2.5rem] flex items-center justify-between shadow-[0_20px_50px_rgba(0,0,0,0.9)]">
+          <div className="bg-zinc-900/90 backdrop-blur-3xl border border-white/10 p-2.5 rounded-[3.5rem] flex items-center justify-between shadow-[0_20px_50px_rgba(0,0,0,0.9)]">
             
             {/* 1. Grand Total */}
-            <div className="pl-5 flex flex-col justify-center min-w-[80px]">
-              <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest mb-0.5">Total</p>
-              <p className="text-xl font-black text-white leading-none tracking-tight">₹{subtotal}</p>
+            <div className="pl-6 flex flex-col justify-center min-w-[90px]">
+              <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest mb-0.5">Total</p>
+              <p className="text-2xl font-black text-white leading-none tracking-tight">₹{subtotal}</p>
             </div>
             
-            <div className="flex items-center gap-2 pr-1">
-              {/* 2. QR Scan Button */}
+            <div className="flex items-center gap-3 pr-1.5">
+              {/* 2. MASSIVE QR Scan Button */}
               <button 
                 onClick={() => setIsScanning(true)}
-                className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-all border border-white/5 shadow-inner"
+                className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-all border-2 border-white/20 shadow-inner active:scale-95"
               >
-                <ScanLine className="w-5 h-5 text-white" />
+                <ScanLine className="w-7 h-7 text-white" />
               </button>
 
-              {/* 3. Checkout Button */}
+              {/* 3. Taller Checkout Button */}
               <button 
                 onClick={() => {
                   if(cartItems.length > 0) setShowCheckoutModal(true);
                   else alert("Bag is empty! Scan items first.");
                 }}
                 style={{ backgroundColor: storeData?.theme_color || '#10b981', color: '#000' }}
-                className={`h-12 px-6 rounded-full font-black flex items-center justify-center gap-2 transition-all shadow-xl ${cartItems.length === 0 ? 'opacity-50 grayscale' : 'hover:opacity-90 active:scale-95'}`}
+                className={`h-16 px-8 rounded-full font-black text-lg flex items-center justify-center gap-2 transition-all shadow-xl ${cartItems.length === 0 ? 'opacity-50 grayscale' : 'hover:opacity-90 active:scale-95'}`}
               >
-                Checkout <ArrowRight className="w-4 h-4" />
+                Checkout <ArrowRight className="w-5 h-5" />
               </button>
             </div>
 
           </div>
         </div>
       )}
+
 
       {/* 📷 FUTURISTIC SCANNER UI MODAL */}
       <AnimatePresence>
