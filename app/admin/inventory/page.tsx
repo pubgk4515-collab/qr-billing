@@ -1,4 +1,4 @@
-// app/admin/page.tsx
+// app/admin/inventory/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -23,22 +23,19 @@ import {
 } from '../../actions/adminActions';
 import { useRouter } from 'next/navigation';
 
-
 type ViewMode = 'table' | 'grid';
 type FilterType = 'all' | 'free' | 'active';
 
 export default function AdminDashboard() {
   const router = useRouter();
 
-
-  // 📦 Data & UI State
-  const [data, setData] = useState<{ products: any[]; qrTags: any[] }>({ products: [], qrTags: [] });
+  // 📦 Data & UI State (🔥 Added storeSlug)
+  const [data, setData] = useState<{ storeSlug?: string; products: any[]; qrTags: any[] }>({ storeSlug: '', products: [], qrTags: [] });
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<FilterType>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [searchTerm, setSearchTerm] = useState('');
   const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
-
 
   // Modal & Interaction States
   const [selectedTag, setSelectedTag] = useState<any>(null);
@@ -57,19 +54,17 @@ export default function AdminDashboard() {
   const [editItem, setEditItem] = useState({ id: '', name: '', price: '', imageUrl: '' });
   const [freeTagCount, setFreeTagCount] = useState('5');
 
-  // Check session storage for unlock status
-    useEffect(() => {
+  useEffect(() => {
     loadData();
   }, []);
-
 
   // Load fresh data from Supabase via server action (no caching)
   async function loadData() {
     setLoading(true);
     const response = await getStoreData();
     if (response.success) {
-      // Ensure we always have arrays
       setData({
+        storeSlug: response.storeSlug, // 🔥 Save storeSlug from backend
         products: response.products || [],
         qrTags: response.qrTags || []
       });
@@ -79,7 +74,7 @@ export default function AdminDashboard() {
     setLoading(false);
   }
 
-    // 🖼️ Image upload (Support for multiple items via index)
+  // 🖼️ Image upload (Support for multiple items via index)
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>, isEdit = false, index: number = 0) => {
     const file = e.target.files?.[0];
 
@@ -133,8 +128,6 @@ export default function AdminDashboard() {
       setIsSubmitting(false);
     }
   };
-
-
 
   // ✏️ Edit product
   const openEditModal = (tag: any) => {
@@ -201,12 +194,12 @@ export default function AdminDashboard() {
     setIsSubmitting(false);
   };
 
-    const handleDeleteTag = async (tagId: string) => {
+  const handleDeleteTag = async (tagId: string) => {
     if (!confirm(`Are you sure you want to permanently delete ${tagId}? This cannot be undone.`)) return;
     
     const res = await deleteTag(tagId);
     if (res.success) {
-      loadData(); // Dashboard refresh ho jayega
+      loadData(); 
     } else {
       alert('Error deleting tag: ' + res.message);
     }
@@ -232,41 +225,6 @@ export default function AdminDashboard() {
     img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
   };
 
-    // 👇 YEH 3 NAYE FUNCTIONS PASTE KAREIN
-  const handleSearchOrder = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchCartId) return;
-    setIsSearchingOrder(true);
-    setFoundOrder(null);
-    const res = await getOrderByCartId(searchCartId.trim());
-    if (res.success && res.data) {
-      setFoundOrder(res.data);
-    } else {
-      alert(res.message || 'Order not found');
-    }
-    setIsSearchingOrder(false);
-  };
-
-  const handleApprovePayment = async () => {
-    if (!foundOrder) return;
-    setIsSubmitting(true);
-    const res = await approvePayment(foundOrder.cart_id);
-    if (res.success) {
-      setFoundOrder({ ...foundOrder, payment_status: 'completed' });
-      loadData(); // Data refresh taaki dashboard stats update ho jayein
-    } else {
-      alert('Error approving payment: ' + res.message);
-    }
-    setIsSubmitting(false);
-  };
-
-  const dispatchManualReceipt = () => {
-    if (!foundOrder) return;
-    const text = encodeURIComponent(`Hello! Here is your receipt for order ${foundOrder.cart_id}.\nAmount Paid: ₹${foundOrder.total_amount}\nItems: ${foundOrder.items_count}\n\nThank you for shopping with us!`);
-    window.open(`https://wa.me/91${foundOrder.customer_phone}?text=${text}`, '_blank');
-  };
-
-
   // 🔍 Filter & search logic
   const filteredTags = data.qrTags.filter(tag => {
     if (filter !== 'all' && tag.status !== filter) return false;
@@ -283,24 +241,12 @@ export default function AdminDashboard() {
   const soldTags = data.qrTags.filter(t => t.status === 'active').length;
   const freeTags = data.qrTags.filter(t => t.status === 'free').length;
 
-    // 📊 Advanced Business Analytics
-  // Note: Aapke database mein 'sold' items ka status 'active' ya 'sold' dono ho sakta hai
   const soldItemsList = data.qrTags.filter(t => t.status === 'active' || t.status === 'sold');
-  
-  // Total Revenue: Sold items ki price ka sum
   const totalRevenue = soldItemsList.reduce((sum, tag) => sum + (tag.products?.price || 0), 0);
-  
-  // Average Order Value (AOV)
   const averageOrderValue = soldItemsList.length > 0 ? Math.round(totalRevenue / soldItemsList.length) : 0;
-  
-  // Potential Revenue (Jo samaan abhi bika nahi hai uski total value)
   const unsoldItemsList = data.qrTags.filter(t => t.products && t.status !== 'active' && t.status !== 'sold');
   const potentialRevenue = unsoldItemsList.reduce((sum, tag) => sum + (tag.products?.price || 0), 0);
   
-  // Mock Scans (Isse database counter banne ke baad replace karenge)
-  const mockTotalScans = soldItemsList.length * 3 + 12; // Example math for realistic UI
-  const dropOffRate = mockTotalScans > 0 ? Math.round(((mockTotalScans - soldItemsList.length) / mockTotalScans) * 100) : 0;
-
   // Loading skeleton
   if (loading && data.products.length === 0) {
     return (
@@ -321,12 +267,12 @@ export default function AdminDashboard() {
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 py-6 md:px-8">
         {/* Header */}
-                <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
           <div>
             <h1 className="text-4xl md:text-5xl font-black bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-zinc-400 tracking-tighter">Control Panel</h1>
             <p className="text-zinc-500 text-sm mt-1 font-mono">Inventory & QR management</p>
           </div>
-                    <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-3">
             <button onClick={() => router.push('/admin/analytics')} className="px-5 py-2.5 bg-purple-500/10 border border-purple-500/20 rounded-full text-xs font-bold text-purple-400 hover:bg-purple-500/20 transition-all flex items-center gap-2">
               <BarChart3 className="w-4 h-4" /> Business Stats
             </button>
@@ -334,9 +280,7 @@ export default function AdminDashboard() {
               <LayoutDashboard className="w-4 h-4" /> Admin
             </button>
           </div>
-
         </header>
-
 
         {/* Quick Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-12">
@@ -345,33 +289,7 @@ export default function AdminDashboard() {
           <StatCard title="Free" value={freeTags} icon={<PackagePlus className="w-6 h-6" />} gradient="from-orange-500/20 to-transparent" />
         </div>
 
-               {/* ========================================================= */}
-        {/* 🏦 PRIORITY SECTION: PAYMENT COUNTER (NEW VIP LOOK) */}
-        {/* ========================================================= */}
-        <div className="mb-10">
-          <div className="bg-gradient-to-r from-blue-500/20 to-blue-900/10 border border-blue-500/30 rounded-3xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-2xl shadow-blue-900/20 backdrop-blur-md relative overflow-hidden">
-            {/* Background glowing effect */}
-            <div className="absolute -top-20 -right-20 w-64 h-64 bg-blue-500/20 blur-[80px] rounded-full pointer-events-none"></div>
-            
-            <div className="relative z-10 text-center sm:text-left">
-              <h2 className="text-2xl sm:text-3xl font-black text-white flex items-center justify-center sm:justify-start gap-3">
-                <Banknote className="w-8 h-8 text-blue-400" /> Payment Counter
-              </h2>
-              <p className="text-zinc-400 text-sm mt-2 font-medium">Approve pending UPI payments and dispatch manual receipts instantly.</p>
-            </div>
-            
-            <button
-              onClick={() => setIsOrderModalOpen(true)}
-              className="relative z-10 w-full sm:w-auto px-8 py-4 bg-blue-500 text-white rounded-2xl font-black text-lg hover:bg-blue-400 transition-all shadow-[0_0_20px_rgba(59,130,246,0.4)] hover:shadow-[0_0_30px_rgba(59,130,246,0.6)] flex items-center justify-center gap-3 active:scale-95"
-            >
-              <Search className="w-6 h-6" /> Verify New Order
-            </button>
-          </div>
-        </div>
-
-        {/* ========================================================= */}
-        {/* 📦 INVENTORY MANAGEMENT BAR (CLEANED UP) */}
-        {/* ========================================================= */}
+        {/* 📦 INVENTORY MANAGEMENT BAR */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div className="flex bg-white/5 p-1 rounded-2xl border border-white/10">
             <FilterTab label="All" value="all" current={filter} onClick={() => setFilter('all')} />
@@ -504,138 +422,7 @@ export default function AdminDashboard() {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {isOrderModalOpen && (
-          <ModalWrapper onClose={() => { setIsOrderModalOpen(false); setFoundOrder(null); setSearchCartId(''); }}>
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center border border-blue-500/20">
-                  <Banknote className="w-5 h-5 text-blue-400" />
-                </div>
-                <h3 className="text-2xl font-black">Verify Payment</h3>
-              </div>
-              <p className="text-zinc-400 text-sm mb-6">Enter Cart ID to approve pending UPI transactions or send manual receipts.</p>
-
-                           <form onSubmit={handleSearchOrder} className="flex flex-col sm:flex-row gap-3 mb-6">
-                <input
-                  type="text"
-                  value={searchCartId}
-                  onChange={e => setSearchCartId(e.target.value.toUpperCase().replace(/\s/g, ''))}
-                  placeholder="e.g. CART-1234"
-                  className="w-full sm:flex-1 bg-black/30 border border-white/10 rounded-2xl py-4 px-5 text-white font-mono uppercase outline-none focus:border-blue-500 transition-all"
-                />
-                <button
-                  type="submit"
-                  disabled={isSearchingOrder || !searchCartId}
-                  className="w-full sm:w-auto bg-blue-500 text-white px-8 py-4 rounded-2xl font-black hover:bg-blue-400 disabled:opacity-50 transition-all flex items-center justify-center shadow-lg shadow-blue-500/20"
-                >
-                  {isSearchingOrder ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Find Order'}
-                </button>
-              </form>
-
-
-              {foundOrder && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-4">
-                  <div className="flex justify-between items-center pb-4 border-b border-white/5">
-                    <div>
-                      <p className="text-xs text-zinc-500 uppercase font-bold tracking-widest">Amount</p>
-                      <p className="text-2xl font-black text-white">₹{foundOrder.total_amount}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-zinc-500 uppercase font-bold tracking-widest">Status</p>
-                      {foundOrder.payment_status === 'awaiting_approval' ? (
-                        <span className="text-orange-400 font-bold bg-orange-500/10 px-3 py-1 rounded-full text-xs animate-pulse border border-orange-500/20">Pending</span>
-                      ) : (
-                        <span className="text-emerald-400 font-bold bg-emerald-500/10 px-3 py-1 rounded-full text-xs border border-emerald-500/20">Completed</span>
-                      )}
-                    </div>
-                  </div>
-
-                                                      <div>
-                    <p className="text-sm text-zinc-400 mb-1"><span className="font-bold text-white">Method:</span> {foundOrder.payment_method}</p>
-                    <p className="text-sm text-zinc-400 mb-1">
-                      <span className="font-bold text-white">Phone:</span>{' '}
-                      {foundOrder.customer_phone && foundOrder.customer_phone !== 'WALK-IN' 
-                        ? `+91 ${foundOrder.customer_phone}` 
-                        : <span className="text-zinc-500 italic">Walk-in Customer</span>}
-                    </p>
-                  </div>
-
-                                    {/* 🛡️ SECURITY: Purchased Items Anti-Theft Check */}
-                  {foundOrder.purchased_items && foundOrder.purchased_items.length > 0 ? (
-                    <div className="mt-4 border-t border-white/5 pt-4">
-                      <p className="text-xs text-zinc-500 uppercase font-bold tracking-widest mb-3 flex items-center gap-2">
-                        <ShoppingBag className="w-3 h-3 text-emerald-400" /> Verify These Items ({foundOrder.items_count})
-                      </p>
-                      <div className="space-y-3 max-h-56 overflow-y-auto pr-2 custom-scrollbar">
-                        {foundOrder.purchased_items.map((item: any, idx: number) => {
-                          // Extract product data safely from the stored JSONB structure we fixed yesterday
-                          const product = item.products || item; 
-                          
-                          return (
-                            <div key={idx} className="flex items-center gap-4 bg-zinc-900/60 p-3 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
-                              {/* Product Image */}
-                              {product.image_url ? (
-                                <img 
-                                  src={product.image_url} 
-                                  alt={product.name} 
-                                  className="w-14 h-14 rounded-lg object-cover border border-white/10 flex-shrink-0" 
-                                />
-                              ) : (
-                                <div className="w-14 h-14 rounded-lg bg-zinc-800 flex items-center justify-center border border-white/5 flex-shrink-0 relative">
-                                  <ShoppingBag className="w-6 h-6 text-zinc-600" />
-                                </div>
-                              )}
-
-                              {/* Product Details & Price */}
-                              <div className="flex-1 flex justify-between items-center gap-3">
-                                <div>
-                                  <p className="font-bold text-white text-sm leading-tight line-clamp-2">{product.name || 'Unknown Item'}</p>
-                                  <p className="text-[10px] text-zinc-500 font-mono mt-0.5 select-all">{item.id}</p> {/* This is Tag ID */}
-                                </div>
-                                <div className="text-right flex-shrink-0">
-                                   <p className="font-black text-lg text-emerald-400 tracking-tight">₹{product.price || 0}</p>
-                                   <p className="text-[9px] text-zinc-600 uppercase font-black">Qty: 1</p> {/* QR is unique, quantity per row always 1 */}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ) : (
-                     <div className="mt-4 border-t border-white/5 pt-6 text-center text-zinc-600 italic bg-white/5 rounded-2xl py-8 flex flex-col items-center gap-3">
-                        <AlertCircle className="w-10 h-10 text-zinc-700" />
-                        <p className="text-sm">No item details found for this order.<br/>Verification not possible.</p>
-                     </div>
-                  )}
-
-                  {foundOrder.payment_status === 'awaiting_approval' && (
-                    <button
-                      onClick={handleApprovePayment}
-                      disabled={isSubmitting}
-                      className="w-full bg-emerald-500 text-black font-black py-4 rounded-xl mt-2 hover:bg-emerald-400 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
-                    >
-                      {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />} Approve Payment
-                    </button>
-                  )}
-
-                  {foundOrder.payment_status === 'completed' && foundOrder.payment_method === 'OFFLINE' && (
-                     <button
-                       onClick={dispatchManualReceipt}
-                       className="w-full bg-[#25D366] text-white font-black py-4 rounded-xl mt-2 hover:bg-[#1ebd5a] transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#25D366]/20"
-                     >
-                       <Send className="w-5 h-5" /> Send WhatsApp Receipt
-                     </button>
-                  )}
-                </motion.div>
-              )}
-            </div>
-          </ModalWrapper>
-        )}
-      </AnimatePresence>
-
-           {/* ➕ Premium Bulk Add Product Modal */}
+      {/* ➕ Premium Bulk Add Product Modal (🔥 Mobile UI Fix Included) */}
       <AnimatePresence>
         {isAddModalOpen && (
           <ModalWrapper onClose={() => setIsAddModalOpen(false)}>
@@ -648,8 +435,6 @@ export default function AdminDashboard() {
               </div>
 
               <form onSubmit={handleAddItem} className="space-y-6">
-                
-                {/* Scrollable Container for Rows */}
                 <div className="max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar space-y-6">
                   {newItems.map((item, index) => (
                     <motion.div 
@@ -657,7 +442,6 @@ export default function AdminDashboard() {
                       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                       className="bg-black/40 border border-white/5 rounded-3xl p-5 relative group hover:border-white/10 transition-colors"
                     >
-                      {/* Delete Row Button */}
                       {newItems.length > 1 && (
                         <button 
                           type="button" 
@@ -668,9 +452,9 @@ export default function AdminDashboard() {
                         </button>
                       )}
 
-                      <div className="flex gap-4">
-                        {/* Smaller Image Upload UI */}
-                        <div className="w-24 h-24 flex-shrink-0">
+                      {/* 🔥 Fixed Mobile Responsiveness Here */}
+                      <div className="flex flex-col sm:flex-row gap-4 items-center sm:items-start">
+                        <div className="w-full sm:w-24 h-32 sm:h-24 flex-shrink-0">
                           <ImageUpload
                             imageUrl={item.imageUrl}
                             onChange={e => handleImageChange(e, false, index)}
@@ -682,8 +466,7 @@ export default function AdminDashboard() {
                           />
                         </div>
 
-                        {/* Input Fields */}
-                        <div className="flex-1 space-y-3">
+                        <div className="flex-1 space-y-3 w-full">
                           <input
                             type="text"
                             required
@@ -706,7 +489,7 @@ export default function AdminDashboard() {
                                 updated[index].size = e.target.value;
                                 setNewItems(updated);
                               }}
-                              placeholder="Size (e.g. M, 32)"
+                              placeholder="Size"
                               className="w-1/2 bg-black/50 border border-white/10 rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-emerald-500 transition-all placeholder:text-zinc-600 uppercase"
                             />
                             <div className="relative w-1/2">
@@ -731,7 +514,6 @@ export default function AdminDashboard() {
                   ))}
                 </div>
 
-                {/* Add More Button */}
                 <button
                   type="button"
                   onClick={addProductRow}
@@ -740,7 +522,6 @@ export default function AdminDashboard() {
                   <Plus className="w-5 h-5" /> Add Another Item
                 </button>
 
-                {/* Submit All Button */}
                 <button
                   type="submit"
                   disabled={isSubmitting}
@@ -753,7 +534,6 @@ export default function AdminDashboard() {
           </ModalWrapper>
         )}
       </AnimatePresence>
-
 
       {/* ✏️ Edit Product Modal */}
       <AnimatePresence>
@@ -836,7 +616,7 @@ export default function AdminDashboard() {
         )}
       </AnimatePresence>
 
-      {/* 📥 QR Download Modal */}
+      {/* 📥 QR Download Modal (🔥 FIXED QR Link & Preview) */}
       <AnimatePresence>
         {selectedTag && (
           <ModalWrapper onClose={() => setSelectedTag(null)}>
@@ -848,15 +628,17 @@ export default function AdminDashboard() {
               </div>
               <h3 className="text-2xl font-black">QR Asset</h3>
               <p className="text-zinc-400 text-sm mt-1 uppercase tracking-widest font-bold">Tag: {selectedTag.id}</p>
+              
               <div className="bg-white p-6 rounded-2xl inline-block my-6 border-4 border-white/10">
                 <QRCodeSVG
                   id={`qr-${selectedTag.id}`}
-                  value={`${window.location.origin}/q/${selectedTag.id}`}
+                  value={`${window.location.origin}/${data.storeSlug}/${selectedTag.id}`} // 🔥 SLUG FIX HERE
                   size={180}
                   level="H"
                   includeMargin={false}
                 />
               </div>
+              
               <div className="space-y-3">
                 <button
                   onClick={() => downloadQR(selectedTag.id)}
@@ -865,7 +647,7 @@ export default function AdminDashboard() {
                   <Download className="w-5 h-5" /> Download Asset
                 </button>
                 <a
-                  href={`/q/${selectedTag.id}`}
+                  href={`/${data.storeSlug}/${selectedTag.id}`} // 🔥 SLUG FIX HERE
                   target="_blank"
                   className="w-full bg-white/5 border border-white/10 text-zinc-300 font-bold py-2.5 rounded-2xl flex items-center justify-center gap-2 hover:bg-white/10 transition-all text-sm"
                 >
@@ -880,8 +662,7 @@ export default function AdminDashboard() {
   );
 }
 
-
-// ========== Reusable Components with proper types ==========
+// ========== Reusable Components ==========
 interface StatCardProps {
   title: string;
   value: number;
@@ -937,19 +718,14 @@ interface TableRowProps {
   onDelete: (tagId: string) => void;
 }
 function TableRow({ tag, onEdit, onUnlink, onLink, onViewQR, onDelete }: TableRowProps) {
-
-  
-  // 🔥 FIX 1: Hum status seedha Database se mangwaenge
-  // (Ab isActive se decide nahi hoga ki Sold hai ya nahi)
-  const isSold = tag.status === 'sold'; // If explicit status is 'sold'
-  const isLinked = tag.products !== null && !isSold; // Linked and ready to sell
-  const isFree = !tag.products && tag.status !== 'sold'; // Empty tag
+  const isSold = tag.status === 'sold'; 
+  const isLinked = tag.products !== null && !isSold; 
+  const isFree = !tag.products && tag.status !== 'sold'; 
 
   return (
     <tr className="hover:bg-white/5 transition-colors group">
       <td className="p-5 font-mono font-bold text-white">{tag.id}</td>
       <td className="p-5 text-center">
-        {/* 🔥 FIX 2: Dynamic Badge based on real status */}
         {isSold && (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border bg-red-500/10 text-red-400 border-red-500/20">
                Sold Out
@@ -968,7 +744,6 @@ function TableRow({ tag, onEdit, onUnlink, onLink, onViewQR, onDelete }: TableRo
       </td>
       <td className="p-5">
   <div className="flex items-center gap-3">
-    {/* 🔥 Yahan && ki jagah ? aayega */}
     {tag.products?.image_url ? (
       <img src={tag.products.image_url} alt="" className="w-10 h-10 rounded-lg object-cover border border-white/10" />
     ) : (
@@ -982,7 +757,6 @@ function TableRow({ tag, onEdit, onUnlink, onLink, onViewQR, onDelete }: TableRo
     </div>
   </div>
 </td>
-
       <td className="p-5 text-right">
         <div className="flex justify-end gap-2">
           {isFree ? (
@@ -1000,7 +774,6 @@ function TableRow({ tag, onEdit, onUnlink, onLink, onViewQR, onDelete }: TableRo
   );
 }
 
-
 interface GridCardProps {
   tag: any;
   onEdit: (tag: any) => void;
@@ -1017,7 +790,6 @@ function GridCard({ tag, onEdit, onUnlink, onLink, onViewQR, onDelete }: GridCar
   return (
     <motion.div layout initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="bg-zinc-900/60 backdrop-blur-md border border-white/5 rounded-[2rem] p-5 hover:border-emerald-500/50 transition-all shadow-xl flex flex-col justify-between">
       
-      {/* 🎯 TOP CENTER: TAG ID & BADGE */}
       <div className="flex flex-col items-center mb-4">
         <span className="text-xl font-black text-white tracking-widest">{tag.id}</span>
         <div className="mt-2">
@@ -1027,7 +799,6 @@ function GridCard({ tag, onEdit, onUnlink, onLink, onViewQR, onDelete }: GridCar
         </div>
       </div>
 
-      {/* 📦 MIDDLE: PRODUCT DETAILS */}
       {tag.products ? (
         <div className="flex items-center gap-3 bg-black/40 p-3 rounded-2xl border border-white/5 mb-4">
           {tag.products.image_url ? (
@@ -1046,7 +817,6 @@ function GridCard({ tag, onEdit, onUnlink, onLink, onViewQR, onDelete }: GridCar
         </div>
       )}
 
-      {/* ⚡ BOTTOM: ACTION BUTTONS */}
       <div className="flex justify-between items-center pt-3 border-t border-white/5">
         <div className="flex gap-2">
           {isFree ? (
@@ -1063,11 +833,9 @@ function GridCard({ tag, onEdit, onUnlink, onLink, onViewQR, onDelete }: GridCar
            <ActionButton onClick={onViewQR} icon={<QrCode className="w-4 h-4" />} label="" color="white" small />
         </div>
       </div>
-
     </motion.div>
   );
 }
-
 
 interface ActionButtonProps {
   onClick: () => void;
@@ -1083,7 +851,7 @@ function ActionButton({ onClick, icon, label, color = 'white', small = false }: 
     blue: 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-400',
     red: 'bg-red-500/10 hover:bg-red-500/20 text-red-400',
   };
-  const colorKey = color; // already a valid key
+  const colorKey = color; 
   return (
     <button
       onClick={onClick}
@@ -1132,23 +900,23 @@ interface ImageUploadProps {
 }
 function ImageUpload({ imageUrl, onChange, onClear }: ImageUploadProps) {
   return (
-    <div className="relative border-2 border-dashed border-white/10 rounded-2xl p-4 text-center hover:border-emerald-500/50 transition-colors bg-black/20">
-      <input type="file" accept="image/*" onChange={onChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+    <div className="relative border-2 border-dashed border-white/10 rounded-2xl p-4 text-center hover:border-emerald-500/50 transition-colors bg-black/20 w-full h-full">
+      <input type="file" accept="image/*" onChange={onChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
       {imageUrl ? (
-        <div className="relative w-full h-32">
-          <img src={imageUrl} alt="Preview" className="absolute inset-0 w-full h-full object-contain rounded-lg" />
+        <div className="relative w-full h-full">
+          <img src={imageUrl} alt="Preview" className="absolute inset-0 w-full h-full object-cover rounded-lg" />
           <button
             type="button"
-            onClick={(e) => { e.preventDefault(); onClear(); }}
-            className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-500 text-white p-2 rounded-xl backdrop-blur-sm transition-all"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClear(); }}
+            className="absolute top-1 right-1 bg-red-500/80 hover:bg-red-500 text-white p-1.5 rounded-lg backdrop-blur-sm transition-all z-20"
           >
-            <X className="w-4 h-4" />
+            <X className="w-3 h-3" />
           </button>
         </div>
       ) : (
-        <div className="flex flex-col items-center text-zinc-500 py-4">
-          <UploadCloud className="w-8 h-8 mb-2 text-zinc-600" />
-          <span className="text-sm font-bold text-zinc-400">Tap to upload image</span>
+        <div className="flex flex-col items-center justify-center h-full text-zinc-500">
+          <UploadCloud className="w-6 h-6 mb-1 text-zinc-600" />
+          <span className="text-[10px] font-bold text-zinc-400">Tap to upload</span>
         </div>
       )}
     </div>

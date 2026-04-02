@@ -24,18 +24,26 @@ async function getStoreId() {
 export async function getStoreData() {
   try {
     const supabaseServer = createSupabaseServer();
-    const storeId = await getStoreId();
+    const storeId = await getStoreId(); // Tumhara multi-tenant helper
 
-    const { data: products, error: pError } = await supabaseServer
-      .from('products').select('*').eq('store_id', storeId);
-      
-    const { data: qrTags, error: qError } = await supabaseServer
-      .from('qr_tags').select('*, products(*)').eq('store_id', storeId).order('id', { ascending: true });
+    // 1. Store ka slug fetch karo
+    const { data: store } = await supabaseServer
+      .from('stores')
+      .select('slug')
+      .eq('id', storeId)
+      .single();
 
-    if (pError) throw pError;
-    if (qError) throw qError;
+    // 2. Products aur Tags fetch karo (Ye tumhara existing code hoga)
+    const { data: products } = await supabaseServer.from('products').select('*').eq('store_id', storeId);
+    const { data: qrTags } = await supabaseServer.from('qr_tags').select('*, products(*)').eq('store_id', storeId);
 
-    return { success: true, products, qrTags };
+    // 3. Return mein storeSlug bhi bhej do
+    return { 
+      success: true, 
+      storeSlug: store?.slug || '', // 🔥 Ye line add karni hai
+      products: products || [], 
+      qrTags: qrTags || [] 
+    };
   } catch (error: any) {
     return { success: false, message: error.message };
   }

@@ -161,14 +161,12 @@ export default function AdminDashboard() {
           <p className="text-zinc-400 text-sm mt-1">Manage payments & manual checkouts</p>
         </div>
         <div className="flex flex-wrap gap-3 w-full sm:w-auto">
-          {/* 🔥 NEW STATS BUTTON */}
           <button onClick={() => router.push('/admin/analytics')} className="flex-1 sm:flex-none px-5 py-3 bg-purple-500/10 border border-purple-500/30 rounded-xl text-purple-400 text-sm font-bold hover:bg-purple-500/20 transition-all flex items-center justify-center gap-2">
             <BarChart3 className="w-4 h-4" /> Stats
           </button>
           <button onClick={() => router.push('/admin/inventory')} className="flex-1 sm:flex-none px-5 py-3 bg-white/10 border border-white/20 rounded-xl text-sm font-bold hover:bg-white/20 transition-all flex items-center justify-center gap-2">
             <PackageSearch className="w-4 h-4" /> Inventory
           </button>
-          {/* EXIT BUTTON */}
           <button onClick={() => router.push('/')} title="Exit Dashboard" className="px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 hover:bg-red-500/20 transition-all">
             <LogOut className="w-4 h-4" />
           </button>
@@ -303,15 +301,13 @@ export default function AdminDashboard() {
           
           <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto z-10 group">
             <div className="flex gap-2 relative">
-              
-              {/* 🔥 CART ID INPUT WITH PREFILLED VISUAL PREFIX 🔥 */}
               <div className="relative w-full md:w-40 flex-1">
                 <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-mono font-bold pointer-events-none group-focus-within:text-[#25D366] transition-colors">
                   CART-
                 </div>
                 <input 
                   type="text" 
-                  maxLength={4} // Only accept 4-digit ID part
+                  maxLength={4}
                   placeholder="XXXX"
                   value={quickCartId}
                   onChange={e => setQuickCartId(e.target.value.toUpperCase().replace(/^CART-/, '').replace(/\s/g, '').replace(/[^A-Z0-9-]/g, ''))}
@@ -319,7 +315,6 @@ export default function AdminDashboard() {
                 />
               </div>
 
-              {/* PHONE INPUT */}
               <div className="flex bg-black/50 border border-white/10 rounded-xl overflow-hidden focus-within:border-[#25D366] transition-colors w-full md:w-44 flex-1">
                 <span className="px-3.5 py-3 text-zinc-500 font-bold bg-white/5">+91</span>
                 <input 
@@ -333,7 +328,6 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* 🔥 NEW RED CLEAR BUTTON 🔥 */}
             <button 
               onClick={handleClearQuickBill}
               className="bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all"
@@ -341,7 +335,6 @@ export default function AdminDashboard() {
               <X className="w-4 h-4" /> Clear
             </button>
 
-            {/* SEND BUTTON */}
             <button 
               onClick={handleQuickSendBill}
               disabled={isSendingQuickBill || quickPhone.length < 10 || !quickCartId}
