@@ -53,7 +53,7 @@ export default function AdminDashboard() {
   const [isSearchingOrder, setIsSearchingOrder] = useState(false);
 
   // Form States
-  const [newItem, setNewItem] = useState({ name: '', price: '', imageUrl: '' });
+  const [newItems, setNewItems] = useState([{ id: Date.now(), name: '', size: '', price: '', imageUrl: '' }]);
   const [editItem, setEditItem] = useState({ id: '', name: '', price: '', imageUrl: '' });
   const [freeTagCount, setFreeTagCount] = useState('5');
 
@@ -79,35 +79,62 @@ export default function AdminDashboard() {
     setLoading(false);
   }
 
-  // 🖼️ Image upload (data URL)
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>, isEdit = false) => {
+    // 🖼️ Image upload (Support for multiple items via index)
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>, isEdit = false, index: number = 0) => {
     const file = e.target.files?.[0];
+
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
         const dataUrl = reader.result as string;
-        if (isEdit) setEditItem({ ...editItem, imageUrl: dataUrl });
-        else setNewItem({ ...newItem, imageUrl: dataUrl });
+        if (isEdit) {
+          setEditItem({ ...editItem, imageUrl: dataUrl });
+        } else {
+          const updatedItems = [...newItems];
+          updatedItems[index].imageUrl = dataUrl;
+          setNewItems(updatedItems);
+        }
       };
       reader.readAsDataURL(file);
     }
   };
 
-  // ➕ Add product
+  // ➕ Add/Remove Row Functions
+  const addProductRow = () => {
+    setNewItems([...newItems, { id: Date.now(), name: '', size: '', price: '', imageUrl: '' }]);
+  };
+
+  const removeProductRow = (indexToRemove: number) => {
+    setNewItems(newItems.filter((_, index) => index !== indexToRemove));
+  };
+
+  // ➕ Bulk Add products
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newItem.name || !newItem.price) return alert('Product name and price are required');
+    
+    // Validation
+    const invalidItems = newItems.filter(item => !item.name || !item.price);
+    if (invalidItems.length > 0) return alert('Please fill product name and price for all rows!');
+    
     setIsSubmitting(true);
-    const res = await addNewItem(newItem.name, Number(newItem.price), newItem.imageUrl);
-    if (res.success) {
-      setNewItem({ name: '', price: '', imageUrl: '' });
+    
+    try {
+      for (const item of newItems) {
+        const res = await addNewItem(item.name, Number(item.price), item.imageUrl); 
+        if (!res.success) throw new Error(`Error in ${item.name}: ${res.message}`);
+      }
+      
+      setNewItems([{ id: Date.now(), name: '', size: '', price: '', imageUrl: '' }]);
       setIsAddModalOpen(false);
-      loadData();
-    } else {
-      alert('Error adding product: ' + res.message);
+      loadData(); 
+    } catch (error: any) {
+      alert(error.message);
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   };
+
+
 
   // ✏️ Edit product
   const openEditModal = (tag: any) => {
@@ -608,54 +635,125 @@ export default function AdminDashboard() {
         )}
       </AnimatePresence>
 
-      {/* ➕ Add Product Modal */}
+           {/* ➕ Premium Bulk Add Product Modal */}
       <AnimatePresence>
         {isAddModalOpen && (
           <ModalWrapper onClose={() => setIsAddModalOpen(false)}>
             <div className="p-6">
-              <h3 className="text-2xl font-black mb-6">New Product</h3>
-              <form onSubmit={handleAddItem} className="space-y-5">
-                <ImageUpload
-                  imageUrl={newItem.imageUrl}
-                  onChange={e => handleImageChange(e, false)}
-                  onClear={() => setNewItem({ ...newItem, imageUrl: '' })}
-                />
-                <div className="relative">
-                  <Tag className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
-                  <input
-                    type="text"
-                    required
-                    value={newItem.name}
-                    onChange={e => setNewItem({ ...newItem, name: e.target.value })}
-                    placeholder="Product Name"
-                    className="w-full bg-black/30 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white outline-none focus:border-emerald-500 transition-all"
-                  />
-                  <input type="text" name="size" placeholder="Size (e.g. M, XL, 32)" className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white outline-none focus:border-emerald-500 mb-3" required />
+              <div className="flex justify-between items-center mb-6 border-b border-white/10 pb-4">
+                <div>
+                  <h3 className="text-2xl font-black">Add Products</h3>
+                  <p className="text-sm text-zinc-500 mt-1">Add multiple items to your inventory.</p>
+                </div>
+              </div>
 
+              <form onSubmit={handleAddItem} className="space-y-6">
+                
+                {/* Scrollable Container for Rows */}
+                <div className="max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar space-y-6">
+                  {newItems.map((item, index) => (
+                    <motion.div 
+                      key={item.id} 
+                      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                      className="bg-black/40 border border-white/5 rounded-3xl p-5 relative group hover:border-white/10 transition-colors"
+                    >
+                      {/* Delete Row Button */}
+                      {newItems.length > 1 && (
+                        <button 
+                          type="button" 
+                          onClick={() => removeProductRow(index)}
+                          className="absolute -top-3 -right-3 bg-red-500 text-white p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+
+                      <div className="flex gap-4">
+                        {/* Smaller Image Upload UI */}
+                        <div className="w-24 h-24 flex-shrink-0">
+                          <ImageUpload
+                            imageUrl={item.imageUrl}
+                            onChange={e => handleImageChange(e, false, index)}
+                            onClear={() => {
+                              const updated = [...newItems];
+                              updated[index].imageUrl = '';
+                              setNewItems(updated);
+                            }}
+                          />
+                        </div>
+
+                        {/* Input Fields */}
+                        <div className="flex-1 space-y-3">
+                          <input
+                            type="text"
+                            required
+                            value={item.name}
+                            onChange={e => {
+                              const updated = [...newItems];
+                              updated[index].name = e.target.value;
+                              setNewItems(updated);
+                            }}
+                            placeholder="Product Name"
+                            className="w-full bg-black/50 border border-white/10 rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-emerald-500 transition-all placeholder:text-zinc-600"
+                          />
+                          
+                          <div className="flex gap-3">
+                            <input
+                              type="text"
+                              value={item.size}
+                              onChange={e => {
+                                const updated = [...newItems];
+                                updated[index].size = e.target.value;
+                                setNewItems(updated);
+                              }}
+                              placeholder="Size (e.g. M, 32)"
+                              className="w-1/2 bg-black/50 border border-white/10 rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-emerald-500 transition-all placeholder:text-zinc-600 uppercase"
+                            />
+                            <div className="relative w-1/2">
+                              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold text-sm">₹</span>
+                              <input
+                                type="number"
+                                required
+                                value={item.price}
+                                onChange={e => {
+                                  const updated = [...newItems];
+                                  updated[index].price = e.target.value;
+                                  setNewItems(updated);
+                                }}
+                                placeholder="Price"
+                                className="w-full bg-black/50 border border-white/10 rounded-xl py-3 pl-8 pr-4 text-white text-sm outline-none focus:border-emerald-500 transition-all placeholder:text-zinc-600"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
                 </div>
-                <div className="relative">
-                  <span className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">₹</span>
-                  <input
-                    type="number"
-                    required
-                    value={newItem.price}
-                    onChange={e => setNewItem({ ...newItem, price: e.target.value })}
-                    placeholder="Price"
-                    className="w-full bg-black/30 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white outline-none focus:border-emerald-500 transition-all"
-                  />
-                </div>
+
+                {/* Add More Button */}
+                <button
+                  type="button"
+                  onClick={addProductRow}
+                  className="w-full border-2 border-dashed border-white/10 text-zinc-400 font-bold py-4 rounded-2xl hover:bg-white/5 hover:text-white transition-all flex items-center justify-center gap-2"
+                >
+                  <Plus className="w-5 h-5" /> Add Another Item
+                </button>
+
+                {/* Submit All Button */}
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full bg-emerald-500 text-black font-black py-4 rounded-2xl mt-2 hover:bg-emerald-400 transition-all flex justify-center items-center gap-2"
+                  className="w-full bg-emerald-500 text-black font-black py-4 rounded-2xl hover:bg-emerald-400 transition-all flex justify-center items-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.3)]"
                 >
-                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Save Product'}
+                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : `Save ${newItems.length} Product(s)`}
                 </button>
               </form>
             </div>
           </ModalWrapper>
         )}
       </AnimatePresence>
+
 
       {/* ✏️ Edit Product Modal */}
       <AnimatePresence>

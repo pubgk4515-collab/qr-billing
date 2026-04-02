@@ -9,12 +9,14 @@ import { cookies } from 'next/headers';
 async function getStoreId() {
   const cookieStore = await cookies();
   const cookieStoreId = cookieStore.get('store_id')?.value;
-  
-  // Fallback UUID (Testing ke liye)
-  const fallbackStoreId = 'ac7bbed3-3850-4d00-9eef-07727be90355'; 
-  
-  return cookieStoreId || fallbackStoreId;
+
+  if (!cookieStoreId) {
+    throw new Error("Store ID not found! Please login again."); 
+  }
+
+  return cookieStoreId;
 }
+
 
 // ==========================================
 // 1. DATA FETCHING (DASHBOARD & INVENTORY)
