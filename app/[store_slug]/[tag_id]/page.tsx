@@ -13,9 +13,11 @@ import { processCheckout, checkPaymentStatus } from '../../actions/billingAction
 export default function CartPage({ params }: { params: Promise<{ store_slug: string }> }) {
   const router = useRouter();
   const resolvedParams = use(params);
-  const { store_slug } = resolvedParams;
+    const { store_slug } = resolvedParams;
+  const safeStoreSlug = store_slug.toLowerCase(); // 🔥 Safe Key
 
   const [loading, setLoading] = useState(true);
+
   const [storeData, setStoreData] = useState<any>(null);
   const [cartItems, setCartItems] = useState<any[]>([]);
   
@@ -35,8 +37,8 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
       try {
         const { data: store, error } = await supabase
           .from('stores')
-          .select('id, store_name, logo_url, theme_color') // upi_id bhi add kar sakte ho baad me
-          .eq('slug', store_slug)
+                    .select('id, store_name, logo_url, theme_color') 
+          .ilike('slug', safeStoreSlug) // 🔥 Case-insensitive match
           .single();
 
         if (error || !store) throw new Error('Store not found');
@@ -81,11 +83,10 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
       store_slug
     });
 
-    if (res.success) {
-      // Clear Cart
-      localStorage.removeItem(`cart_${store_slug}`);
-      setCartItems([]);
+       if (res.success) {
+      // 🔥 CART YAHAN DELETE NAHI KARNA HAI (Only change UI)
       setGeneratedCartId(cartId);
+
 
       // 2. Launch App Flow
       if (paymentMethod === 'ONLINE') {
@@ -120,14 +121,25 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     if (isWaitingForAdmin && generatedCartId) {
       interval = setInterval(async () => {
         const res = await checkPaymentStatus(generatedCartId);
-        if (res.success && res.status === 'completed') {
+                if (res.success && res.status === 'completed') {
           clearInterval(interval);
+          // 🔥 PAYMENT 100% DONE: AB CART KHALI KARO
+          localStorage.removeItem(`cart_${safeStoreSlug}`);
+          setCartItems([]);
           router.push(`/bill/${generatedCartId}`);
         }
+
       }, 3000); 
     }
     return () => clearInterval(interval);
   }, [isWaitingForAdmin, generatedCartId, router]);
+
+    const handleCancelPayment = () => {
+    setIsWaitingForAdmin(false);
+    setGeneratedCartId('');
+    setIsProcessing(false);
+  };
+
 
   if (loading) {
     return (
@@ -150,13 +162,22 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         <p className="text-zinc-400 text-sm mb-8">Please show this Cart ID at the billing counter.</p>
         <div className="bg-white/5 border border-white/10 p-6 rounded-3xl w-full max-w-sm mb-8">
           <p className="text-xs text-zinc-500 font-bold tracking-widest uppercase mb-1">Your Cart ID</p>
-          <p className="text-4xl font-mono font-black tracking-widest" style={{ color: storeData?.theme_color || '#10b981' }}>
+                    <p className="text-4xl font-mono font-black tracking-widest" style={{ color: storeData?.theme_color || '#10b981' }}>
             {generatedCartId.replace('CART-', '')}
           </p>
         </div>
+        
+        {/* 🔥 THE LIFESAVER CANCEL BUTTON */}
+        <button 
+          onClick={handleCancelPayment}
+          className="mt-4 flex items-center gap-2 text-zinc-500 hover:text-white font-bold text-sm transition-colors border border-white/5 px-6 py-3 rounded-full hover:bg-white/5"
+        >
+          <X className="w-4 h-4" /> Cancel & Return to Bag
+        </button>
       </div>
     );
   }
+
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white flex flex-col relative font-sans selection:bg-white/20">

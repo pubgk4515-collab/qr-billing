@@ -4,8 +4,8 @@ import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Trash2, ShoppingBag, ArrowRight, Loader2, 
-  ShieldCheck, CreditCard, Banknote, Smartphone, X, ScanLine, ArrowLeft 
+  Trash2, ShoppingBag, Loader2, ShieldCheck, CreditCard, 
+  Banknote, Smartphone, X, ScanLine, ArrowLeft 
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { processCheckout, checkPaymentStatus } from '../../actions/billingActions';
@@ -15,33 +15,37 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
   const resolvedParams = use(params);
   const { store_slug } = resolvedParams;
 
+  // 🔥 UNIVERSAL SAFE KEY (Prevents Bag Empty Bugs due to case mismatch)
+  const safeStoreSlug = store_slug.toLowerCase();
+
   const [loading, setLoading] = useState(true);
   const [storeData, setStoreData] = useState<any>(null);
   const [cartItems, setCartItems] = useState<any[]>([]);
   
-  // Checkout States
+  // Modals & User Input States
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState<string | null>(null); 
   const [phone, setPhone] = useState('');
   
-  // Waiting & Scanner States
+  // Checkout & Scanner States
   const [generatedCartId, setGeneratedCartId] = useState('');
   const [isWaitingForAdmin, setIsWaitingForAdmin] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
 
+  // 1. Fetch Store and Initial Cart Load
   useEffect(() => {
     async function fetchStoreAndCart() {
       try {
         const { data: store, error } = await supabase
           .from('stores')
           .select('id, store_name, logo_url, theme_color')
-          .eq('slug', store_slug)
+          .ilike('slug', safeStoreSlug)
           .single();
 
         if (error || !store) throw new Error('Store not found');
         setStoreData(store);
 
-        const cartKey = `cart_${store_slug}`;
+        const cartKey = `cart_${safeStoreSlug}`;
         const savedCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
         setCartItems(savedCart);
       } catch (err) {
@@ -51,18 +55,19 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
       }
     }
     fetchStoreAndCart();
-  }, [store_slug]);
+  }, [safeStoreSlug]);
 
+  // 2. Remove Item from Cart
   const removeItem = (tagId: string) => {
     const updatedCart = cartItems.filter(item => item.tag_id !== tagId);
     setCartItems(updatedCart);
-    localStorage.setItem(`cart_${store_slug}`, JSON.stringify(updatedCart));
+    localStorage.setItem(`cart_${safeStoreSlug}`, JSON.stringify(updatedCart));
   };
 
   const subtotal = cartItems.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
   const totalItems = cartItems.length;
 
-  // 🚀 ONLINE / OFFLINE PAYMENT HANDLER
+  // 3. Online/Offline Payment Flow
   const handlePaymentClick = async (method: 'ONLINE' | 'OFFLINE') => {
     if (phone.length > 0 && phone.length !== 10) {
       return alert("Please enter a valid 10-digit phone number.");
@@ -72,33 +77,29 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     const cartId = `CART-${Math.floor(1000 + Math.random() * 9000)}`;
     const tagIds = cartItems.map(item => item.tag_id);
 
-    // 1. Save order to Database (Pending Status)
     const res = await processCheckout(tagIds, {
       cartId,
       paymentMethod: method,
       customerPhone: phone || 'WALK-IN',
-      store_slug
+      store_slug: safeStoreSlug
     });
 
     if (res.success) {
-      // 🔥 FIX: DON'T DELETE CART YET! Only save Cart ID and switch UI state
+      // CART IS SAFELY KEPT IN LOCAL STORAGE HERE
       setGeneratedCartId(cartId);
 
       if (method === 'ONLINE') {
-        // Open UPI App Deep Link
-        const upiId = 'merchant@upi'; // Replace with DB UPI ID later
-        const storeName = encodeURIComponent(storeData?.store_name || 'Premium Store');
+        const upiId = 'merchant@upi'; // Replace with DB logic later
+        const storeName = encodeURIComponent(storeData?.store_name || 'Store');
         const upiLink = `upi://pay?pa=${upiId}&pn=${storeName}&am=${subtotal}&tr=${cartId}&cu=INR`;
         
         window.location.href = upiLink;
 
-        // Give a slight delay so browser has time to switch to UPI app before changing UI
         setTimeout(() => {
           setIsWaitingForAdmin(true);
           setShowCheckoutModal(false);
-        }, 800);
+        }, 1000);
       } else {
-        // Offline Flow
         setIsWaitingForAdmin(true);
         setShowCheckoutModal(false);
       }
@@ -108,7 +109,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     setIsProcessing(null);
   };
 
-  // 🔄 LIVE POLLING: Wait for Admin Approval
+  // 4. Live Polling for Admin Approval
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isWaitingForAdmin && generatedCartId) {
@@ -117,27 +118,25 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         if (res.success && res.status === 'completed') {
           clearInterval(interval);
           
-          // 🔥 FIX: NOW PAYMENT IS SUCCESSFUL! DELELTE CART HERE! 🔥
-          localStorage.removeItem(`cart_${store_slug}`);
+          // PAYMENT 100% COMPLETE: NOW WE DELETE THE CART
+          localStorage.removeItem(`cart_${safeStoreSlug}`);
           setCartItems([]);
           
-          // REDIRECT TO SUCCESS PAGE
           router.push(`/bill/${generatedCartId}`);
         }
-      }, 2500);
+      }, 2500); 
     }
     return () => clearInterval(interval);
-  }, [isWaitingForAdmin, generatedCartId, router, store_slug]);
+  }, [isWaitingForAdmin, generatedCartId, router, safeStoreSlug]);
 
-
-  // 🔥 NEW FEATURE: CANCEL PAYMENT (Returns to Cart)
+  // 5. Cancel Payment Safety Net
   const handleCancelPayment = () => {
     setIsWaitingForAdmin(false);
     setGeneratedCartId('');
-    // Notice we didn't delete the cart, so all items will magically appear back!
+    setIsProcessing(null);
   };
 
-
+  // UI - Loading State
   if (loading) {
     return (
       <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center text-white gap-4">
@@ -146,7 +145,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     );
   }
 
-  // 🕒 WAITING SCREEN (With Safety Net)
+  // UI - Awaiting Confirmation Screen
   if (isWaitingForAdmin) {
     return (
       <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center p-6 text-center">
@@ -154,17 +153,17 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
           <div className="absolute inset-0 rounded-full border-t-2 border-blue-500 animate-spin"></div>
           <ShieldCheck className="w-8 h-8 text-blue-400" />
         </div>
-        <h1 className="text-2xl font-black mb-2">Confirming Payment</h1>
+        <h1 className="text-2xl font-black mb-2">Awaiting Confirmation</h1>
         <p className="text-zinc-400 text-sm mb-8">Please complete payment in your UPI app, then show this ID at the counter.</p>
         
-        <div className="bg-white/5 border border-white/10 p-6 rounded-3xl w-full max-w-sm mb-8 shadow-2xl">
+        <div className="bg-white/5 border border-white/10 p-6 rounded-3xl w-full max-w-sm mb-8 shadow-2xl relative overflow-hidden">
+           <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 blur-3xl rounded-full" />
           <p className="text-xs text-zinc-500 font-bold tracking-widest uppercase mb-1">Your Cart ID</p>
           <p className="text-5xl font-mono font-black tracking-widest" style={{ color: storeData?.theme_color || '#10b981' }}>
             {generatedCartId.replace('CART-', '')}
           </p>
         </div>
 
-        {/* Safety Net Button */}
         <button 
           onClick={handleCancelPayment}
           className="flex items-center gap-2 text-zinc-500 hover:text-white font-bold text-sm transition-colors border border-white/5 px-6 py-3 rounded-full hover:bg-white/5"
@@ -175,9 +174,10 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     );
   }
 
+  // UI - Main Cart View
   return (
     <main className="min-h-screen bg-zinc-950 text-white flex flex-col relative font-sans">
-      {/* 👑 HEADER */}
+      {/* 👑 Fixed Header */}
       <header className="fixed top-0 left-0 right-0 px-5 py-4 flex items-center gap-3 z-40 shadow-2xl backdrop-blur-md" style={{ backgroundColor: storeData?.theme_color ? `${storeData.theme_color}e6` : 'rgba(24, 24, 27, 0.9)' }}>
         {storeData?.logo_url ? (
           <img src={storeData.logo_url} alt="logo" className="w-10 h-10 rounded-full object-cover border border-white/20 shadow-lg" />
@@ -190,7 +190,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         </div>
       </header>
 
-      {/* 🛍️ CART ITEMS */}
+      {/* 🛍️ Cart Items Area */}
       <div className="flex-1 p-5 pt-24 pb-40 flex flex-col gap-4">
         <h2 className="text-2xl font-black mb-2">My Bag</h2>
         {cartItems.length === 0 ? (
@@ -219,7 +219,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         )}
       </div>
 
-      {/* 🔥 MASSIVE FLOATING DOCK */}
+      {/* 🔥 MASSIVE FLOATING DOCK (Picsart Inspired) */}
       {cartItems.length > 0 && !showCheckoutModal && !isScanning && (
         <div className="fixed bottom-6 left-4 right-4 z-40 max-w-lg mx-auto">
           <div className="flex items-center gap-4 bg-transparent p-0">
@@ -233,7 +233,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         </div>
       )}
 
-      {/* 📷 SCANNER MODAL */}
+      {/* 📷 FUTURISTIC SCANNER UI MODAL */}
       <AnimatePresence>
         {isScanning && (
           <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed inset-0 z- bg-black flex flex-col">
@@ -243,13 +243,17 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
             </div>
             <div className="flex-1 flex items-center justify-center p-8 relative">
               <div className="absolute inset-0 bg-zinc-900/40" />
-              <div className="relative w-64 h-64 border border-white/10 rounded-[2rem] overflow-hidden shadow-[0_0_0_9999px_rgba(0,0,0,0.85)] z-10 flex items-center justify-center">
+              <div className="relative w-64 h-64 border border-white/10 rounded-[2rem] overflow-hidden shadow-[0_0_0_9999px_rgba(0,0,0,0.85)] z-10 flex items-center justify-center bg-transparent">
                 <div className="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4 rounded-tl-[2rem]" style={{ borderColor: storeData?.theme_color || '#10b981' }} />
                 <div className="absolute top-0 right-0 w-10 h-10 border-t-4 border-r-4 rounded-tr-[2rem]" style={{ borderColor: storeData?.theme_color || '#10b981' }} />
                 <div className="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4 rounded-bl-[2rem]" style={{ borderColor: storeData?.theme_color || '#10b981' }} />
                 <div className="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4 rounded-br-[2rem]" style={{ borderColor: storeData?.theme_color || '#10b981' }} />
                 <motion.div animate={{ y: [-110, 110, -110] }} transition={{ repeat: Infinity, duration: 2.5, ease: "linear" }} className="w-[90%] h-1 rounded-full shadow-[0_0_20px_rgba(255,255,255,0.8)]" style={{ backgroundColor: storeData?.theme_color || '#10b981' }} />
               </div>
+            </div>
+            <div className="p-8 pb-12 text-center z-10 bg-gradient-to-t from-black to-transparent">
+              <ScanLine className="w-8 h-8 text-white/50 mx-auto mb-4" />
+              <p className="text-zinc-400 text-sm max-w-[250px] mx-auto leading-relaxed">Point your camera at the physical QR tag on the product to add it to your bag.</p>
             </div>
           </motion.div>
         )}
