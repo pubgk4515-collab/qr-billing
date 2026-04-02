@@ -69,7 +69,7 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
     }
     
     // 3. Cart page pe bhej denge
-    router.push('/billing');
+    router.push(`/${store_slug}/cart`);
   };
 
   if (loading) {

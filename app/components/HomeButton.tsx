@@ -24,7 +24,7 @@ export default function HomeButton() {
     <button
       onClick={() => router.push('/')}
       style={{ zIndex: 2147483647 }} // Maximum possible Z-Index limit in CSS
-      className="fixed bottom-100 right-6 sm:bottom-20 sm:right-8 bg-zinc-900 border border-emerald-500/50 p-4 rounded-full shadow-[0_0_20px_rgba(16,185,129,0.5)] hover:bg-zinc-800 transition-all active:scale-95 group"
+      className="fixed bottom-80 right-6 sm:bottom-20 sm:right-8 bg-zinc-900 border border-emerald-500/50 p-4 rounded-full shadow-[0_0_20px_rgba(16,185,129,0.5)] hover:bg-zinc-800 transition-all active:scale-95 group"
     >
       <Home className="w-6 h-6 text-emerald-400 group-hover:text-emerald-300" />
     </button>,
