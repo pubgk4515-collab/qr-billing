@@ -44,28 +44,38 @@ export async function getProductByTag(tagId: string) {
 }
 
 // ============================================================================
-// 🛒 2. PROCESS CHECKOUT (🔥 100% BULLETPROOF SERVER-SIDE LOGIC)
+// 🛒 2. PROCESS CHECKOUT (🔥 MULTI-TENANT SAAS LOGIC)
 // ============================================================================
 export async function processCheckout(
   tagIds: string[], 
-  cartDetails?: { cartId: string; paymentMethod: string; customerPhone: string; items?: any[] }
+  cartDetails: { cartId: string; paymentMethod: string; customerPhone: string; store_slug: string }
 ) {
   try {
     const supabase = getSupabase();
 
-    // 1. Fetch tags AND full product details securely from DB (Ignore frontend prices to prevent spoofing)
+    // 1. Fetch Store ID using the Slug (For Multi-Tenant Isolation)
+    const { data: store, error: storeError } = await supabase
+      .from('stores')
+      .select('id')
+      .eq('slug', cartDetails.store_slug)
+      .single();
+
+    if (storeError || !store) throw new Error('Store not found');
+
+    // 2. Fetch tags securely ensuring they belong to this specific store
     const { data: tagsToSell, error: fetchError } = await supabase
       .from('qr_tags')
       .select('*, products(*)')
-      .in('id', tagIds);
+      .in('id', tagIds)
+      .eq('store_id', store.id);
 
     if (fetchError) throw fetchError;
     if (!tagsToSell || tagsToSell.length === 0) throw new Error('No valid tags found for checkout');
 
-    // 2. Calculate accurate total amount based strictly on Database prices
+    // 3. Calculate accurate total amount based strictly on Database prices
     const totalAmount = tagsToSell.reduce((sum, t) => sum + (t.products?.price || 0), 0);
 
-    // 3. Format JSONB exactly how the Admin Dashboard expects it!
+    // 4. Format JSONB exactly how the Admin Dashboard expects it
     const purchasedItemsJson = tagsToSell.map(tag => ({
       id: tag.id,
       products: {
@@ -76,28 +86,22 @@ export async function processCheckout(
       }
     }));
 
-    // 4. Create the Sales Record with exact details
+    // 5. Create the Sales Record with Store ID attached!
     const insertData: any = { 
+      store_id: store.id, // 🔥 BRAND NEW: Isolates sales per store
+      cart_id: cartDetails.cartId,
       total_amount: totalAmount, 
       items_count: tagsToSell.length,
-      purchased_items: purchasedItemsJson // 👈 EXACT MATCH FOR ADMIN DASHBOARD
+      purchased_items: purchasedItemsJson,
+      payment_method: cartDetails.paymentMethod || 'ONLINE',
+      customer_phone: cartDetails.customerPhone || 'WALK-IN',
+      payment_status: 'awaiting_approval' // Always wait for admin
     };
-
-    if (cartDetails) {
-      insertData.cart_id = cartDetails.cartId;
-      insertData.payment_method = cartDetails.paymentMethod || 'ONLINE';
-      insertData.customer_phone = cartDetails.customerPhone || 'WALK-IN';
-      insertData.payment_status = 'awaiting_approval'; // Always await admin approval for QR checkouts
-    } else {
-      insertData.cart_id = `CART-${Math.floor(1000 + Math.random() * 9000)}`;
-      insertData.payment_method = 'UNKNOWN';
-      insertData.payment_status = 'awaiting_approval';
-    }
 
     const { error: salesError } = await supabase.from('sales').insert(insertData);
     if (salesError) throw salesError;
 
-    // 5. LOCK THE TAGS (Mark as 'sold' temporarily so others can't buy them. Admin will make them 'free' upon approval)
+    // 6. LOCK THE TAGS
     const { error: tagError } = await supabase
       .from('qr_tags')
       .update({ status: 'sold' })
@@ -113,35 +117,21 @@ export async function processCheckout(
 }
 
 // ============================================================================
-// 📊 3. GET SALES DATA (for analytics)
-// ============================================================================
-export async function getSalesData() {
-  try {
-    const supabase = getSupabase();
-    const { data, error } = await supabase.from('sales').select('*').order('created_at', { ascending: false });
-    if (error) throw error;
-    return { success: true, sales: data };
-  } catch (error: any) {
-    return { success: false, message: error.message || 'Failed to fetch sales' };
-  }
-}
-
-// ============================================================================
-// 🧾 4. GET SALE BY CART ID
+// 🧾 3. GET SALE BY CART ID
 // ============================================================================
 export async function getSaleByCartId(cartId: string) {
   try {
     const supabase = getSupabase();
     const { data, error } = await supabase.from('sales').select('*').eq('cart_id', cartId).single();
-    if (error || !data) return { success: false, message: 'Order not found for this Cart ID' };
+    if (error || !data) return { success: false, message: 'Order not found' };
     return { success: true, data };
   } catch (error: any) {
-    return { success: false, message: 'Server error while fetching order' };
+    return { success: false, message: 'Server error' };
   }
 }
 
 // ============================================================================
-// 🔄 5. CHECK PAYMENT STATUS (For Magic Flow Polling)
+// 🔄 4. CHECK PAYMENT STATUS (For Magic Flow Polling)
 // ============================================================================
 export async function checkPaymentStatus(cartId: string) {
   try {
@@ -151,5 +141,24 @@ export async function checkPaymentStatus(cartId: string) {
     return { success: true, status: data.payment_status };
   } catch (error: any) {
     return { success: false, message: 'Server error' };
+  }
+}
+
+// ============================================================================
+// 📊 5. GET SALES DATA (Restored for Analytics Page)
+// ============================================================================
+export async function getSalesData() {
+  try {
+    const supabase = getSupabase();
+    // Fetch all sales (ordered by newest first)
+    const { data, error } = await supabase
+      .from('sales')
+      .select('*')
+      .order('created_at', { ascending: false });
+      
+    if (error) throw error;
+    return { success: true, sales: data };
+  } catch (error: any) {
+    return { success: false, message: error.message || 'Failed to fetch sales' };
   }
 }
