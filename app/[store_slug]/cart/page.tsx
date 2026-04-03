@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { ShoppingBag, Loader2, Trash2, QrCode, CreditCard, Store, ChevronLeft, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5Qrcode } from 'html5-qrcode';
+
 
 export default function CartPage({ params }: { params: Promise<{ store_slug: string }> }) {
   const router = useRouter();
@@ -53,33 +54,50 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     loadCartAndStore();
   }, [safeStoreSlug]);
 
-  useEffect(() => {
-  let scanner: any;
-  if (isScannerOpen) {
-    scanner = new Html5QrcodeScanner(
-      "reader", 
-      { fps: 10, qrbox: { width: 250, height: 250 } },
-      /* verbose= */ false
-    );
+   useEffect(() => {
+    let html5QrCode: Html5Qrcode;
 
-    scanner.render((decodedText: string) => {
-      // Decode hote hi logic: Agar URL hai toh slug aur ID nikalo
-      // Maan lo QR mein sirf TAG ID hai (e.g. TAG001)
-      const scannedTag = decodedText.split('/').pop()?.toUpperCase(); 
-      if (scannedTag) {
-        scanner.clear();
-        setIsScannerOpen(false);
-        router.push(`/${safeStoreSlug}/${scannedTag}`);
+    if (isScannerOpen) {
+      // Modal open hone ke liye 100ms ka time dete hain taaki div render ho jaye
+      setTimeout(() => {
+        html5QrCode = new Html5Qrcode("reader");
+        
+        html5QrCode.start(
+          { facingMode: "environment" }, // 🔥 Ye line direct Back Camera open karti hai
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0 // Square feed ke liye
+          },
+          (decodedText: string) => {
+            // Scan hote hi kya hoga
+            const scannedTag = decodedText.split('/').pop()?.toUpperCase(); 
+            if (scannedTag) {
+              // Camera band karo aur redirect karo
+              html5QrCode.stop().then(() => {
+                setIsScannerOpen(false);
+                router.push(`/${safeStoreSlug}/${scannedTag}`);
+              });
+            }
+          },
+          (errorMessage: any) => {
+            // Background scanning chalti rahegi, errors ignore karo
+          }
+        ).catch((err: any) => {
+          console.error("Camera permissions denied or error:", err);
+          alert("Please allow camera access to scan products.");
+        });
+      }, 100);
+    }
+
+    // Cleanup function: Modal close hone par camera proper band ho jaye
+    return () => {
+      if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().catch(console.error);
       }
-    }, (error: any) => {
-      // Scan errors ko ignore karte hain taaki camera chalta rahe
-    });
-  }
+    };
+  }, [isScannerOpen, safeStoreSlug, router]);
 
-  return () => {
-    if (scanner) scanner.clear();
-  };
-}, [isScannerOpen, safeStoreSlug, router]);
 
   const handleRemoveItem = (tagIdToRemove: string) => {
     const cartKey = `cart_${safeStoreSlug}`;
