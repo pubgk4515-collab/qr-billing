@@ -14,6 +14,9 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
   const [storeData, setStoreData] = useState<any>(null);
   const [productData, setProductData] = useState<any>(null);
   const [error, setError] = useState('');
+  
+  // 🔥 Naya State: Crash rokne ke liye loading state
+  const [isAdding, setIsAdding] = useState(false);
 
   // 🔥 FUTURE-PROOF: UNIVERSAL SAFE KEYS (Prevents Empty Bag & URL Bugs)
   const safeStoreSlug = store_slug.toLowerCase();
@@ -64,29 +67,34 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
     fetchDetails();
   }, [safeStoreSlug, safeTagId]);
 
-  // 🛒 Add to Cart Logic (100% Bulletproof Local Storage)
+  // 🛒 Add to Cart Logic (100% Bulletproof Local Storage + Anti Crash)
   const handleAddToBag = () => {
-    const cartKey = `cart_${safeStoreSlug}`;
-    const currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
+    setIsAdding(true); // Spinner chalu karo
     
-    // Check if the item is already in the bag
-    const alreadyInCart = currentCart.find((item: any) => item.tag_id === safeTagId);
-    
-    if (!alreadyInCart) {
-      currentCart.push({
-        tag_id: safeTagId,
-        product_id: productData.id,
-        name: productData.name,
-        price: productData.price,
-        size: productData.size || 'Free Size',
-        image_url: productData.image_url
-      });
-      // Save exactly to the safe lowercase slug key
-      localStorage.setItem(cartKey, JSON.stringify(currentCart));
-    }
-    
-    // Always redirect to the safe lowercase slug cart
-    router.push(`/${safeStoreSlug}/cart`);
+    // setTimeout phone ke browser ko crash hone se rokenge (UI thread block nahi hoga)
+    setTimeout(() => {
+      const cartKey = `cart_${safeStoreSlug}`;
+      const currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
+      
+      // Check if the item is already in the bag
+      const alreadyInCart = currentCart.find((item: any) => item.tag_id === safeTagId);
+      
+      if (!alreadyInCart) {
+        currentCart.push({
+          tag_id: safeTagId,
+          product_id: productData.id,
+          name: productData.name,
+          price: productData.price,
+          size: productData.size || 'Free Size',
+          image_url: productData.image_url
+        });
+        // Save exactly to the safe lowercase slug key
+        localStorage.setItem(cartKey, JSON.stringify(currentCart));
+      }
+      
+      // Always redirect to the safe lowercase slug cart
+      router.push(`/${safeStoreSlug}/cart`);
+    }, 150); // 150ms ka micro-delay
   };
 
   // UI 1: Loading State
@@ -162,9 +170,16 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
                <span className="text-zinc-400 text-[10px] font-bold uppercase tracking-wider">Size</span>
                <span className="text-white font-black text-sm">{productData?.size || 'Free Size'}</span>
             </div>
-            {/* Stock Badge */}
-            <div className="inline-flex items-center gap-2 bg-emerald-500/10 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-emerald-500/20">
-               <span className="text-emerald-400 text-[10px] font-black uppercase tracking-wider">In Stock</span>
+            {/* Stock Badge - Custom Branded */}
+            <div 
+              className="inline-flex items-center gap-2 backdrop-blur-sm px-3 py-1.5 rounded-lg border"
+              style={{ 
+                backgroundColor: storeData?.theme_color ? `${storeData.theme_color}1A` : 'rgba(16, 185, 129, 0.1)', // 1A is 10% opacity in hex
+                borderColor: storeData?.theme_color ? `${storeData.theme_color}33` : 'rgba(16, 185, 129, 0.2)',
+                color: storeData?.theme_color || '#34d399'
+              }}
+            >
+               <span className="text-[10px] font-black uppercase tracking-wider">In Stock</span>
             </div>
           </div>
           
@@ -175,18 +190,30 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
 
       {/* 🔥 PREMIUM ACTION BAR (Floating Add to Bag) */}
       <div className="fixed bottom-0 left-0 right-0 p-4 sm:p-6 bg-gradient-to-t from-black via-black/90 to-transparent z-40 pointer-events-none">
-        <div className="bg-zinc-900/90 backdrop-blur-2xl border border-white/10 p-2 pl-6 rounded-[2.5rem] flex items-center justify-between shadow-[0_20px_50px_rgba(0,0,0,0.8)] pointer-events-auto">
+        {/* Changed backdrop-blur-2xl to backdrop-blur-lg to prevent Chrome crashes */}
+        <div className="bg-zinc-900/90 backdrop-blur-lg border border-white/10 p-2 pl-6 rounded-[2.5rem] flex items-center justify-between shadow-[0_20px_50px_rgba(0,0,0,0.8)] pointer-events-auto">
           
           <div className="flex flex-col justify-center min-w-[80px]">
             <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mb-0.5">Price</p>
             <p className="text-2xl font-black text-white leading-none tracking-tight">₹{productData?.price}</p>
           </div>
           
+          {/* Dynamic Branded Button */}
           <button 
             onClick={handleAddToBag}
-            className="bg-white text-black font-black px-8 py-5 rounded-full flex items-center justify-center gap-2 hover:bg-zinc-200 transition-all active:scale-95 shadow-[0_0_25px_rgba(255,255,255,0.15)]"
+            disabled={isAdding}
+            style={{ 
+              backgroundColor: storeData?.theme_color || '#ffffff',
+              color: storeData?.theme_color ? '#ffffff' : '#000000' 
+            }}
+            className={`font-black px-8 py-5 rounded-full flex items-center justify-center gap-2 transition-all shadow-[0_0_25px_rgba(255,255,255,0.15)] ${isAdding ? 'opacity-70 scale-95' : 'hover:opacity-90 active:scale-95'}`}
           >
-            <ShoppingBag className="w-5 h-5" /> Add to Bag
+            {isAdding ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <ShoppingBag className="w-5 h-5" />
+            )}
+            {isAdding ? 'Adding...' : 'Add to Bag'}
           </button>
           
         </div>
