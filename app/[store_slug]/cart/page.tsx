@@ -144,7 +144,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     
     setCheckoutStep('polling');
     setTimeout(() => {
-      router.push(`/${safeStoreSlug}/bill/${cartId}`);
+      router.push(`/${safeStoreSlug}/success/${cartId}`);
     }, 4000);
   };
 
