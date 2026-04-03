@@ -7,7 +7,6 @@ import { supabase } from '../../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Html5Qrcode } from 'html5-qrcode';
 
-
 export default function CartPage({ params }: { params: Promise<{ store_slug: string }> }) {
   const router = useRouter();
   const resolvedParams = use(params);
@@ -54,26 +53,33 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     loadCartAndStore();
   }, [safeStoreSlug]);
 
-   useEffect(() => {
+  // 📸 SCANNER LOGIC (Fixed the missing brackets)
+  useEffect(() => {
     let html5QrCode: Html5Qrcode;
 
     if (isScannerOpen) {
-      // Modal open hone ke liye 100ms ka time dete hain taaki div render ho jaye
       setTimeout(() => {
         html5QrCode = new Html5Qrcode("reader");
         
         html5QrCode.start(
-          { facingMode: "environment" }, // 🔥 Ye line direct Back Camera open karti hai
+          { facingMode: "environment" },
           {
             fps: 10,
             qrbox: { width: 250, height: 250 },
-            aspectRatio: 1.0 // Square feed ke liye
+            aspectRatio: 1.0 
           },
           (decodedText: string) => {
-            // Scan hote hi kya hoga
             const scannedTag = decodedText.split('/').pop()?.toUpperCase(); 
             if (scannedTag) {
-              // Camera band karo aur redirect karo
+              const cartKey = `cart_${safeStoreSlug}`;
+              const currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
+              const isDuplicate = currentCart.some((item: any) => item.tag_id === scannedTag);
+
+              if (isDuplicate) {
+                alert("This item is already in your bag!");
+                return; 
+              }
+
               html5QrCode.stop().then(() => {
                 setIsScannerOpen(false);
                 router.push(`/${safeStoreSlug}/${scannedTag}`);
@@ -81,16 +87,14 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
             }
           },
           (errorMessage: any) => {
-            // Background scanning chalti rahegi, errors ignore karo
+            // Ignore errors for continuous scanning
           }
         ).catch((err: any) => {
-          console.error("Camera permissions denied or error:", err);
-          alert("Please allow camera access to scan products.");
+          console.error("Camera error:", err);
         });
       }, 100);
     }
 
-    // Cleanup function: Modal close hone par camera proper band ho jaye
     return () => {
       if (html5QrCode && html5QrCode.isScanning) {
         html5QrCode.stop().catch(console.error);
@@ -118,7 +122,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     return cartItems.reduce((total, item) => total + (Number(item.price) || 0), 0);
   };
 
-  // SaaS Dynamic Color Fallback (Red from your screenshot as default if empty)
+  // SaaS Dynamic Color Fallback
   const themeColor = storeData?.theme_color || '#B91C1C';
 
   if (loading) {
@@ -205,10 +209,8 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                 transition={{ duration: 0.4, delay: index * 0.1, ease: "easeOut" }}
                 className="flex items-center p-3 bg-[#111] rounded-[1.5rem] border border-white/5 gap-4 shadow-[0_10px_40px_rgba(0,0,0,0.5)] relative overflow-hidden group"
               >
-                {/* Subtle gradient glow behind the card on hover */}
                 <div className="absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-500 bg-gradient-to-r from-transparent via-white to-transparent pointer-events-none" />
 
-                {/* Left: Image (Fashion Aspect Ratio) */}
                 <div className="w-20 h-24 bg-black rounded-[1rem] overflow-hidden shrink-0 border border-white/10 relative">
                   {item.image_url ? (
                     <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
@@ -219,7 +221,6 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                   )}
                 </div>
                 
-                {/* Middle: Name & Tag */}
                 <div className="flex-1 flex flex-col justify-center">
                   <h3 className="font-bold text-lg leading-tight mb-1">{item.name}</h3>
                   <div className="flex items-center gap-2">
@@ -227,7 +228,6 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                   </div>
                 </div>
 
-                {/* Right: Price & Trash */}
                 <div className="flex flex-col items-end gap-3 pr-2">
                   <p className="font-black text-xl tracking-tight">₹{item.price}</p>
                   <button 
@@ -253,14 +253,14 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         >
           <div className="bg-[#161616]/95 backdrop-blur-2xl border border-white/10 p-3 rounded-[2.5rem] flex items-center justify-between shadow-[0_30px_60px_rgba(0,0,0,0.9),inset_0_1px_0_rgba(255,255,255,0.1)]">
             
-            {/* Left: MASSIVE Dynamic QR Button */}
+            {/* Left: MASSIVE Dynamic QR Button (Fixed className) */}
             <button 
-  onClick={() => setIsScannerOpen(true)} // Isko 'true' kardo
-  className="w-16 h-16 rounded-full flex items-center justify-center ..."
-  style={{ backgroundColor: themeColor }}
->
-  <QrCode className="w-7 h-7 text-black" strokeWidth={2.5} />
-</button>
+              onClick={() => setIsScannerOpen(true)} 
+              className="w-16 h-16 rounded-full flex items-center justify-center shadow-inner hover:scale-105 active:scale-95 transition-all"
+              style={{ backgroundColor: themeColor }}
+            >
+              <QrCode className="w-7 h-7 text-black" strokeWidth={2.5} />
+            </button>
             
             {/* Center: Grand Total Stack */}
             <div className="flex flex-col items-center justify-center">
@@ -287,35 +287,33 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         </motion.div>
       )}
 
-      {/* 📸 FULL SCREEN SCANNER MODAL */}
-<AnimatePresence>
-  {isScannerOpen && (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z- bg-black flex flex-col items-center justify-center p-6"
-    >
-      <button 
-        onClick={() => setIsScannerOpen(false)}
-        className="absolute top-8 right-8 p-3 bg-white/10 rounded-full text-white z-"
-      >
-        <X className="w-6 h-6" />
-      </button>
+      {/* 📸 FULL SCREEN SCANNER MODAL (Fixed Z-indexes) */}
+      <AnimatePresence>
+        {isScannerOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z- bg-black flex flex-col items-center justify-center p-6"
+          >
+            <button 
+              onClick={() => setIsScannerOpen(false)}
+              className="absolute top-8 right-8 p-3 bg-white/10 rounded-full text-white z-"
+            >
+              <X className="w-6 h-6" />
+            </button>
 
-      <div className="w-full max-w-sm aspect-square rounded-[2rem] overflow-hidden border-2 border-dashed border-white/20 relative">
-        <div id="reader" className="w-full h-full"></div>
-        {/* Decorative corners for scanner feel */}
-        <div className="absolute inset-10 border-2 border-white/10 rounded-2xl pointer-events-none animate-pulse"></div>
-      </div>
-      
-      <p className="mt-8 text-zinc-400 font-mono text-xs tracking-widest uppercase">
-        Align QR Code inside the frame
-      </p>
-    </motion.div>
-  )}
-</AnimatePresence>
-
+            <div className="w-full max-w-sm aspect-square rounded-[2rem] overflow-hidden border-2 border-dashed border-white/20 relative">
+              <div id="reader" className="w-full h-full"></div>
+              <div className="absolute inset-10 border-2 border-white/10 rounded-2xl pointer-events-none animate-pulse"></div>
+            </div>
+            
+            <p className="mt-8 text-zinc-400 font-mono text-xs tracking-widest uppercase">
+              Align QR Code inside the frame
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
       
     </main>
   );

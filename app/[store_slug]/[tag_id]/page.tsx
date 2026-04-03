@@ -18,6 +18,7 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
   // 🔥 Naya State: Crash rokne ke liye loading state
   const [isAdding, setIsAdding] = useState(false);
 
+
   // 🔥 THE BUG FIX: Added ( || '' ) so it never crashes if URL params are delayed
   const safeStoreSlug = (store_slug || '').toLowerCase();
   const safeTagId = (tag_id || '').toUpperCase();
@@ -69,6 +70,16 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
 
     fetchDetails();
   }, [safeStoreSlug, safeTagId]);
+
+  const [isInBag, setIsInBag] = useState(false);
+
+useEffect(() => {
+  // Check if item is already in bag
+  const cartKey = `cart_${safeStoreSlug}`;
+  const currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
+  const alreadyInCart = currentCart.some((item: any) => item.tag_id === safeTagId);
+  setIsInBag(alreadyInCart);
+}, [safeStoreSlug, safeTagId]);
 
   // 🛒 Add to Cart Logic (100% Bulletproof Local Storage + Anti Crash)
   const handleAddToBag = () => {
@@ -204,21 +215,22 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
           
           {/* Dynamic Branded Button */}
           <button 
-            onClick={handleAddToBag}
-            disabled={isAdding}
-            style={{ 
-              backgroundColor: storeData?.theme_color || '#ffffff',
-              color: storeData?.theme_color ? '#ffffff' : '#000000' 
-            }}
-            className={`font-black px-8 py-5 rounded-full flex items-center justify-center gap-2 transition-all shadow-[0_0_25px_rgba(255,255,255,0.15)] ${isAdding ? 'opacity-70 scale-95' : 'hover:opacity-90 active:scale-95'}`}
-          >
-            {isAdding ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <ShoppingBag className="w-5 h-5" />
-            )}
-            {isAdding ? 'Adding...' : 'Add to Bag'}
-          </button>
+  onClick={handleAddToBag}
+  disabled={isAdding || isInBag} // Pehle se hai toh button band kardo
+  style={{ 
+    backgroundColor: isInBag ? '#1a1a1a' : (storeData?.theme_color || '#ffffff'),
+    color: isInBag ? '#666' : (storeData?.theme_color ? '#ffffff' : '#000000') 
+  }}
+  className={`font-black px-8 py-5 rounded-full flex items-center justify-center gap-2 transition-all ...`}
+>
+  {isInBag ? (
+    <>Already Added <ShieldCheck className="w-5 h-5 text-emerald-500" /></>
+  ) : isAdding ? (
+    <Loader2 className="w-5 h-5 animate-spin" />
+  ) : (
+    <><ShoppingBag className="w-5 h-5" /> Add to Bag</>
+  )}
+</button>
           
         </div>
       </div>
