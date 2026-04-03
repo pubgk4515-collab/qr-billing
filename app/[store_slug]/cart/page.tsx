@@ -106,7 +106,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
           ) : (
             <Store className="w-4 h-4" style={{ color: themeColor }} />
           )}
-          <span className="text-xs font-bold tracking-[0.15em] uppercase text-zinc-200">
+          <span className="text-sm font-bold tracking-[0.15em] uppercase text-zinc-200">
             {storeData?.store_name || 'Premium Store'}
           </span>
         </div>
@@ -123,7 +123,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
         className="px-6 pt-10 pb-6"
       >
-        <h1 className="text-[3.5rem] leading-none font-black tracking-tighter">
+        <h1 className="text-5xl leading-none font-black tracking-tighter">
           My Bag<span style={{ color: themeColor }}>.</span>
         </h1>
         <p className="text-sm text-zinc-500 mt-3 font-medium">Review your items before secure checkout.</p>
@@ -181,7 +181,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
 
                 {/* Right: Price & Trash */}
                 <div className="flex flex-col items-end gap-3 pr-2">
-                  <p className="font-black text-2xl tracking-tight">₹{item.price}</p>
+                  <p className="font-black text-xl tracking-tight">₹{item.price}</p>
                   <button 
                     onClick={() => handleRemoveItem(item.tag_id)}
                     className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-600 hover:text-red-500 hover:bg-red-500/10 transition-all active:scale-90"
