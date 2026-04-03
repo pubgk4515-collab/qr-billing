@@ -20,8 +20,8 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
 
 
   // 🔥 THE BUG FIX: Added ( || '' ) so it never crashes if URL params are delayed
-  const safeStoreSlug = (store_slug || '').toLowerCase();
-  const safeTagId = (tag_id || '').toUpperCase();
+  const safeStoreSlug = decodeURIComponent(store_slug || '').toLowerCase().trim();
+  const safeTagId = decodeURIComponent(tag_id || '').toUpperCase().trim();
 
   useEffect(() => {
     // Agar params abhi tak nahi aaye hain, toh wait karo

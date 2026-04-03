@@ -2,6 +2,7 @@
 
 import { createSupabaseServer } from '../lib/supabaseServer';
 import { cookies } from 'next/headers'; 
+import { revalidatePath } from 'next/cache';
 
 // ==========================================
 // 🏢 MULTI-TENANT HELPER FUNCTION
@@ -170,7 +171,7 @@ export async function addProductToTag(tagId: string, formData: FormData) {
       .eq('store_id', storeId);
 
     if (tagError) throw tagError;
-
+    revalidatePath('/','layout');
     return { success: true };
   } catch (error: any) {
     console.error("Add Product Error: ", error);
@@ -194,6 +195,7 @@ export async function addNewItem(name: string, price: number, imageUrl: string, 
         .from('qr_tags').update({ product_id: productData.id, status: 'active' }).eq('id', tagIdToLink).eq('store_id', storeId);
       if (tagError) throw tagError;
     }
+    revalidatePath('/','layout');
     return { success: true };
   } catch (error: any) { return { success: false, message: error.message }; }
 }
