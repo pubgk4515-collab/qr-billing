@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShoppingBag, Loader2, Trash2, QrCode, CreditCard, Store, ChevronLeft, X, ShieldCheck } from 'lucide-react';
+import { ShoppingBag, Loader2, Trash2, QrCode, CreditCard, Store, ChevronLeft, X, ShieldCheck, Smartphone, CheckCircle2, Clock, Send } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -15,14 +15,18 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
   const [loading, setLoading] = useState(true);
   const [storeData, setStoreData] = useState<any>(null);
   const [cartItems, setCartItems] = useState<any[]>([]);
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+
+  // Floating Checkout Drawer States
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [checkoutStep, setCheckoutStep] = useState<'whatsapp' | 'payment' | 'polling'>('whatsapp');
+  const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [cartId, setCartId] = useState('');
   
-  // 🔥 NEW: Premium Alert ke liye state
+  // Premium Alert State
   const [duplicateTag, setDuplicateTag] = useState<string | null>(null);
 
-  // Safe slug for DB and LocalStorage
-  const safeStoreSlug = (store_slug || '').toLowerCase();
+  const safeStoreSlug = decodeURIComponent(store_slug || '').toLowerCase().trim();
 
   useEffect(() => {
     if (!safeStoreSlug) return;
@@ -72,14 +76,13 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
             aspectRatio: 1.0 
           },
           (decodedText: string) => {
-            const scannedTag = decodedText.split('/').pop()?.toUpperCase(); 
+            const scannedTag = decodeURIComponent(decodedText.split('/').pop() || '').toUpperCase().trim(); 
             if (scannedTag) {
               const cartKey = `cart_${safeStoreSlug}`;
               const currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
               const isDuplicate = currentCart.some((item: any) => item.tag_id === scannedTag);
 
               if (isDuplicate) {
-                // 🔥 Naya Logic: Sasta alert hataya, Premium Modal state set kiya
                 setIsScannerOpen(false); 
                 setDuplicateTag(scannedTag);
                 return; 
@@ -92,7 +95,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
             }
           },
           (errorMessage: any) => {
-            // Ignore errors for continuous scanning
+            // Ignore errors
           }
         ).catch((err: any) => {
           console.error("Camera error:", err);
@@ -115,28 +118,46 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     localStorage.setItem(cartKey, JSON.stringify(updatedCart));
   };
 
-  const handleCheckout = async () => {
-    setIsCheckingOut(true);
+  // 🔥 CHECKOUT FLOW LOGIC
+  const handleCheckoutClick = () => {
+    setCartId(`CART${Math.floor(1000 + Math.random() * 9000)}`);
+    setCheckoutStep('whatsapp');
+    setIsCheckoutOpen(true);
+  };
+
+  const handleWhatsappSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (whatsappNumber.length < 10) {
+      alert("Please enter a valid 10-digit number");
+      return;
+    }
+    setCheckoutStep('payment');
+  };
+
+  const handlePaymentSelection = (method: 'online' | 'offline') => {
+    if (method === 'online') {
+      const upiId = "merchant@upi"; 
+      const amount = calculateTotal();
+      const upiUrl = `upi://pay?pa=${upiId}&pn=${storeData?.store_name}&am=${amount}&cu=INR&tn=Bill-${cartId}`;
+      window.location.href = upiUrl;
+    }
+    
+    setCheckoutStep('polling');
     setTimeout(() => {
-      alert("Payment Flow / Live Polling Initiated! Redirecting...");
-      setIsCheckingOut(false);
-    }, 1500);
+      router.push(`/${safeStoreSlug}/bill/${cartId}`);
+    }, 4000);
   };
 
   const calculateTotal = () => {
     return cartItems.reduce((total, item) => total + (Number(item.price) || 0), 0);
   };
 
-  // SaaS Dynamic Color Fallback
   const themeColor = storeData?.theme_color || '#B91C1C';
 
   if (loading) {
     return (
       <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-white gap-4">
-        <motion.div 
-          animate={{ rotate: 360 }} 
-          transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-        >
+        <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }}>
           <Loader2 className="w-8 h-8 text-zinc-600" />
         </motion.div>
       </div>
@@ -146,7 +167,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
   return (
     <main className="min-h-screen bg-[#050505] text-white flex flex-col relative font-sans selection:bg-white/10 pb-40">
       
-      {/* 👑 THE GLASSMORPHIC BOUTIQUE HEADER */}
+      {/* 👑 HEADER */}
       <motion.header 
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -173,7 +194,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         </div>
       </motion.header>
 
-      {/* 🎒 MASSIVE TYPOGRAPHY HERO SECTION */}
+      {/* 🎒 HERO SECTION */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -189,36 +210,28 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
       {/* 📦 CART CONTENT */}
       <div className="px-6 flex flex-col gap-5">
         <AnimatePresence>
-                    {cartItems.length === 0 ? (
+          {cartItems.length === 0 ? (
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               className="flex flex-col items-center justify-center text-center mt-12 p-10 bg-white/[0.02] rounded-[2rem] border border-white/5"
             >
-              <div 
-                className="w-20 h-20 rounded-full flex items-center justify-center mb-6 shadow-[0_0_50px_rgba(255,255,255,0.05)]"
-                style={{ backgroundColor: `${themeColor}15` }}
-              >
+              <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6 shadow-[0_0_50px_rgba(255,255,255,0.05)]" style={{ backgroundColor: `${themeColor}15` }}>
                 <ShoppingBag className="w-8 h-8" style={{ color: themeColor }} />
               </div>
               <h2 className="text-2xl font-bold mb-2 text-white">Your bag is empty</h2>
               <p className="text-sm text-zinc-500 mb-8">Scan a product's QR code in the store to add it to your bag.</p>
               
-              {/* 🔥 NAYA MASSIVE SCAN BUTTON FOR EMPTY STATE */}
               <button 
                 onClick={() => setIsScannerOpen(true)}
                 className="px-8 py-4 rounded-full font-black text-black flex items-center gap-3 hover:scale-105 active:scale-95 transition-all"
-                style={{ 
-                  backgroundColor: themeColor,
-                  boxShadow: `0 10px 30px -10px ${themeColor}`
-                }}
+                style={{ backgroundColor: themeColor, boxShadow: `0 10px 30px -10px ${themeColor}` }}
               >
                 <QrCode className="w-5 h-5" strokeWidth={2.5} />
                 Scan Product
               </button>
             </motion.div>
           ) : (
-
             cartItems.map((item, index) => (
               <motion.div 
                 key={item.tag_id}
@@ -262,7 +275,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         </AnimatePresence>
       </div>
 
-      {/* 🔥 THE ELEGANT MVP DOCK */}
+      {/* 🔥 BOTTOM DOCK */}
       {cartItems.length > 0 && (
         <motion.div 
           initial={{ y: 100, opacity: 0 }}
@@ -286,24 +299,17 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
             </div>
             
             <button 
-              onClick={handleCheckout}
-              disabled={isCheckingOut}
-              className={`bg-white text-black font-black text-base px-7 py-4 rounded-[1.8rem] flex items-center justify-center gap-2 shadow-lg ${isCheckingOut ? 'opacity-70' : 'hover:bg-zinc-200 active:scale-95 transition-all'}`}
+              onClick={handleCheckoutClick}
+              className="bg-white text-black font-black text-base px-7 py-4 rounded-[1.8rem] flex items-center justify-center gap-2 shadow-lg hover:bg-zinc-200 active:scale-95 transition-all"
             >
-              {isCheckingOut ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <>
-                  <CreditCard className="w-5 h-5" /> Buy
-                </>
-              )}
+              <CreditCard className="w-5 h-5" /> Buy
             </button>
             
           </div>
         </motion.div>
       )}
 
-      {/* 📸 FULL SCREEN SCANNER MODAL */}
+      {/* 📸 SCANNER MODAL */}
       <AnimatePresence>
         {isScannerOpen && (
           <motion.div 
@@ -331,7 +337,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         )}
       </AnimatePresence>
 
-      {/* 🚨 PREMIUM DUPLICATE ALERT MODAL */}
+      {/* 🚨 DUPLICATE ALERT MODAL */}
       <AnimatePresence>
         {duplicateTag && (
           <motion.div
@@ -346,7 +352,6 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
               exit={{ scale: 0.9, opacity: 0 }}
               className="bg-[#111] border border-white/10 rounded-[2.5rem] p-8 w-full max-w-xs shadow-[0_30px_60px_rgba(0,0,0,0.9)] flex flex-col items-center text-center relative overflow-hidden"
             >
-              {/* Icon Container with subtle glow */}
               <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mb-6 border border-white/10 relative">
                 <ShoppingBag className="w-10 h-10 text-white" />
                 <div className="absolute top-12 right-12 bg-[#03E3B6] rounded-full w-6 h-6 flex items-center justify-center border-4 border-[#111]">
@@ -369,7 +374,145 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
           </motion.div>
         )}
       </AnimatePresence>
-      
+
+      {/* 🚀 ULTRA PREMIUM FLOATING CHECKOUT DRAWER */}
+      <AnimatePresence>
+        {isCheckoutOpen && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => checkoutStep !== 'polling' && setIsCheckoutOpen(false)}
+              className="fixed inset-0 z- bg-black/60 backdrop-blur-sm"
+            />
+
+            <motion.div 
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="fixed bottom-0 left-0 right-0 z- bg-[#0A0A0A] border-t border-white/10 rounded-t-[2.5rem] p-6 shadow-[0_-20px_60px_rgba(0,0,0,0.8)]"
+            >
+              <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-8" />
+
+              {/* STEP 1: WHATSAPP */}
+              {checkoutStep === 'whatsapp' && (
+                <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="p-3 rounded-2xl" style={{ backgroundColor: `${themeColor}1A`, color: themeColor }}>
+                      <Smartphone className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-black">Contact Details</h3>
+                      <p className="text-xs text-zinc-400">To receive your digital bill & updates</p>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleWhatsappSubmit} className="flex flex-col gap-4">
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-zinc-400">+91</span>
+                      <input 
+                        type="tel" 
+                        maxLength={10}
+                        value={whatsappNumber}
+                        onChange={(e) => setWhatsappNumber(e.target.value.replace(/\D/g, ''))}
+                        placeholder="WhatsApp Number"
+                        className="w-full bg-[#141414] border border-white/10 rounded-2xl py-4 pl-14 pr-4 font-black text-lg focus:outline-none focus:ring-2 transition-all placeholder:font-medium placeholder:text-zinc-600"
+                        style={{ outlineColor: themeColor, borderColor: themeColor }}
+                        autoFocus
+                      />
+                    </div>
+                    <button 
+                      type="submit"
+                      disabled={whatsappNumber.length !== 10}
+                      className="w-full py-4 rounded-2xl font-black text-black flex justify-center items-center gap-2 mt-2 disabled:opacity-50 transition-all"
+                      style={{ backgroundColor: themeColor, boxShadow: whatsappNumber.length === 10 ? `0 10px 30px -10px ${themeColor}` : 'none' }}
+                    >
+                      Continue <Send className="w-4 h-4" />
+                    </button>
+                  </form>
+                </motion.div>
+              )}
+
+              {/* STEP 2: PAYMENT */}
+              {checkoutStep === 'payment' && (
+                <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
+                  <h3 className="text-xl font-black mb-1">Choose Payment Mode</h3>
+                  <p className="text-xs text-zinc-400 mb-6">Amount to pay: <strong className="text-white">₹{calculateTotal()}</strong></p>
+
+                  <div className="flex flex-col gap-3">
+                    <button 
+                      onClick={() => handlePaymentSelection('online')}
+                      className="w-full p-4 bg-gradient-to-r from-[#111] to-[#1a1a1a] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/5 active:scale-95 transition-all group relative overflow-hidden"
+                    >
+                      <div className="absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity" style={{ backgroundColor: themeColor }} />
+                      <div className="flex items-center gap-4 relative z-10">
+                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center p-2 shadow-inner">
+                          <svg viewBox="0 0 24 24" className="w-full h-full text-black"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+                        </div>
+                        <div className="text-left">
+                          <h4 className="font-black text-lg">Pay Online</h4>
+                          <p className="text-[10px] text-zinc-400 uppercase tracking-widest">GPay, PhonePe, Paytm</p>
+                        </div>
+                      </div>
+                      <CheckCircle2 className="w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: themeColor }} />
+                    </button>
+
+                    <button 
+                      onClick={() => handlePaymentSelection('offline')}
+                      className="w-full p-4 bg-[#141414] border border-white/5 rounded-2xl flex items-center justify-between hover:bg-white/5 active:scale-95 transition-all group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-zinc-900 rounded-xl flex items-center justify-center border border-white/5">
+                          💵
+                        </div>
+                        <div className="text-left">
+                          <h4 className="font-bold text-lg text-zinc-300">Pay at Counter</h4>
+                          <p className="text-[10px] text-zinc-500 uppercase tracking-widest">Cash / Card</p>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* STEP 3: POLLING */}
+              {checkoutStep === 'polling' && (
+                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center text-center py-6">
+                  <div className="relative w-24 h-24 flex items-center justify-center mb-6">
+                    <motion.div 
+                      animate={{ scale: [1, 1.5, 2], opacity: [0.5, 0.2, 0] }} 
+                      transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
+                      className="absolute inset-0 rounded-full"
+                      style={{ backgroundColor: themeColor }}
+                    />
+                    <motion.div 
+                      animate={{ scale: [1, 1.2, 1] }} 
+                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                      className="relative z-10 w-16 h-16 bg-[#111] border border-white/10 rounded-full flex items-center justify-center shadow-2xl"
+                    >
+                      <Clock className="w-8 h-8" style={{ color: themeColor }} />
+                    </motion.div>
+                  </div>
+
+                  <h3 className="text-2xl font-black mb-2">Waiting for approval</h3>
+                  <p className="text-sm text-zinc-400 mb-6">Please show this Cart ID at the billing counter to verify your items.</p>
+                  
+                  <div className="bg-[#141414] border border-white/5 px-6 py-3 rounded-2xl inline-block">
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-[0.2em] mb-1">Cart ID</p>
+                    <p className="font-mono text-3xl font-black tracking-widest text-white">{cartId}</p>
+                  </div>
+                  
+                  <p className="text-[10px] text-zinc-600 mt-6 animate-pulse">Do not press back or close this app</p>
+                </motion.div>
+              )}
+
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
     </main>
   );
 }
