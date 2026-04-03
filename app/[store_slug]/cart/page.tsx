@@ -189,7 +189,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
       {/* 📦 CART CONTENT */}
       <div className="px-6 flex flex-col gap-5">
         <AnimatePresence>
-          {cartItems.length === 0 ? (
+                    {cartItems.length === 0 ? (
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -202,9 +202,23 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                 <ShoppingBag className="w-8 h-8" style={{ color: themeColor }} />
               </div>
               <h2 className="text-2xl font-bold mb-2 text-white">Your bag is empty</h2>
-              <p className="text-sm text-zinc-500">Scan a product's QR code in the store to add it to your bag.</p>
+              <p className="text-sm text-zinc-500 mb-8">Scan a product's QR code in the store to add it to your bag.</p>
+              
+              {/* 🔥 NAYA MASSIVE SCAN BUTTON FOR EMPTY STATE */}
+              <button 
+                onClick={() => setIsScannerOpen(true)}
+                className="px-8 py-4 rounded-full font-black text-black flex items-center gap-3 hover:scale-105 active:scale-95 transition-all"
+                style={{ 
+                  backgroundColor: themeColor,
+                  boxShadow: `0 10px 30px -10px ${themeColor}`
+                }}
+              >
+                <QrCode className="w-5 h-5" strokeWidth={2.5} />
+                Scan Product
+              </button>
             </motion.div>
           ) : (
+
             cartItems.map((item, index) => (
               <motion.div 
                 key={item.tag_id}
