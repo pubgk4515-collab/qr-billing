@@ -134,7 +134,8 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     setCheckoutStep('payment');
   };
 
-  const handlePaymentSelection = (method: 'online' | 'offline') => {
+    const handlePaymentSelection = async (method: 'online' | 'offline') => {
+    // 1. UPI Intent Logic (Agar Online hai)
     if (method === 'online') {
       const upiId = "merchant@upi"; 
       const amount = calculateTotal();
@@ -142,11 +143,39 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
       window.location.href = upiUrl;
     }
     
+    // 2. Waiting Screen Chalu Karo
     setCheckoutStep('polling');
-    setTimeout(() => {
-      router.push(`/${safeStoreSlug}/success/${cartId}`);
-    }, 4000);
+
+    // 3. 🔥 ASLI LOGIC: Supabase mein 'pending' order bhejo
+    try {
+      const purchasedItemsJson = cartItems.map(item => ({
+        id: item.tag_id,
+        products: { id: item.product_id, name: item.name, price: item.price, image_url: item.image_url }
+      }));
+
+      const { error } = await supabase.from('sales').insert({
+        cart_id: cartId,
+        store_id: storeData.id,
+        total_amount: calculateTotal(),
+        items_count: cartItems.length,
+        payment_status: 'pending', // 🔥 Order PENDING state mein jayega
+        payment_method: method.toUpperCase(),
+        customer_phone: whatsappNumber,
+        purchased_items: purchasedItemsJson
+      });
+
+      if (error) throw error;
+      
+      // YAHAN KOI SET-TIMEOUT NAHI HOGA! 
+      // Redirection ab sirf 'useEffect' karega jab DB mein status 'completed' hoga.
+
+    } catch (error) {
+      console.error("Order creation failed:", error);
+      alert("Network error! Please try again.");
+      setCheckoutStep('payment'); // Wapas pichle step par bhej do
+    }
   };
+
 
   const calculateTotal = () => {
     return cartItems.reduce((total, item) => total + (Number(item.price) || 0), 0);
