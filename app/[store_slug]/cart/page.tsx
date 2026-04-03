@@ -2,10 +2,20 @@
 
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShoppingBag, Loader2, ShieldCheck, ArrowRight, Trash2, QrCode } from 'lucide-react';
+import { ShoppingBag, Loader2, Trash2, ArrowRight } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
-// Cart page mein sirf store_slug aayega, tag_id nahi hota
+// Naya unique icon for the bottom dock
+const ScanFrameIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M4 8V6C4 4.89543 4.89543 4 6 4H8" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+    <path d="M16 4H18C19.1046 4 20 4.89543 20 6V8" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+    <path d="M20 16V18C20 19.1046 19.1046 20 18 20H16" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+    <path d="M8 20H6C4.89543 20 4 19.1046 4 18V16" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+    <path d="M8 12H16M12 8V16" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+  </svg>
+);
+
 export default function CartPage({ params }: { params: Promise<{ store_slug: string }> }) {
   const router = useRouter();
   const resolvedParams = use(params);
@@ -16,7 +26,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
 
-  // 🔥 THE BUG FIX: Safe URL param reading
+  // Safe slug for DB and LocalStorage
   const safeStoreSlug = (store_slug || '').toLowerCase();
 
   useEffect(() => {
@@ -24,7 +34,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
 
     async function loadCartAndStore() {
       try {
-        // 1. Fetch Store Branding
+        // Fetch Store Branding
         const { data: store, error: storeError } = await supabase
           .from('stores')
           .select('id, store_name, logo_url, theme_color')
@@ -38,7 +48,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         }
         setStoreData(store);
 
-        // 2. Fetch Bag Items from Local Storage safely
+        // Fetch Bag Items from Local Storage safely
         const cartKey = `cart_${safeStoreSlug}`;
         const savedCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
         setCartItems(savedCart);
@@ -53,7 +63,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     loadCartAndStore();
   }, [safeStoreSlug]);
 
-  // Remove Item Function (Customer bag se item nikal sake)
+  // Remove Item Function
   const handleRemoveItem = (tagIdToRemove: string) => {
     const cartKey = `cart_${safeStoreSlug}`;
     const updatedCart = cartItems.filter(item => item.tag_id !== tagIdToRemove);
@@ -65,152 +75,133 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
   const handleCheckout = async () => {
     setIsCheckingOut(true);
     
-    // Yahan aapka app/actions/billingActions.ts wala logic aayega
-    // P.S. Rule ke hisaab se hum Local Storage se data delete NAHI kar rahe hain.
-    // Admin Command Center se jab approve hoga tabhi bill generate hoga.
+    // Billing and Polling Logic would go here
     
     setTimeout(() => {
-      // Demo redirect (Aap isko apne asli checkout/bill flow pe set kar lena)
-      alert("Payment Flow / Live Polling Initiated! Redirecting...");
+      // Demo alert and redirect (for now)
+      alert("Checkout started! Live Polling Initiated...");
       setIsCheckingOut(false);
-      // router.push(`/${safeStoreSlug}/checkout`); 
+      // router.push(`/${safeStoreSlug}/bill`); 
     }, 1500);
   };
 
-  // Calculate Subtotal
+  // Calculate Total
   const calculateTotal = () => {
     return cartItems.reduce((total, item) => total + (Number(item.price) || 0), 0);
   };
 
-  // UI 1: Loading State
+  // Loading State
   if (loading) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center text-white gap-4">
+      <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-white gap-4">
         <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
         <p className="text-zinc-500 font-mono text-sm tracking-widest uppercase">Loading Bag</p>
       </div>
     );
   }
 
-  // UI 2: Main Cart Page
+  // Main UI
   return (
-    <main className="min-h-screen bg-zinc-950 text-white flex flex-col relative font-sans selection:bg-white/20">
+    <main className="min-h-screen bg-[#050505] text-white flex flex-col relative font-sans selection:bg-white/10">
       
-      {/* 👑 PREMIUM HEADER */}
-      <header className="px-5 py-4 flex items-center gap-3 sticky top-0 z-50 shadow-2xl" style={{ backgroundColor: storeData?.theme_color || '#000000', backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 100%)' }}>
-        {storeData?.logo_url ? (
-          <img src={storeData.logo_url} alt="logo" className="w-10 h-10 rounded-full object-cover border border-white/20 shadow-lg" />
-        ) : (
-          <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center font-bold shadow-inner">{storeData?.store_name?.charAt(0) || 'S'}</div>
-        )}
-        <div>
-          <h1 className="text-lg font-black leading-tight text-white">Your Bag</h1>
-          <p className="text-[9px] font-mono tracking-[0.2em] uppercase text-white/70 flex items-center gap-1">{storeData?.store_name || 'Premium Store'}</p>
+      {/* 👑 PREMIUM RED HEADER (From Reference) */}
+      <header className="px-5 py-4 flex items-center justify-between sticky top-0 z-50 bg-gradient-to-b from-[#8C0303] to-[#600202] shadow-2xl">
+        <div className="flex items-center gap-3">
+          {/* Circular M Logo with subtle gradient */}
+          <div className="w-10 h-10 rounded-full flex items-center justify-center font-black text-2xl text-white bg-gradient-to-br from-[#8C0303] to-[#C71B1B] shadow-inner border border-white/5">
+            M
+          </div>
+          <div>
+            <h1 className="text-lg font-black leading-tight text-white">{storeData?.store_name || 'Mr. Fashion'}</h1>
+            <p className="text-[10px] font-mono tracking-[0.2em] uppercase text-white/80">SECURE CHECKOUT</p>
+          </div>
+        </div>
+        {/* Rounded Item Count Badge */}
+        <div className="text-[10px] font-mono tracking-wider text-white bg-black/30 px-3 py-1.5 rounded-full border border-white/5">
+          {cartItems.length} {cartItems.length === 1 ? 'Item' : 'Items'}
         </div>
       </header>
 
-      {/* 📦 CART ITEMS LIST */}
-      <div className="flex-1 p-5 pb-40 flex flex-col gap-4">
+      {/* 📦 CART CONTENT */}
+      <div className="flex-1 p-5 pb-40 flex flex-col gap-5 mt-4">
+        
+        {/* New Large Page Title */}
+        <h2 className="text-3xl font-extrabold tracking-tight mb-2">My Bag</h2>
         
         {cartItems.length === 0 ? (
           // Empty Cart UI
-          <div className="flex-1 flex flex-col items-center justify-center text-center opacity-70 mt-20">
-            <ShoppingBag className="w-16 h-16 text-zinc-600 mb-4" />
-            <h2 className="text-xl font-bold mb-2">Your bag is empty</h2>
-            <p className="text-sm text-zinc-500 max-w-[250px] mb-8">Scan a product's QR code in the store to add it to your bag.</p>
-            <button 
-              onClick={() => alert("Open Scanner Mobile Camera!")} // Next task integration here
-              className="px-6 py-3 bg-white/10 rounded-full flex items-center gap-2 font-bold hover:bg-white/20 active:scale-95 transition-all"
-            >
-              <QrCode className="w-5 h-5" /> Scan Product
-            </button>
+          <div className="flex-1 flex flex-col items-center justify-center text-center opacity-70 mt-16">
+            <ShoppingBag className="w-16 h-16 text-zinc-700 mb-6" />
+            <h2 className="text-xl font-bold mb-2 text-zinc-300">Your bag is empty</h2>
+            <p className="text-sm text-zinc-600 max-w-[260px]">Scan a product's QR code in the store to add it to your bag and see it here.</p>
           </div>
         ) : (
-          // Cart Items UI
-          <>
-            <div className="flex justify-between items-end mb-2">
-              <h2 className="text-xl font-black">{cartItems.length} {cartItems.length > 1 ? 'Items' : 'Item'}</h2>
-              <button className="text-xs text-zinc-500 font-bold uppercase tracking-wider flex items-center gap-1">
-                <QrCode className="w-3 h-3" /> Scan More
-              </button>
-            </div>
-
-            {cartItems.map((item, index) => (
-              <div key={index} className="flex gap-4 bg-zinc-900/50 p-3 rounded-2xl border border-white/5 relative group">
-                {/* Product Image */}
-                <div className="w-20 h-24 bg-black rounded-xl overflow-hidden shrink-0">
-                  {item.image_url ? (
-                    <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <ShoppingBag className="w-6 h-6 text-zinc-700" />
-                    </div>
-                  )}
+          // Product List (Refined Layout)
+          cartItems.map((item, index) => (
+            <div key={index} className="flex gap-4 bg-[#111] p-3 rounded-2xl border border-white/5 relative group shadow-lg">
+              {/* Product Image - Consistent Model Shot */}
+              <div className="w-20 h-28 bg-black rounded-xl overflow-hidden shrink-0 border border-white/5">
+                {item.image_url ? (
+                  <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <ShoppingBag className="w-6 h-6 text-zinc-700" />
+                  </div>
+                )}
+              </div>
+              
+              {/* Product Details - Premium Look */}
+              <div className="flex flex-col justify-center flex-1 py-1">
+                <div className="flex justify-between items-start">
+                  <h3 className="font-bold text-sm leading-tight pr-6">{item.name}</h3>
+                  {/* Pink Circular Trash Button (From Reference) */}
+                  <button 
+                    onClick={() => handleRemoveItem(item.tag_id)}
+                    className="w-7 h-7 bg-[#4E1010] rounded-full flex items-center justify-center text-[#E62B2B] hover:bg-[#6A1616] transition-colors shadow-inner"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
-                
-                {/* Product Details */}
-                <div className="flex flex-col justify-center flex-1 py-1">
-                  <div className="flex justify-between items-start">
-                    <h3 className="font-bold text-sm leading-tight pr-4">{item.name}</h3>
-                    <button 
-                      onClick={() => handleRemoveItem(item.tag_id)}
-                      className="text-zinc-600 hover:text-red-500 transition-colors p-1"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <p className="text-xs text-zinc-500 mt-1">Size: {item.size}</p>
-                  <div className="flex justify-between items-end mt-auto">
-                    <p className="font-black text-lg">₹{item.price}</p>
-                    <span className="text-[9px] font-mono text-zinc-600 bg-zinc-800 px-2 py-0.5 rounded border border-white/5">{item.tag_id}</span>
-                  </div>
+                <p className="text-[11px] font-mono text-zinc-600 mt-1 uppercase tracking-wider">SIZE: {item.size}</p>
+                <div className="flex justify-between items-end mt-auto">
+                  {/* Cyan Total Price */}
+                  <p className="font-black text-2xl text-[#03E3B6]">₹{item.price}</p>
+                  <span className="text-[10px] font-mono text-zinc-600 bg-black/30 px-2 py-0.5 rounded border border-white/5 tracking-wider uppercase">{item.tag_id}</span>
                 </div>
               </div>
-            ))}
-
-            {/* Bill Summary */}
-            <div className="mt-6 p-5 bg-white/5 rounded-2xl border border-white/10">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-zinc-400 text-sm">Subtotal</span>
-                <span className="font-bold">₹{calculateTotal()}</span>
-              </div>
-              <div className="flex justify-between items-center mb-4">
-                <span className="text-zinc-400 text-sm">Platform Fee</span>
-                <span className="text-emerald-400 text-sm font-bold">Free</span>
-              </div>
-              <div className="w-full h-px bg-white/10 mb-4"></div>
-              <div className="flex justify-between items-center">
-                <span className="font-bold">Total Amount</span>
-                <span className="font-black text-2xl">₹{calculateTotal()}</span>
-              </div>
             </div>
-          </>
+          ))
         )}
       </div>
 
-      {/* 🔥 PREMIUM ACTION BAR (Checkout Dock) - Only show if cart has items */}
+      {/* 🔥 PREMIUM ACTION BAR (The New Bottom Dock) - Only if items are present */}
       {cartItems.length > 0 && (
         <div className="fixed bottom-0 left-0 right-0 p-4 sm:p-6 bg-gradient-to-t from-black via-black/90 to-transparent z-40 pointer-events-none">
-          <div className="bg-zinc-900/90 backdrop-blur-lg border border-white/10 p-2 pl-6 rounded-[2.5rem] flex items-center justify-between shadow-[0_20px_50px_rgba(0,0,0,0.8)] pointer-events-auto">
+          <div className="bg-[#111]/95 backdrop-blur-lg border border-white/10 p-2 pl-6 rounded-full flex items-center justify-between shadow-[0_20px_50px_rgba(0,0,0,0.8)] pointer-events-auto">
             
-            <div className="flex flex-col justify-center min-w-[80px]">
-              <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mb-0.5">Pay Now</p>
-              <p className="text-2xl font-black text-white leading-none tracking-tight">₹{calculateTotal()}</p>
+            {/* Left Section: Cyan TOTAL price */}
+            <div className="flex flex-col justify-center min-w-[90px]">
+              <p className="text-[10px] text-zinc-600 font-mono uppercase tracking-wider mb-0.5">TOTAL</p>
+              <p className="text-2xl font-black text-[#03E3B6] leading-none tracking-tight">₹{calculateTotal()}</p>
             </div>
             
+            {/* Center Section: Scan Frame Icon */}
+            <div className="flex items-center justify-center">
+              <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center shadow-inner border border-white/5">
+                <ScanFrameIcon />
+              </div>
+            </div>
+            
+            {/* Right Section: Red Checkout Button */}
             <button 
               onClick={handleCheckout}
               disabled={isCheckingOut}
-              style={{ 
-                backgroundColor: storeData?.theme_color || '#ffffff',
-                color: storeData?.theme_color ? '#ffffff' : '#000000' 
-              }}
-              className={`font-black px-6 py-5 rounded-full flex items-center justify-center gap-2 transition-all shadow-[0_0_25px_rgba(255,255,255,0.15)] ${isCheckingOut ? 'opacity-70 scale-95' : 'hover:opacity-90 active:scale-95'}`}
+              className={`font-black text-sm px-7 py-4 rounded-full flex items-center justify-center gap-2 transition-all bg-gradient-to-br from-[#8C0303] to-[#600202] shadow-inner text-white ${isCheckingOut ? 'opacity-70' : 'hover:scale-[1.02] active:scale-95'}`}
             >
               {isCheckingOut ? (
                 <>Processing <Loader2 className="w-4 h-4 animate-spin" /></>
               ) : (
-                <>Checkout <ArrowRight className="w-5 h-5" /></>
+                <>Checkout <ArrowRight className="w-4 h-4" /></>
               )}
             </button>
             
