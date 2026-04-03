@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShoppingBag, Loader2, Trash2, QrCode, CreditCard, Store, ChevronLeft, X } from 'lucide-react';
+import { ShoppingBag, Loader2, Trash2, QrCode, CreditCard, Store, ChevronLeft, X, ShieldCheck } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -17,6 +17,9 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  
+  // 🔥 NEW: Premium Alert ke liye state
+  const [duplicateTag, setDuplicateTag] = useState<string | null>(null);
 
   // Safe slug for DB and LocalStorage
   const safeStoreSlug = (store_slug || '').toLowerCase();
@@ -53,7 +56,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     loadCartAndStore();
   }, [safeStoreSlug]);
 
-  // 📸 SCANNER LOGIC (Fixed the missing brackets)
+  // 📸 SCANNER LOGIC
   useEffect(() => {
     let html5QrCode: Html5Qrcode;
 
@@ -76,7 +79,9 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
               const isDuplicate = currentCart.some((item: any) => item.tag_id === scannedTag);
 
               if (isDuplicate) {
-                alert("This item is already in your bag!");
+                // 🔥 Naya Logic: Sasta alert hataya, Premium Modal state set kiya
+                setIsScannerOpen(false); 
+                setDuplicateTag(scannedTag);
                 return; 
               }
 
@@ -181,7 +186,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         <p className="text-sm text-zinc-500 mt-3 font-medium">Review your items before secure checkout.</p>
       </motion.div>
 
-      {/* 📦 CART CONTENT (Staggered Animation List) */}
+      {/* 📦 CART CONTENT */}
       <div className="px-6 flex flex-col gap-5">
         <AnimatePresence>
           {cartItems.length === 0 ? (
@@ -253,7 +258,6 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         >
           <div className="bg-[#161616]/95 backdrop-blur-2xl border border-white/10 p-3 rounded-[2.5rem] flex items-center justify-between shadow-[0_30px_60px_rgba(0,0,0,0.9),inset_0_1px_0_rgba(255,255,255,0.1)]">
             
-            {/* Left: MASSIVE Dynamic QR Button (Fixed className) */}
             <button 
               onClick={() => setIsScannerOpen(true)} 
               className="w-16 h-16 rounded-full flex items-center justify-center shadow-inner hover:scale-105 active:scale-95 transition-all"
@@ -262,13 +266,11 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
               <QrCode className="w-7 h-7 text-black" strokeWidth={2.5} />
             </button>
             
-            {/* Center: Grand Total Stack */}
             <div className="flex flex-col items-center justify-center">
               <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-[0.2em] mb-0.5">Grand Total</span>
               <span className="text-2xl font-black text-white leading-none tracking-tight">₹{calculateTotal()}</span>
             </div>
             
-            {/* Right: Elegant White Buy Button */}
             <button 
               onClick={handleCheckout}
               disabled={isCheckingOut}
@@ -287,7 +289,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         </motion.div>
       )}
 
-      {/* 📸 FULL SCREEN SCANNER MODAL (Fixed Z-indexes) */}
+      {/* 📸 FULL SCREEN SCANNER MODAL */}
       <AnimatePresence>
         {isScannerOpen && (
           <motion.div 
@@ -304,13 +306,52 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
             </button>
 
             <div className="w-full max-w-sm aspect-square rounded-[2rem] overflow-hidden border-2 border-dashed border-white/20 relative">
-              <div id="reader" className="w-full h-full"></div>
+              <div id="reader" className="w-full h-full bg-[#111]"></div>
               <div className="absolute inset-10 border-2 border-white/10 rounded-2xl pointer-events-none animate-pulse"></div>
             </div>
             
             <p className="mt-8 text-zinc-400 font-mono text-xs tracking-widest uppercase">
               Align QR Code inside the frame
             </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 🚨 PREMIUM DUPLICATE ALERT MODAL */}
+      <AnimatePresence>
+        {duplicateTag && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z- bg-black/70 backdrop-blur-md flex items-center justify-center p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-[#111] border border-white/10 rounded-[2.5rem] p-8 w-full max-w-xs shadow-[0_30px_60px_rgba(0,0,0,0.9)] flex flex-col items-center text-center relative overflow-hidden"
+            >
+              {/* Icon Container with subtle glow */}
+              <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mb-6 border border-white/10 relative">
+                <ShoppingBag className="w-10 h-10 text-white" />
+                <div className="absolute top-12 right-12 bg-[#03E3B6] rounded-full w-6 h-6 flex items-center justify-center border-4 border-[#111]">
+                  <ShieldCheck className="w-3 h-3 text-black" />
+                </div>
+              </div>
+
+              <h3 className="text-2xl font-black mb-2 tracking-tight text-white">Already in Bag</h3>
+              <p className="text-sm text-zinc-400 mb-8 leading-relaxed">
+                Item <span className="font-mono font-bold text-white bg-white/10 px-2 py-0.5 rounded">{duplicateTag}</span> is already added to your cart.
+              </p>
+
+              <button
+                onClick={() => setDuplicateTag(null)}
+                className="w-full py-4 rounded-full font-black text-black bg-white hover:bg-zinc-200 active:scale-95 transition-all shadow-lg"
+              >
+                Okay, Got it
+              </button>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
