@@ -18,11 +18,14 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
   // 🔥 Naya State: Crash rokne ke liye loading state
   const [isAdding, setIsAdding] = useState(false);
 
-  // 🔥 FUTURE-PROOF: UNIVERSAL SAFE KEYS (Prevents Empty Bag & URL Bugs)
-  const safeStoreSlug = store_slug.toLowerCase();
-  const safeTagId = tag_id.toUpperCase();
+  // 🔥 THE BUG FIX: Added ( || '' ) so it never crashes if URL params are delayed
+  const safeStoreSlug = (store_slug || '').toLowerCase();
+  const safeTagId = (tag_id || '').toUpperCase();
 
   useEffect(() => {
+    // Agar params abhi tak nahi aaye hain, toh wait karo
+    if (!safeStoreSlug || !safeTagId) return;
+
     async function fetchDetails() {
       try {
         // 1. Fetch Store (Case Insensitive using .ilike)
@@ -69,6 +72,8 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
 
   // 🛒 Add to Cart Logic (100% Bulletproof Local Storage + Anti Crash)
   const handleAddToBag = () => {
+    if (!productData) return; // Extra safety
+    
     setIsAdding(true); // Spinner chalu karo
     
     // setTimeout phone ke browser ko crash hone se rokenge (UI thread block nahi hoga)
@@ -97,8 +102,8 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
     }, 150); // 150ms ka micro-delay
   };
 
-  // UI 1: Loading State
-  if (loading) {
+  // UI 1: Loading State (Yeh tab dikhega jab tak params aur DB data na aa jaye)
+  if (loading || !store_slug || !tag_id) {
     return (
       <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center text-white gap-4">
         <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
@@ -174,7 +179,7 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
             <div 
               className="inline-flex items-center gap-2 backdrop-blur-sm px-3 py-1.5 rounded-lg border"
               style={{ 
-                backgroundColor: storeData?.theme_color ? `${storeData.theme_color}1A` : 'rgba(16, 185, 129, 0.1)', // 1A is 10% opacity in hex
+                backgroundColor: storeData?.theme_color ? `${storeData.theme_color}1A` : 'rgba(16, 185, 129, 0.1)', 
                 borderColor: storeData?.theme_color ? `${storeData.theme_color}33` : 'rgba(16, 185, 129, 0.2)',
                 color: storeData?.theme_color || '#34d399'
               }}
@@ -190,7 +195,6 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
 
       {/* 🔥 PREMIUM ACTION BAR (Floating Add to Bag) */}
       <div className="fixed bottom-0 left-0 right-0 p-4 sm:p-6 bg-gradient-to-t from-black via-black/90 to-transparent z-40 pointer-events-none">
-        {/* Changed backdrop-blur-2xl to backdrop-blur-lg to prevent Chrome crashes */}
         <div className="bg-zinc-900/90 backdrop-blur-lg border border-white/10 p-2 pl-6 rounded-[2.5rem] flex items-center justify-between shadow-[0_20px_50px_rgba(0,0,0,0.8)] pointer-events-auto">
           
           <div className="flex flex-col justify-center min-w-[80px]">
