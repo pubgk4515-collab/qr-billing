@@ -276,7 +276,8 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
       </div>
 
       {/* 🔥 BOTTOM DOCK */}
-      {cartItems.length > 0 && (
+      {cartItems.length > 0 && !isCheckoutOpen && (
+
         <motion.div 
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
