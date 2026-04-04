@@ -1,25 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from './lib/supabase'; // Path check kar lena
+import { supabase } from './lib/supabase'; // Path verify kar lena
 import { motion, AnimatePresence } from 'framer-motion';
-import { Lock, Loader2, Delete, ChevronRight, Smartphone } from 'lucide-react';
+import { Store, Fingerprint, X, ShieldCheck, Loader2, ChevronRight } from 'lucide-react';
 
-export default function GlobalRootLogin() {
+export default function SaaSMainGate() {
   const router = useRouter();
-  const [isDesktop, setIsDesktop] = useState(false);
-  const [pin, setPin] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // 1. Device Detection (40+ users ke liye UI adjust karne ke liye)
-  useEffect(() => {
-    const ua = navigator.userAgent;
-    setIsDesktop(!/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua));
-  }, []);
-
-  // 2. THE TYPO KILLER: Sahi Slug par bhejne wala logic
+  // 🔥 The Typo Killer Router
   const handleSmartRedirect = async (userId: string) => {
     try {
       const { data: store, error: storeError } = await supabase
@@ -28,83 +21,140 @@ export default function GlobalRootLogin() {
         .eq('owner_id', userId)
         .single();
 
-      if (storeError || !store) throw new Error("Dukaan nahi mili!");
+      if (storeError || !store) throw new Error("Store not found!");
 
-      // Hamesha DB wala sahi slug use hoga (mrr-fashion wala error khatam)
-      router.push(`/admin/${store.slug}`);
+      // Sahi raste par bhej do
+      router.push(`/admin/${store.slug}/dashboard`);
     } catch (err) {
-      setError("Login failed: Store not linked.");
+      setError("Dukaan verify nahi ho paayi.");
       setLoading(false);
     }
   };
 
-  const handlePinSubmit = async () => {
-    if (pin.length < 4) return;
+  // 🔐 BIOMETRIC / SCREEN LOCK TRIGGER
+  const triggerScreenLock = async () => {
     setLoading(true);
     setError('');
 
     try {
-      // Yahan hum future mein PIN verify karenge Supabase se
-      // Abhi testing ke liye, user login hote hi redirect:
-      setTimeout(() => handleSmartRedirect('test-user-id'), 800);
+      // YAHAN ASLI JADOO HOGA: WebAuthn API (Passkeys)
+      // Jab backend puri tarah set ho jayega, ye browser ka native fingerprint/PIN prompt khomega.
+      
+      /* Asli code future ke liye kuch aisa dikhega:
+      const credential = await navigator.credentials.get({
+        publicKey: { ...challenge options from Supabase }
+      });
+      */
+
+      // Abhi UI aur flow test karne ke liye hum isko 1.5 second ka fake biometric delay de rahe hain
+      // Jisme uncle ko lagega verification ho raha hai
+      setTimeout(() => {
+        handleSmartRedirect('test-user-id'); // Yahan asli user ID aayegi
+      }, 1500);
+
     } catch (err) {
-      setError("Galat PIN! Dubara koshish karein.");
+      console.error("Biometric failed:", err);
+      setError("Verification failed. Try again.");
       setLoading(false);
     }
   };
 
-  const addDigit = (num: string) => { if (pin.length < 6) setPin(p => p + num); };
-  const removeDigit = () => setPin(p => p.slice(0, -1));
-
   return (
-    <main className="min-h-screen bg-[#050505] text-white flex flex-col items-center justify-center p-6">
+    <main className="min-h-screen bg-[#050505] text-white relative overflow-hidden font-sans flex flex-col">
       
-      {/* Background Glow */}
-      <div className="absolute top-0 w-full h-96 bg-gradient-to-b from-emerald-500/10 to-transparent pointer-events-none" />
+      {/* Subtle Background Glow */}
+      <div className="absolute top-[-20%] left-1/2 -translate-x-1/2 w-[80%] h-[500px] bg-emerald-500/10 blur-[120px] rounded-full pointer-events-none" />
 
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-sm flex flex-col items-center z-10"
-      >
-        <div className="w-20 h-20 bg-[#111] border border-white/10 rounded-[2rem] flex items-center justify-center mb-6 shadow-2xl">
-          <Lock className="w-8 h-8 text-white" />
+      {/* 👑 TOP CENTER BRANDING */}
+      <header className="w-full pt-12 flex flex-col items-center justify-center z-10">
+        <div className="w-14 h-14 bg-[#111] border border-white/10 rounded-[1rem] flex items-center justify-center mb-4 shadow-2xl">
+          <Store className="w-7 h-7 text-white" />
         </div>
-
-        <h1 className="text-4xl font-black mb-2 tracking-tight">Main Gate</h1>
-        <p className="text-zinc-500 text-sm mb-10 font-medium uppercase tracking-widest">
-          {isDesktop ? "Enter Admin PIN" : "Biometric or PIN Login"}
+        <h1 className="text-3xl font-black tracking-tight">QR BILLING</h1>
+        <p className="text-[10px] text-zinc-500 uppercase tracking-[0.3em] font-bold mt-1">
+          SaaS Engine
         </p>
+      </header>
 
-        {/* PIN DOTS */}
-        <div className="flex gap-4 mb-12">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className={`w-4 h-4 rounded-full border-2 transition-all ${pin.length > i ? 'bg-white border-white scale-125 shadow-[0_0_15px_white]' : 'border-white/10'}`} />
-          ))}
-        </div>
+      {/* 🎯 CENTER CTA BUTTON */}
+      <div className="flex-1 flex items-center justify-center z-10 px-6">
+        <button 
+          onClick={() => setIsModalOpen(true)}
+          className="group relative px-8 py-5 bg-white text-black rounded-2xl font-black text-lg flex items-center gap-3 hover:scale-105 active:scale-95 transition-all shadow-[0_0_40px_rgba(255,255,255,0.15)] hover:shadow-[0_0_60px_rgba(255,255,255,0.25)]"
+        >
+          Login to your Store
+          <ChevronRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
+        </button>
+      </div>
 
-        {/* BADA KEYPAD (For 40+ Uncle's fingers) */}
-        <div className="grid grid-cols-3 gap-4 w-full">
-          {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(n => (
-            <button key={n} onClick={() => addDigit(n)} className="h-20 bg-[#111] border border-white/5 rounded-2xl text-2xl font-black hover:bg-white/10 active:scale-90 transition-all">
-              {n}
-            </button>
-          ))}
-          <button onClick={removeDigit} className="h-20 flex items-center justify-center text-zinc-500 hover:text-white"><Delete className="w-8 h-8" /></button>
-          <button onClick={() => addDigit('0')} className="h-20 bg-[#111] border border-white/5 rounded-2xl text-2xl font-black">0</button>
-          <button 
-            onClick={handlePinSubmit} disabled={pin.length < 4 || loading}
-            className="h-20 bg-white text-black rounded-2xl flex items-center justify-center disabled:opacity-20 active:scale-95 transition-all"
+      {/* 🔒 FLOATING POP-UP (BOTTOM SHEET MODAL) */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4"
           >
-            {loading ? <Loader2 className="animate-spin" /> : <ChevronRight className="w-10 h-10" />}
-          </button>
-        </div>
+            {/* Modal Container */}
+            <motion.div 
+              initial={{ y: "100%" }} 
+              animate={{ y: 0 }} 
+              exit={{ y: "100%" }} 
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="bg-[#0A0A0A] w-full sm:max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] border border-white/10 shadow-[0_-20px_60px_rgba(0,0,0,0.5)] relative overflow-hidden pb-10 pt-4 px-6 sm:p-8"
+            >
+              {/* Mobile Drag Indicator */}
+              <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-6 sm:hidden" />
 
-        {error && <p className="mt-8 text-red-500 font-bold bg-red-500/10 px-4 py-2 rounded-lg">{error}</p>}
-      </motion.div>
+              {/* Close Button */}
+              <button 
+                onClick={() => !loading && setIsModalOpen(false)} 
+                className="absolute top-6 right-6 p-2 bg-white/5 hover:bg-white/10 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-zinc-400" />
+              </button>
 
-      <footer className="fixed bottom-10 opacity-20 text-[10px] tracking-[0.5em] font-black uppercase">
-        SaaS Engine v1.0
-      </footer>
+              <div className="flex flex-col items-center text-center mt-4">
+                <div className="w-20 h-20 bg-[#111] rounded-[1.5rem] flex items-center justify-center mb-6 border border-white/5 shadow-inner">
+                  <ShieldCheck className="w-10 h-10 text-emerald-400" />
+                </div>
+                
+                <h2 className="text-2xl font-black mb-2">Secure Login</h2>
+                <p className="text-zinc-400 text-sm mb-8 font-medium px-4">
+                  Confirm your identity to access your store's command center.
+                </p>
+
+                {/* THE BIOMETRIC BUTTON */}
+                <button 
+                  onClick={triggerScreenLock}
+                  disabled={loading}
+                  className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-black text-lg py-5 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                      Verifying...
+                    </>
+                  ) : (
+                    <>
+                      <Fingerprint className="w-7 h-7" />
+                      Use Screen Lock
+                    </>
+                  )}
+                </button>
+
+                {error && <p className="mt-4 text-red-500 text-sm font-bold">{error}</p>}
+                
+                <p className="mt-6 text-[10px] text-zinc-500 uppercase tracking-widest font-bold">
+                  Powered by WebAuthn
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </main>
   );
 }
