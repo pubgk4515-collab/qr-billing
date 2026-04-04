@@ -1,117 +1,110 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ScanLine, ShieldCheck, ArrowRight, Sparkles } from 'lucide-react';
+import { supabase } from './lib/supabase'; // Path check kar lena
+import { motion, AnimatePresence } from 'framer-motion';
+import { Lock, Loader2, Delete, ChevronRight, Smartphone } from 'lucide-react';
 
-export default function Home() {
+export default function GlobalRootLogin() {
   const router = useRouter();
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [pin, setPin] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  // 1. Device Detection (40+ users ke liye UI adjust karne ke liye)
+  useEffect(() => {
+    const ua = navigator.userAgent;
+    setIsDesktop(!/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua));
+  }, []);
+
+  // 2. THE TYPO KILLER: Sahi Slug par bhejne wala logic
+  const handleSmartRedirect = async (userId: string) => {
+    try {
+      const { data: store, error: storeError } = await supabase
+        .from('stores')
+        .select('slug')
+        .eq('owner_id', userId)
+        .single();
+
+      if (storeError || !store) throw new Error("Dukaan nahi mili!");
+
+      // Hamesha DB wala sahi slug use hoga (mrr-fashion wala error khatam)
+      router.push(`/admin/${store.slug}`);
+    } catch (err) {
+      setError("Login failed: Store not linked.");
+      setLoading(false);
+    }
+  };
+
+  const handlePinSubmit = async () => {
+    if (pin.length < 4) return;
+    setLoading(true);
+    setError('');
+
+    try {
+      // Yahan hum future mein PIN verify karenge Supabase se
+      // Abhi testing ke liye, user login hote hi redirect:
+      setTimeout(() => handleSmartRedirect('test-user-id'), 800);
+    } catch (err) {
+      setError("Galat PIN! Dubara koshish karein.");
+      setLoading(false);
+    }
+  };
+
+  const addDigit = (num: string) => { if (pin.length < 6) setPin(p => p + num); };
+  const removeDigit = () => setPin(p => p.slice(0, -1));
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white font-sans flex flex-col items-center justify-center p-6 relative overflow-hidden">
+    <main className="min-h-screen bg-[#050505] text-white flex flex-col items-center justify-center p-6">
       
-      {/* 🌟 Premium Ambient Background Glow */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-emerald-500/5 blur-[120px] rounded-full pointer-events-none" />
+      {/* Background Glow */}
+      <div className="absolute top-0 w-full h-96 bg-gradient-to-b from-emerald-500/10 to-transparent pointer-events-none" />
 
-      <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, ease: "easeOut" }}
-        className="w-full max-w-4xl relative z-10 flex flex-col items-center"
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+        className="w-full max-w-sm flex flex-col items-center z-10"
       >
-        {/* 👑 Elegant Header Section */}
-        <div className="mb-16 text-center">
-          <motion.div 
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="inline-flex items-center justify-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 mb-8 shadow-xl"
-          >
-            <Sparkles className="w-4 h-4 text-emerald-400" />
-            <span className="text-xs font-bold tracking-widest text-zinc-300 uppercase">Next-Gen Retail Experience</span>
-          </motion.div>
-          
-          <h1 className="text-5xl md:text-7xl font-black tracking-tighter mb-4 text-transparent bg-clip-text bg-gradient-to-br from-white via-white to-zinc-500">
-            Premium Store.
-          </h1>
-          <p className="text-zinc-400 text-lg md:text-xl font-medium max-w-xl mx-auto">
-            Elevate your shopping experience. Scan, pay, and walk out with elegance. No queues, pure luxury.
-          </p>
+        <div className="w-20 h-20 bg-[#111] border border-white/10 rounded-[2rem] flex items-center justify-center mb-6 shadow-2xl">
+          <Lock className="w-8 h-8 text-white" />
         </div>
 
-        {/* ✨ Luxurious Action Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-3xl">
-          
-          {/* CUSTOMER CARD */}
-          <motion.button
-            whileHover={{ scale: 1.02, backgroundColor: "rgba(255,255,255,0.03)" }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => router.push('/billing')}
-            className="group relative bg-zinc-900/40 backdrop-blur-2xl border border-white/10 p-8 md:p-10 rounded-[2.5rem] text-left overflow-hidden transition-all hover:border-emerald-500/30 shadow-2xl"
-          >
-            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 blur-[50px] rounded-full transition-opacity group-hover:opacity-100 opacity-0 pointer-events-none" />
-            
-            <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-8 border border-emerald-500/20 group-hover:scale-110 transition-transform duration-500">
-              <ScanLine className="w-8 h-8 text-emerald-400" />
-            </div>
-            
-            <h2 className="text-2xl font-black mb-3 text-white tracking-tight">Self-Checkout</h2>
-            <p className="text-zinc-400 text-sm mb-10 leading-relaxed">
-              Scan clothing tags with your phone, build your bag, and pay instantly. Your personal digital counter.
-            </p>
-            
-            <div className="flex items-center gap-2 text-emerald-400 font-black text-sm uppercase tracking-widest">
-              Start Shopping <ArrowRight className="w-4 h-4 group-hover:translate-x-2 transition-transform" />
-            </div>
-          </motion.button>
+        <h1 className="text-4xl font-black mb-2 tracking-tight">Main Gate</h1>
+        <p className="text-zinc-500 text-sm mb-10 font-medium uppercase tracking-widest">
+          {isDesktop ? "Enter Admin PIN" : "Biometric or PIN Login"}
+        </p>
 
-          {/* ADMIN / OWNER CARD */}
-          <motion.button
-            whileHover={{ scale: 1.02, backgroundColor: "rgba(255,255,255,0.03)" }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => router.push('/login')}
-            className="group relative bg-zinc-900/40 backdrop-blur-2xl border border-white/10 p-8 md:p-10 rounded-[2.5rem] text-left overflow-hidden transition-all hover:border-blue-500/30 shadow-2xl"
-          >
-            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 blur-[50px] rounded-full transition-opacity group-hover:opacity-100 opacity-0 pointer-events-none" />
-            
-            <div className="w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center mb-8 border border-blue-500/20 group-hover:scale-110 transition-transform duration-500">
-              <ShieldCheck className="w-8 h-8 text-blue-400" />
-            </div>
-            
-            <h2 className="text-2xl font-black mb-3 text-white tracking-tight">Command Center</h2>
-            <p className="text-zinc-400 text-sm mb-10 leading-relaxed">
-              Store management portal. Approve payments, handle walk-in customers via POS, and manage inventory.
-            </p>
-            
-            <div className="flex items-center gap-2 text-blue-400 font-black text-sm uppercase tracking-widest">
-              Owner Portal <ArrowRight className="w-4 h-4 group-hover:translate-x-2 transition-transform" />
-            </div>
-          </motion.button>
-
+        {/* PIN DOTS */}
+        <div className="flex gap-4 mb-12">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className={`w-4 h-4 rounded-full border-2 transition-all ${pin.length > i ? 'bg-white border-white scale-125 shadow-[0_0_15px_white]' : 'border-white/10'}`} />
+          ))}
         </div>
-        
-                {/* Footer subtle text & Contact Agency Button */}
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.8 }}
-          className="mt-16 flex flex-col items-center gap-5 relative z-10"
-        >
-          <p className="text-zinc-600 text-[10px] tracking-[0.3em] uppercase font-black">
-            Designed for Modern Retail
-          </p>
-          
+
+        {/* BADA KEYPAD (For 40+ Uncle's fingers) */}
+        <div className="grid grid-cols-3 gap-4 w-full">
+          {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(n => (
+            <button key={n} onClick={() => addDigit(n)} className="h-20 bg-[#111] border border-white/5 rounded-2xl text-2xl font-black hover:bg-white/10 active:scale-90 transition-all">
+              {n}
+            </button>
+          ))}
+          <button onClick={removeDigit} className="h-20 flex items-center justify-center text-zinc-500 hover:text-white"><Delete className="w-8 h-8" /></button>
+          <button onClick={() => addDigit('0')} className="h-20 bg-[#111] border border-white/5 rounded-2xl text-2xl font-black">0</button>
           <button 
-            onClick={() => router.push('/contact')}
-            className="group flex items-center gap-2 px-6 py-2.5 rounded-full bg-zinc-900/50 border border-zinc-800 hover:border-emerald-500/50 hover:bg-emerald-500/10 transition-all duration-300"
+            onClick={handlePinSubmit} disabled={pin.length < 4 || loading}
+            className="h-20 bg-white text-black rounded-2xl flex items-center justify-center disabled:opacity-20 active:scale-95 transition-all"
           >
-            <span className="text-xs font-bold tracking-widest text-zinc-400 group-hover:text-emerald-400 transition-colors uppercase">
-              Contact Agency
-            </span>
-            <ArrowRight className="w-3 h-3 text-zinc-500 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all" />
+            {loading ? <Loader2 className="animate-spin" /> : <ChevronRight className="w-10 h-10" />}
           </button>
-        </motion.div>
+        </div>
+
+        {error && <p className="mt-8 text-red-500 font-bold bg-red-500/10 px-4 py-2 rounded-lg">{error}</p>}
       </motion.div>
+
+      <footer className="fixed bottom-10 opacity-20 text-[10px] tracking-[0.5em] font-black uppercase">
+        SaaS Engine v1.0
+      </footer>
     </main>
   );
 }
