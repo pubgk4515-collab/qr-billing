@@ -133,7 +133,7 @@ function LoginContent() {
         </button>
         {activeShop && (
            <p className="mt-6 text-zinc-500 text-xs font-bold uppercase tracking-widest">
-             Dukaan: <span className="text-white">{activeShop}</span>
+             Store: <span className="text-white">{activeShop}</span>
            </p>
         )}
       </div>
