@@ -33,54 +33,91 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
   useEffect(() => {
     if (!safeStoreSlug || !safeTagId) return;
 
-    async function fetchDetails() {
+        async function fetchDetails() {
       try {
-        const { data: store } = await supabase.from('stores').select('*').ilike('slug', safeStoreSlug).single();
-        if (!store) throw new Error("Dukaan nahi mili.");
+        // 1. PEHLE STORE FETCH KARO (Yahan se 'store' variable banega)
+        const { data: store, error: storeError } = await supabase
+          .from('stores')
+          .select('id, store_name, logo_url, theme_color')
+          .ilike('slug', safeStoreSlug)
+          .single();
+
+        if (storeError || !store) throw new Error(`Dukaan '${store_slug}' nahi mili! Kripya sahi QR scan karein.`);
         setStoreData(store);
 
-        const { data: tag } = await supabase
+        // 2. PHIR TAG FETCH KARO (Ab 'store.id' properly kaam karega)
+        const { data: tag, error: tagError } = await supabase
           .from('qr_tags')
           .select('*, products(*)')
           .ilike('id', safeTagId)
-          .eq('store_id', store.id)
+          .eq('store_id', store.id) // Error was here, now fixed!
           .single();
 
-        if (!tag || !tag.products) throw new Error("Invalid QR Code.");
+        if (tagError || !tag) throw new Error(`QR Code ${safeTagId} is store ka nahi hai.`);
+        if (!tag.products) throw new Error(`Ye QR Code abhi kisi kapde se juda nahi hai.`);
+        if (tag.status === 'sold') throw new Error(`Ye kapda bik chuka hai ya checkout mein hai.`);
+
+        // 🔥 GLOBAL SYNC & SWAP CHECK:
+        if (tag.status === 'in_cart') {
+          // Agar database me in_cart hai, toh kisi ne add kar liya hai
+          setIsInBag(true); 
+        } else {
+          // Agar local cart mein purana swapped item pada hai toh check karo
+          const cartKey = `cart_${safeStoreSlug}`;
+          const currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
+          const existingItemInCart = currentCart.find((item: any) => item.tag_id === safeTagId);
+
+          if (existingItemInCart && existingItemInCart.product_id === tag.products.id) {
+             setIsInBag(true);
+          } else {
+             setIsInBag(false);
+          }
+        }
+
         setProductData(tag.products);
-
-        // Check Local Storage
-        const cartKey = `cart_${safeStoreSlug}`;
-        const currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
-        setIsInBag(currentCart.some((item: any) => item.tag_id === safeTagId));
-
       } catch (err: any) {
         setError(err.message);
       } finally {
         setLoading(false);
       }
     }
+
     fetchDetails();
   }, [safeStoreSlug, safeTagId]);
 
-  const handleAddToBag = () => {
+    const handleAddToBag = async () => {
+    if (!productData || isInBag) return;
     setIsAdding(true);
-    setTimeout(() => {
+    
+    try {
+      // 1. Database mein status 'in_cart' karo
+      const { error: updateError } = await supabase
+        .from('qr_tags')
+        .update({ status: 'in_cart' }) // Naya status use karenge
+        .eq('id', safeTagId);
+
+      if (updateError) throw updateError;
+
+      // 2. Local storage mein purani tarah save karo (for speed)
       const cartKey = `cart_${safeStoreSlug}`;
       const currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
-      if (!currentCart.some((i: any) => i.tag_id === safeTagId)) {
-        currentCart.push({
-          tag_id: safeTagId,
-          product_id: productData.id,
-          name: productData.name,
-          price: productData.price,
-          image_url: productData.image_url
-        });
-        localStorage.setItem(cartKey, JSON.stringify(currentCart));
-      }
+      currentCart.push({
+        tag_id: safeTagId,
+        product_id: productData.id,
+        name: productData.name,
+        price: productData.price,
+        image_url: productData.image_url
+      });
+      localStorage.setItem(cartKey, JSON.stringify(currentCart));
+      
       router.push(`/${safeStoreSlug}/cart`);
-    }, 400);
+    } catch (err) {
+      alert("Nahi ho paya! Shayad kisi aur ne pehle hi utha liya.");
+    } finally {
+      setIsAdding(false);
+    }
   };
+
 
   // --- UI RENDER HELPERS ---
   const themeColor = storeData?.theme_color || '#dc2626';
