@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ShoppingBag, Loader2, Trash2, QrCode, CreditCard, Store, ChevronLeft, X, ShieldCheck, Smartphone, CheckCircle2, Clock, Send } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase'; // Path verify kar lena
 import { motion, AnimatePresence } from 'framer-motion';
 import { Html5Qrcode } from 'html5-qrcode';
 
@@ -134,8 +134,8 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     setCheckoutStep('payment');
   };
 
-    const handlePaymentSelection = async (method: 'online' | 'offline') => {
-    // 1. UPI Intent Logic (Agar Online hai)
+  const handlePaymentSelection = async (method: 'online' | 'offline') => {
+    // 1. UPI Intent Logic
     if (method === 'online') {
       const upiId = "merchant@upi"; 
       const amount = calculateTotal();
@@ -143,22 +143,23 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
       window.location.href = upiUrl;
     }
     
-    // 2. Waiting Screen Chalu Karo
+    // 2. Drawer animation on (gives a premium loading feel)
     setCheckoutStep('polling');
 
-    // 3. 🔥 ASLI LOGIC: Supabase mein 'pending' order bhejo
+    // 3. ASLI LOGIC: Insert to database
     try {
       const purchasedItemsJson = cartItems.map(item => ({
         id: item.tag_id,
         products: { id: item.product_id, name: item.name, price: item.price, image_url: item.image_url }
       }));
 
+      // ⚠️ IMPORTANT: Aapne pichle message me "sales" table use ki thi. SuccessPage me ise handle karna.
       const { error } = await supabase.from('sales').insert({
         cart_id: cartId,
         store_id: storeData.id,
         total_amount: calculateTotal(),
         items_count: cartItems.length,
-        payment_status: 'pending', // 🔥 Order PENDING state mein jayega
+        payment_status: 'pending', 
         payment_method: method.toUpperCase(),
         customer_phone: whatsappNumber,
         purchased_items: purchasedItemsJson
@@ -166,13 +167,16 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
 
       if (error) throw error;
       
-      // YAHAN KOI SET-TIMEOUT NAHI HOGA! 
-      // Redirection ab sirf 'useEffect' karega jab DB mein status 'completed' hoga.
+      // 🚀 BOOM! Yahi tha missing piece. Drawer band karke Success Page pe bhejo!
+      setTimeout(() => {
+        setIsCheckoutOpen(false); 
+        router.push(`/${safeStoreSlug}/success/${cartId}`);
+      }, 800); // 800ms ka chhota sa delay smooth transition ke liye
 
     } catch (error) {
       console.error("Order creation failed:", error);
       alert("Network error! Please try again.");
-      setCheckoutStep('payment'); // Wapas pichle step par bhej do
+      setCheckoutStep('payment'); 
     }
   };
 
@@ -306,12 +310,11 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
 
       {/* 🔥 BOTTOM DOCK */}
       {cartItems.length > 0 && !isCheckoutOpen && (
-
         <motion.div 
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.6, type: "spring", bounce: 0.3 }}
-          className="fixed bottom-6 left-4 right-4 z-50"
+          className="fixed bottom-6 left-4 right-4 z-40"
         >
           <div className="bg-[#161616]/95 backdrop-blur-2xl border border-white/10 p-3 rounded-[2.5rem] flex items-center justify-between shadow-[0_30px_60px_rgba(0,0,0,0.9),inset_0_1px_0_rgba(255,255,255,0.1)]">
             
@@ -346,11 +349,11 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z- bg-black flex flex-col items-center justify-center p-6"
+            className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center p-6"
           >
             <button 
               onClick={() => setIsScannerOpen(false)}
-              className="absolute top-8 right-8 p-3 bg-white/10 rounded-full text-white z-"
+              className="absolute top-8 right-8 p-3 bg-white/10 rounded-full text-white z-50"
             >
               <X className="w-6 h-6" />
             </button>
@@ -374,7 +377,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z- bg-black/70 backdrop-blur-md flex items-center justify-center p-6"
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-6"
           >
             <motion.div
               initial={{ scale: 0.9, y: 20 }}
@@ -384,7 +387,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
             >
               <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mb-6 border border-white/10 relative">
                 <ShoppingBag className="w-10 h-10 text-white" />
-                <div className="absolute top-12 right-12 bg-[#03E3B6] rounded-full w-6 h-6 flex items-center justify-center border-4 border-[#111]">
+                <div className="absolute top-12 right-12 rounded-full w-6 h-6 flex items-center justify-center border-4 border-[#111]" style={{ backgroundColor: themeColor }}>
                   <ShieldCheck className="w-3 h-3 text-black" />
                 </div>
               </div>
@@ -414,7 +417,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => checkoutStep !== 'polling' && setIsCheckoutOpen(false)}
-              className="fixed inset-0 z- bg-black/60 backdrop-blur-sm"
+              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
             />
 
             <motion.div 
@@ -422,7 +425,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed bottom-0 left-0 right-0 z- bg-[#0A0A0A] border-t border-white/10 rounded-t-[2.5rem] p-6 shadow-[0_-20px_60px_rgba(0,0,0,0.8)]"
+              className="fixed bottom-0 left-0 right-0 z-50 bg-[#0A0A0A] border-t border-white/10 rounded-t-[2.5rem] p-6 shadow-[0_-20px_60px_rgba(0,0,0,0.8)]"
             >
               <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-8" />
 
@@ -507,7 +510,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                 </motion.div>
               )}
 
-              {/* STEP 3: POLLING */}
+              {/* STEP 3: POLLING (TRANSITION) */}
               {checkoutStep === 'polling' && (
                 <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center text-center py-6">
                   <div className="relative w-24 h-24 flex items-center justify-center mb-6">
@@ -522,19 +525,11 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                       transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                       className="relative z-10 w-16 h-16 bg-[#111] border border-white/10 rounded-full flex items-center justify-center shadow-2xl"
                     >
-                      <Clock className="w-8 h-8" style={{ color: themeColor }} />
+                      <Loader2 className="w-8 h-8 animate-spin" style={{ color: themeColor }} />
                     </motion.div>
                   </div>
-
-                  <h3 className="text-2xl font-black mb-2">Waiting for approval</h3>
-                  <p className="text-sm text-zinc-400 mb-6">Please show this Cart ID at the billing counter to verify your items.</p>
-                  
-                  <div className="bg-[#141414] border border-white/5 px-6 py-3 rounded-2xl inline-block">
-                    <p className="text-[10px] text-zinc-500 uppercase tracking-[0.2em] mb-1">Cart ID</p>
-                    <p className="font-mono text-3xl font-black tracking-widest text-white">{cartId}</p>
-                  </div>
-                  
-                  <p className="text-[10px] text-zinc-600 mt-6 animate-pulse">Do not press back or close this app</p>
+                  <h3 className="text-2xl font-black mb-2">Processing Order</h3>
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest">Redirecting to checkout...</p>
                 </motion.div>
               )}
 
