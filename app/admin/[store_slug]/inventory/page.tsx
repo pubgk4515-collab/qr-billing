@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, use, useRef } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Plus, Search, Hash, Package, CheckCircle, 
-  Clock, X, ArrowLeft, Loader2, QrCode, Trash2
+  Plus, Search, Hash, Package, CheckCircle, Clock, X, ArrowLeft, 
+  Loader2, QrCode, Trash2, Edit2, Download, Smartphone, LayoutGrid, Image as ImageIcon
 } from 'lucide-react';
 import Link from 'next/link';
+// QR library for high quality download
+import { QRCodeCanvas } from 'qrcode.react';
 
 export default function InventoryPage({ params }: { params: Promise<{ store_slug: string }> }) {
   const resolvedParams = use(params);
@@ -16,7 +18,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
 
   // --- STATE MANAGEMENT ---
   const [storeData, setStoreData] = useState<any>(null);
-  const [inventory, setInventory] = useState<any[]>([]); // Ye ab qr_tags aur products ka mix hoga
+  const [inventory, setInventory] = useState<any[]>([]); // All tags from qr_tags join products
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   
@@ -24,44 +26,88 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Modals
+  // Modals States
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
   const [generateCount, setGenerateCount] = useState(10);
-  
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  // Selected Item For Edit/QR
+  const [selectedTagItem, setSelectedTagItem] = useState<any>(null);
+
+  // New/Edit Product States
   const [newItemName, setNewItemName] = useState('');
   const [newItemPrice, setNewItemPrice] = useState('');
+  const [editName, setEditName] = useState('');
+  const [editPrice, setEditPrice] = useState('');
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  // File Upload Ref
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const qrRef = useRef<HTMLDivElement>(null); // For QR canvas download
 
   // --- 1. THE RELATIONAL FETCH ---
   useEffect(() => {
     if (!safeStoreSlug) return;
-    async function fetchStoreAndInventory() {
+    async function fetchInitialData() {
       try {
         const { data: store } = await supabase.from('stores').select('*').ilike('slug', safeStoreSlug).single();
         if (store) {
           setStoreData(store);
-          fetchInventory(store.id);
+          fetchRealInventory(store.id);
         }
       } catch (err) { console.error(err); }
     }
-    fetchStoreAndInventory();
+    fetchInitialData();
   }, [safeStoreSlug]);
 
-  const fetchInventory = async (storeId: string) => {
-    // 💡 MAGIC QUERY: qr_tags aur products ko ek sath join karke laayega
+  // Real data fetch logic (replaces mock data)
+  const fetchRealInventory = async (storeId: string) => {
+    setLoading(true);
+    // 💡 MAGIC RELATIONAL QUERY: qr_tags with products
     const { data, error } = await supabase
       .from('qr_tags')
       .select(`
-        id,
-        status,
-        product_id,
-        products ( id, name, price, size )
+        id, status, product_id,
+        products ( id, name, price, size, image_url )
       `)
       .eq('store_id', storeId)
-      .order('id', { ascending: true }); // TAG001, TAG002 line se aayenge
+      .order('id', { ascending: true }); // Line se TAG001, TAG002...
     
     if (data) setInventory(data);
+    else if (error) console.error("Real fetch error:", error);
     setLoading(false);
+  };
+
+  // --- Image Upload Logic to Supabase Storage ---
+  const uploadImage = async (file: File) => {
+    if (!storeData) return null;
+    try {
+      setUploadProgress(10); // Start progress
+      const fileExt = file.name.split('.').pop();
+      // Filename standard: store_slug_item_timestamp.jpg
+      const fileName = `${safeStoreSlug}_item_${Date.now()}.${fileExt}`;
+      const filePath = `items/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('product-images') // Public bucket name
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Get Public URL
+      const { data } = supabase.storage
+        .from('product-images')
+        .getPublicUrl(filePath);
+      
+      setUploadProgress(100); // Done
+      return data.publicUrl;
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      setUploadProgress(0); // Reset on error
+      return null;
+    }
   };
 
   // --- 2. THE TAG GENERATOR ALGORITHM ---
@@ -70,7 +116,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
     setActionLoading(true);
 
     try {
-      // Find highest existing tag number (e.g. from 'TAG045' get 45)
+      // Find highest existing tag number
       let highestNum = 0;
       if (inventory.length > 0) {
         const lastTag = inventory[inventory.length - 1].id;
@@ -81,30 +127,21 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
       for (let i = 1; i <= generateCount; i++) {
         const newNum = highestNum + i;
         const formattedTag = `TAG${String(newNum).padStart(3, '0')}`;
-        newTags.push({
-          id: formattedTag, // Table me PK text hai
-          store_id: storeData.id,
-          status: 'free',
-          product_id: null
-        });
+        newTags.push({ id: formattedTag, store_id: storeData.id, status: 'free', product_id: null });
       }
 
       // Bulk Insert into qr_tags
       const { error } = await supabase.from('qr_tags').insert(newTags);
       if (error) throw error;
 
-      await fetchInventory(storeData.id);
+      await fetchRealInventory(storeData.id);
       setIsGenerateModalOpen(false);
       setGenerateCount(10);
-    } catch (err) {
-      alert("Error generating tags.");
-      console.error(err);
-    } finally {
-      setActionLoading(false);
-    }
+    } catch (err) { alert("Error generating tags."); console.error(err); } 
+    finally { setActionLoading(false); }
   };
 
-    // --- 3. THE ENTERPRISE LOWEST-ID BINDER ---
+  // --- 3. THE ENTERPRISE LOWEST-ID BINDER (FIXED & REAL) ---
   const handleAddProduct = async () => {
     if (!newItemName || !newItemPrice || !storeData) return alert("Pehle details bhariye!");
     
@@ -113,8 +150,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
 
     setActionLoading(true);
     try {
-      // 🚀 FIX: TypeScript ko bata diya ki ye list nahi hai
-      const lowestFreeTag: any = freeTags; 
+      const lowestFreeTag: any = freeTags; // Binding on lowest free ID
 
       // STEP A: Products table me naya kapda dalo
       const { data: newProductData, error: productError } = await supabase
@@ -123,14 +159,13 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
           name: newItemName,
           price: Number(newItemPrice),
           store_id: storeData.id,
-          size: 'Free Size' 
+          size: 'Free Size' // Defaut as schema
         })
         .select()
         .single();
 
       if (productError || !newProductData) throw productError;
 
-      // 🚀 FIX: Naye product ko bhi 'any' mark kar diya
       const newProduct: any = newProductData;
 
       // STEP B: qr_tags table me us kapde ki ID bind kar do
@@ -144,39 +179,88 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
 
       if (tagError) throw tagError;
 
-      await fetchInventory(storeData.id);
+      await fetchRealInventory(storeData.id);
       setIsAddModalOpen(false);
       setNewItemName('');
       setNewItemPrice('');
-    } catch (err) {
-      alert("Error adding product.");
-      console.error(err);
-    } finally {
-      setActionLoading(false);
-    }
+    } catch (err) { alert("Error adding product. Please check your Supabase Policies."); console.error(err); } 
+    finally { setActionLoading(false); }
   };
 
+  // --- EDIT PRODUCT LOGIC ---
+  const handleEditProduct = async () => {
+    if (!selectedTagItem?.products || !storeData) return;
+    setActionLoading(true);
+    try {
+      let imageUrl = selectedTagItem.products.image_url;
 
-  // --- 4. UNBIND ITEM (Trash Button) ---
+      // Check if new image is selected
+      const file = fileInputRef.current?.files?.[0];
+      if (file) {
+        imageUrl = await uploadImage(file); // Upload to storage
+      }
+
+      // Update products table
+      const { error } = await supabase
+        .from('products')
+        .update({
+          name: editName,
+          price: Number(editPrice),
+          image_url: imageUrl
+        })
+        .eq('id', selectedTagItem.product_id);
+
+      if (error) throw error;
+
+      await fetchRealInventory(storeData.id);
+      setIsEditModalOpen(false);
+      setSelectedTagItem(null);
+    } catch (error) { alert("Error editing product."); console.error(error); } 
+    finally { setActionLoading(false); setUploadProgress(0); }
+  };
+
+  // --- UNBIND ITEM (Trash Button) ---
   const handleUnbindItem = async (tagId: string) => {
     if(!confirm("Kya aap is product ko hatana chahte hain? Tag wapas Free ho jayega.")) return;
     try {
-      // Product delete nahi kar rahe (history ke liye), bas tag se connection tod rahe hain
       await supabase.from('qr_tags').update({ product_id: null, status: 'free' }).eq('id', tagId);
-      fetchInventory(storeData?.id);
+      fetchRealInventory(storeData?.id);
     } catch (error) { console.error(error); }
   };
 
-  // --- UI FILTERS ---
-  const totalTags = inventory.length;
-  const activeTags = inventory.filter(i => i.status === 'active' || i.status === 'sold').length; // Assuming sold is also not free
-  const freeTagsCount = inventory.filter(i => i.status === 'free').length;
+  // --- HIGH QUALITY QR DOWNLOAD ---
+  const handleDownloadQr = () => {
+    if (!qrRef.current || !selectedTagItem) return;
+    const canvas = qrRef.current.querySelector('canvas');
+    if (canvas) {
+      const pngUrl = canvas.toDataURL('image/png', 1.0); // 1.0 quality
+      const downloadLink = document.createElement('a');
+      downloadLink.href = pngUrl;
+      downloadLink.download = `${selectedTagItem.id}_HighRes.png`; // Filename: TAG001_HighRes.png
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+    }
+  };
 
+  // Open Modals
+  const openQrModal = (item: any) => { setSelectedTagItem(item); setIsQrModalOpen(true); };
+  const openEditModal = (item: any) => {
+    setSelectedTagItem(item);
+    setEditName(item.products?.name || '');
+    setEditPrice(item.products?.price || '');
+    setIsEditModalOpen(true);
+  };
+
+  // UI STATS Calculation from Real Data
+  const totalTags = inventory.length;
+  const activeTags = inventory.filter(i => i.status === 'active' || i.status === 'sold').length;
+  const freeTagsCount = totalTags - activeTags;
+
+  // Search & Filter Real Data
   const filteredInventory = inventory.filter(item => {
-    const searchLower = searchQuery.toLowerCase();
-    const matchesSearch = item.id.toLowerCase().includes(searchLower) || 
-                          (item.products?.name && item.products.name.toLowerCase().includes(searchLower));
-    
+    const matchesSearch = item.id.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          (item.products?.name && item.products.name.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesFilter = activeFilter === 'all' || item.status === activeFilter;
     return matchesSearch && matchesFilter;
   });
@@ -185,6 +269,8 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
 
   return (
     <div className="min-h-screen bg-[#050505] text-white pb-24 font-sans relative">
+      
+      {/* 👑 HEADER */}
       <header className="bg-[#0A0A0A]/90 backdrop-blur-md border-b border-white/5 sticky top-0 z-30 px-6 py-5">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -200,27 +286,26 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-8 flex flex-col gap-8">
+
+        {/* 📊 REAL STATS CARDS */}
         <div className="grid grid-cols-3 gap-3">
-          <div className="bg-[#0A0A0A] border border-white/5 p-5 rounded-[1.5rem] flex flex-col gap-1 shadow-lg">
-            <Hash className="w-5 h-5 mb-2 text-white" />
-            <p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest">Total Tags</p>
-            <h2 className="text-3xl font-black tracking-tighter">{totalTags}</h2>
-          </div>
-          <div className="bg-[#0A0A0A] border border-white/5 p-5 rounded-[1.5rem] flex flex-col gap-1 shadow-lg">
-            <CheckCircle className="w-5 h-5 mb-2 text-emerald-500" />
-            <p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest">Active Items</p>
-            <h2 className="text-3xl font-black tracking-tighter">{activeTags}</h2>
-          </div>
-          <div className="bg-[#0A0A0A] border border-white/5 p-5 rounded-[1.5rem] flex flex-col gap-1 shadow-lg">
-            <Clock className="w-5 h-5 mb-2 text-amber-500" />
-            <p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest">Free Tags</p>
-            <h2 className="text-3xl font-black tracking-tighter">{freeTagsCount}</h2>
-          </div>
+          {[
+            { label: 'Total Tags', value: totalTags, icon: Hash, color: 'text-white' },
+            { label: 'Active Items', value: activeTags, icon: CheckCircle, color: 'text-emerald-500' },
+            { label: 'Free Tags', value: freeTagsCount, icon: Clock, color: 'text-amber-500' },
+          ].map((stat, idx) => (
+            <div key={idx} className="bg-[#0A0A0A] border border-white/5 p-5 rounded-[1.5rem] flex flex-col gap-1 shadow-lg">
+              <stat.icon className={`w-5 h-5 mb-2 ${stat.color}`} />
+              <p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest">{stat.label}</p>
+              <h2 className="text-3xl font-black tracking-tighter">{stat.value}</h2>
+            </div>
+          ))}
         </div>
 
+        {/* ⚡ REAL QUICK ACTIONS */}
         <div className="grid grid-cols-2 gap-4">
-          <button onClick={() => setIsGenerateModalOpen(true)} className="bg-[#111] border border-white/5 hover:border-emerald-500/30 p-6 rounded-[2rem] flex flex-col items-center justify-center gap-3 transition-all active:scale-95">
-            <div className="w-14 h-14 bg-emerald-500/10 rounded-[1.2rem] flex items-center justify-center"><QrCode className="w-7 h-7 text-emerald-500" /></div>
+          <button onClick={() => setIsGenerateModalOpen(true)} className="bg-[#111] border border-white/5 hover:border-emerald-500/30 p-6 rounded-[2rem] flex flex-col items-center justify-center gap-3 transition-all active:scale-95 group">
+            <div className="w-14 h-14 bg-emerald-500/10 rounded-[1.2rem] flex items-center justify-center group-hover:scale-110 transition-transform"><QrCode className="w-7 h-7 text-emerald-500" /></div>
             <div className="text-center">
               <span className="text-sm font-black block">Generate Tags</span>
               <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mt-1 block">Bulk Create ID</span>
@@ -235,6 +320,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
           </button>
         </div>
 
+        {/* 🔍 REAL SEARCH & FILTER */}
         <div className="flex flex-col gap-4 mt-2">
           <div className="relative">
             <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
@@ -249,14 +335,20 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
           </div>
         </div>
 
+        {/* 📦 REAL TAG CARDS (REDESIGNED) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <AnimatePresence>
-            {filteredInventory.length === 0 && !loading && <p className="text-center col-span-full py-10 text-zinc-500 font-bold uppercase tracking-widest text-xs">No tags found.</p>}
-            
             {filteredInventory.map((item) => (
               <motion.div key={item.id} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className={`relative overflow-hidden p-6 rounded-[2rem] border transition-all ${item.status === 'free' ? 'border-dashed border-white/10 bg-transparent' : 'border-white/10 bg-[#111] shadow-xl'}`}>
                 
-                {item.status !== 'free' && <div className="absolute right-[-10px] top-[-10px] p-4 opacity-5"><Package className="w-32 h-32" /></div>}
+                {/* Product Actual Image */}
+                {item.status !== 'free' && (
+                    item.products?.image_url ? (
+                        <img src={item.products.image_url} alt="Item" className="absolute right-[-20px] top-[-20px] w-48 h-48 rounded-full object-cover opacity-10" />
+                    ) : (
+                        <div className="absolute right-[-10px] top-[-10px] p-4 opacity-5"><Package className="w-32 h-32" /></div>
+                    )
+                )}
                 
                 <div className="flex justify-between items-start mb-6 relative z-10">
                   <div>
@@ -265,8 +357,18 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
                     </span>
                     <h3 className="text-xl font-black tracking-tight mt-1">{item.status !== 'free' ? item.products?.name : 'Empty Tag'}</h3>
                   </div>
-                  {item.status === 'active' && (
-                    <button onClick={() => handleUnbindItem(item.id)} className="p-2 bg-red-500/10 text-red-500 rounded-full hover:bg-red-500/20 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                  
+                  {/* Action Buttons */}
+                  {item.status !== 'free' && (
+                    <div className="flex gap-1">
+                      <button onClick={() => openQrModal(item)} className="p-2 bg-white/5 text-zinc-400 rounded-lg hover:bg-white/10 transition-colors"><QrCode className="w-3.5 h-3.5" /></button>
+                      {item.status === 'active' && (
+                        <>
+                          <button onClick={() => openEditModal(item)} className="p-2 bg-white/5 text-zinc-400 rounded-lg hover:bg-white/10 transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => handleUnbindItem(item.id)} className="p-2 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500/20 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                        </>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -280,7 +382,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
                     </>
                   ) : (
                     <>
-                      <span className="text-xs text-zinc-600 font-bold">Ready to use</span>
+                      <span className="text-xs text-zinc-600 font-bold">Ready to bind</span>
                       <button onClick={() => setIsAddModalOpen(true)} className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] text-white font-black uppercase tracking-widest transition-all">Link Item</button>
                     </>
                   )}
@@ -295,7 +397,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
       <AnimatePresence>
         {isGenerateModalOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm sm:p-4">
-            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="bg-[#0A0A0A] w-full sm:max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] border border-white/10 p-8 relative">
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 28 }} className="bg-[#0A0A0A] w-full sm:max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] border border-white/10 p-8 relative">
               <button onClick={() => setIsGenerateModalOpen(false)} className="absolute top-6 right-6 p-2 bg-white/5 rounded-full"><X className="w-5 h-5 text-zinc-400" /></button>
               <div className="w-16 h-16 bg-[#111] rounded-[1.2rem] flex items-center justify-center mb-6"><QrCode className="w-8 h-8 text-emerald-500" /></div>
               <h2 className="text-2xl font-black mb-2">Generate Tags</h2>
@@ -307,7 +409,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
                  <button onClick={() => setGenerateCount(generateCount + 5)} className="w-14 h-14 bg-[#111] rounded-2xl text-xl font-black">+</button>
               </div>
 
-              <button onClick={handleGenerateTags} disabled={actionLoading} className="w-full bg-emerald-500 text-black font-black py-5 rounded-2xl flex justify-center items-center gap-2 active:scale-95 transition-transform">
+              <button onClick={handleGenerateTags} disabled={actionLoading} className="w-full bg-emerald-500 text-black font-black py-5 rounded-2xl flex justify-center items-center gap-2 active:scale-95 transition-transform disabled:opacity-50">
                 {actionLoading ? <Loader2 className="animate-spin" /> : 'Generate Now'}
               </button>
             </motion.div>
@@ -315,11 +417,11 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         )}
       </AnimatePresence>
 
-      {/* --- MODAL 2: ADD PRODUCT --- */}
+      {/* --- MODAL 2: ADD PRODUCT (REAL Relational Binder) --- */}
       <AnimatePresence>
         {isAddModalOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm sm:p-4">
-            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="bg-[#0A0A0A] w-full sm:max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] border border-white/10 p-8 relative">
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 28 }} className="bg-[#0A0A0A] w-full sm:max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] border border-white/10 p-8 relative min-h-[400px]">
               <button onClick={() => setIsAddModalOpen(false)} className="absolute top-6 right-6 p-2 bg-white/5 rounded-full"><X className="w-5 h-5 text-zinc-400" /></button>
               <div className="w-16 h-16 bg-[#111] rounded-[1.2rem] flex items-center justify-center mb-6"><Plus className="w-8 h-8 text-white" /></div>
               <h2 className="text-2xl font-black mb-2">Add New Product</h2>
@@ -333,13 +435,91 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
                  </div>
               </div>
 
-              <button onClick={handleAddProduct} disabled={actionLoading} className="w-full bg-white text-black font-black py-5 rounded-2xl flex justify-center items-center gap-2 active:scale-95 transition-transform">
+              <button onClick={handleAddProduct} disabled={actionLoading} className="w-full bg-white text-black font-black py-5 rounded-2xl flex justify-center items-center gap-2 active:scale-95 transition-transform disabled:opacity-50">
                 {actionLoading ? <Loader2 className="animate-spin" /> : 'Save & Bind Tag'}
               </button>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* --- FLOATING MODAL 3: QR CODE & DOWNLOAD (HIGH RES) --- */}
+      <AnimatePresence>
+        {isQrModalOpen && selectedTagItem && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-6">
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} className="bg-[#111] border border-white/10 p-8 rounded-[3rem] shadow-3xl text-center relative flex flex-col items-center">
+              <button onClick={() => { setIsQrModalOpen(false); setSelectedTagItem(null); }} className="absolute top-6 right-6 p-2 bg-white/5 rounded-full"><X className="w-5 h-5 text-zinc-400" /></button>
+              
+              <div ref={qrRef} className="p-4 bg-white rounded-3xl mb-6 shadow-xl">
+                 {/* High quality download canvas */}
+                 <QRCodeCanvas 
+                    value={`https://${store_slug}.vercel.app/p/${selectedTagItem.id}`} // The product URL
+                    size={256} // Large size for quality
+                    bgColor={"#ffffff"} fgColor={"#000000"} level={"H"} // High error correction
+                    includeMargin={false}
+                 />
+              </div>
+
+              <span className="text-4xl font-black tracking-tighter text-emerald-400">{selectedTagItem.id}</span>
+              <p className="text-zinc-500 text-sm mt-1 mb-6 font-bold uppercase tracking-widest">{selectedTagItem.products?.name || 'Empty Tag'}</p>
+
+              <button onClick={handleDownloadQr} className="px-8 py-4 bg-white text-black rounded-2xl font-black flex items-center gap-2 active:scale-95 transition-all">
+                <Download className="w-5 h-5" /> Download High-Res PNG
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* --- FLOATING MODAL 4: EDIT PRODUCT (With Image Upload) --- */}
+      <AnimatePresence>
+        {isEditModalOpen && selectedTagItem && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm sm:p-4">
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 28 }} className="bg-[#0A0A0A] w-full sm:max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] border border-white/10 p-8 relative">
+              <button onClick={() => { setIsEditModalOpen(false); setSelectedTagItem(null); setUploadProgress(0); }} className="absolute top-6 right-6 p-2 bg-white/5 rounded-full z-10"><X className="w-5 h-5 text-zinc-400" /></button>
+              
+              <div className="w-full flex items-center gap-4 mb-6">
+                 {selectedTagItem.products?.image_url ? (
+                    <img src={selectedTagItem.products.image_url} alt="Image" className="w-16 h-16 rounded-2xl object-cover border border-white/10" />
+                 ) : (
+                    <div className="w-16 h-16 bg-[#111] rounded-2xl flex items-center justify-center border border-white/10"><ImageIcon className="w-8 h-8 text-zinc-600" /></div>
+                 )}
+                 <div>
+                   <h2 className="text-2xl font-black leading-tight">Edit <span className="text-emerald-400">{selectedTagItem.id}</span></h2>
+                   <p className="text-xs text-zinc-500 uppercase tracking-widest font-black">Link to {selectedTagItem.products?.name}</p>
+                 </div>
+              </div>
+              
+              <div className="flex flex-col gap-4 mb-8">
+                 {/* Product Details */}
+                 <input type="text" placeholder="Product Name" value={editName} onChange={e => setEditName(e.target.value)} className="w-full bg-[#111] border border-white/10 rounded-xl py-4 px-5 font-bold focus:outline-none focus:border-white/30" />
+                 <div className="relative">
+                   <span className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-500 font-black">₹</span>
+                   <input type="number" placeholder="Price" value={editPrice} onChange={e => setEditPrice(e.target.value)} className="w-full bg-[#111] border border-white/10 rounded-xl py-4 pl-10 pr-5 font-bold focus:outline-none focus:border-white/30" />
+                 </div>
+                 
+                 {/* Image Upload Area */}
+                 <div className="border-2 border-dashed border-white/10 rounded-2xl p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-emerald-500/30 group">
+                   <ImageIcon className="w-8 h-8 text-zinc-600 group-hover:text-emerald-500 mb-2 transition-colors" />
+                   <p className="text-xs text-zinc-500 font-bold group-hover:text-white mb-3">Upload new image</p>
+                   <input type="file" ref={fileInputRef} accept="image/*" className="text-xs text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-black file:bg-white file:text-black hover:file:bg-zinc-200 cursor-pointer" />
+                   
+                   {uploadProgress > 0 && (
+                     <div className="w-full h-1.5 bg-white/5 rounded-full mt-4 overflow-hidden">
+                        <motion.div animate={{ width: `${uploadProgress}%` }} className="h-full bg-emerald-500" />
+                     </div>
+                   )}
+                 </div>
+              </div>
+
+              <button onClick={handleEditProduct} disabled={actionLoading} className="w-full bg-white text-black font-black py-5 rounded-2xl flex justify-center items-center gap-2 active:scale-95 disabled:opacity-50 transition-transform shadow-xl">
+                {actionLoading ? <Loader2 className="animate-spin" /> : 'Save Changes'}
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }
