@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Plus, Search, Hash, Package, CheckCircle, Clock, X, ArrowLeft, 
   Loader2, QrCode, Trash2, Edit2, Download, Image as ImageIcon,
-  BarChart3, Settings // Naye icons
+  BarChart3, Settings 
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -23,7 +23,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
   const [inventory, setInventory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [themeColor, setThemeColor] = useState('#10b981'); // Default Emerald
+  const [themeColor, setThemeColor] = useState('#10b981'); 
   
   // UI States
   const [activeFilter, setActiveFilter] = useState('all');
@@ -40,13 +40,11 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
   const [selectedTagItem, setSelectedTagItem] = useState<any>(null);
   const [bindingTagId, setBindingTagId] = useState<string | null>(null);
 
-  // New/Edit Product States
   const [newItemName, setNewItemName] = useState('');
   const [newItemPrice, setNewItemPrice] = useState('');
   const [editName, setEditName] = useState('');
   const [editPrice, setEditPrice] = useState('');
   
-  // Upload Progress States
   const [uploadProgress, setUploadProgress] = useState(0); 
   const [addUploadProgress, setAddUploadProgress] = useState(0); 
   
@@ -54,7 +52,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
   const addFileInputRef = useRef<HTMLInputElement>(null); 
   const qrRef = useRef<HTMLDivElement>(null);
 
-  // --- 1. THE RELATIONAL FETCH ---
+  // --- 1. THE RELATIONAL FETCH & SILENT REFRESHER ---
   useEffect(() => {
     if (!safeStoreSlug) return;
     async function fetchInitialData() {
@@ -63,15 +61,25 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         if (store) {
           setStoreData(store);
           setThemeColor(store.theme_color || '#10b981');
-          fetchRealInventory(store.id);
+          fetchRealInventory(store.id, false); // First load = show loader
         }
       } catch (err) { console.error(err); }
     }
     fetchInitialData();
   }, [safeStoreSlug]);
 
-  const fetchRealInventory = async (storeId: string) => {
-    setLoading(true);
+  // 🔥 SILENT POLLING (Har 3 second me background refresh bina spinner ke)
+  useEffect(() => {
+    if (!storeData) return;
+    const interval = setInterval(() => {
+      fetchRealInventory(storeData.id, true); // true = silent refresh
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [storeData]);
+
+  // isSilent = true se page blink nahi karega
+  const fetchRealInventory = async (storeId: string, isSilent = false) => {
+    if (!isSilent) setLoading(true);
     const { data, error } = await supabase
       .from('qr_tags')
       .select(`id, status, product_id, products ( id, name, price, size, image_url )`)
@@ -80,7 +88,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
     
     if (data) setInventory(data);
     else if (error) console.error("Real fetch error:", error);
-    setLoading(false);
+    if (!isSilent) setLoading(false);
   };
 
   const uploadImage = async (file: File, setProgress: (val: number) => void) => {
@@ -104,112 +112,76 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
     }
   };
 
-  // --- 2. GENERATE TAGS ---
+  // --- ACTIONS (Ab sab silent refresh marenge, page jump nahi hoga) ---
   const handleGenerateTags = async () => {
     if (generateCount <= 0 || !storeData) return;
     setActionLoading(true);
     try {
       let highestNum = 0;
       if (inventory.length > 0) {
-        // Find highest existing TAG number
         const numbers = inventory.map(item => parseInt(item.id.replace('TAG', '')) || 0);
         highestNum = Math.max(...numbers, 0);
       }
-
       const newTags = [];
       for (let i = 1; i <= generateCount; i++) {
         const newNum = highestNum + i;
         const formattedTag = `TAG${String(newNum).padStart(3, '0')}`;
         newTags.push({ id: formattedTag, store_id: storeData.id, status: 'free', product_id: null });
       }
-
-      const { error } = await supabase.from('qr_tags').insert(newTags);
-      if (error) throw error;
-
-      await fetchRealInventory(storeData.id);
+      await supabase.from('qr_tags').insert(newTags);
+      await fetchRealInventory(storeData.id, true); // Silent Update
       setIsGenerateModalOpen(false);
       setGenerateCount(10);
-    } catch (err) { alert("Error generating tags."); console.error(err); } 
+    } catch (err) { alert("Error generating tags."); } 
     finally { setActionLoading(false); }
   };
 
-  // --- 3. TARGETED / LOWEST BINDER ---
   const handleAddProduct = async () => {
     if (!newItemName || !newItemPrice || !storeData) return alert("Pehle details bhariye!");
-    
     let targetTagToBind: any = null;
-
     if (bindingTagId) {
       targetTagToBind = inventory.find(i => i.id === bindingTagId);
     } else {
       const freeTags = inventory.filter(item => item.status === 'free');
-      if (freeTags.length === 0) return alert("Koi Free Tag bacha nahi hai! Naye generate karein.");
-      targetTagToBind = freeTags; // Binding to lowest available free tag
+      if (freeTags.length === 0) return alert("Koi Free Tag bacha nahi hai!");
+      targetTagToBind = freeTags; 
     }
-
     if (!targetTagToBind) return alert("Tag nahi mila!");
 
     setActionLoading(true);
     try {
       let imageUrl = null;
       const file = addFileInputRef.current?.files?.[0]; 
-      if (file) {
-        imageUrl = await uploadImage(file, setAddUploadProgress);
-      }
+      if (file) imageUrl = await uploadImage(file, setAddUploadProgress);
 
-      const { data: newProductData, error: productError } = await supabase
+      const { data: newProductData } = await supabase
         .from('products')
-        .insert({
-          name: newItemName,
-          price: Number(newItemPrice),
-          store_id: storeData.id,
-          size: 'Free Size',
-          image_url: imageUrl 
-        })
-        .select()
-        .single();
+        .insert({ name: newItemName, price: Number(newItemPrice), store_id: storeData.id, size: 'Free Size', image_url: imageUrl })
+        .select().single();
 
-      if (productError || !newProductData) throw productError;
-      const newProduct: any = newProductData;
+      await supabase.from('qr_tags').update({ product_id: newProductData.id, status: 'active' }).eq('id', targetTagToBind.id);
 
-      const { error: tagError } = await supabase
-        .from('qr_tags')
-        .update({
-          product_id: newProduct.id,
-          status: 'active'
-        })
-        .eq('id', targetTagToBind.id);
-
-      if (tagError) throw tagError;
-
-      await fetchRealInventory(storeData.id);
+      await fetchRealInventory(storeData.id, true); // Silent Update
       setIsAddModalOpen(false);
-      setNewItemName('');
-      setNewItemPrice('');
-      setAddUploadProgress(0);
-      setBindingTagId(null); 
-    } catch (err) { alert("Error adding product."); console.error(err); } 
+      setNewItemName(''); setNewItemPrice(''); setAddUploadProgress(0); setBindingTagId(null); 
+    } catch (err) { alert("Error adding product."); } 
     finally { setActionLoading(false); }
   };
 
-  // --- EDIT PRODUCT ---
   const handleEditProduct = async () => {
     if (!selectedTagItem?.products || !storeData) return;
     setActionLoading(true);
     try {
       let imageUrl = selectedTagItem.products.image_url;
       const file = fileInputRef.current?.files?.[0]; 
-      if (file) {
-        imageUrl = await uploadImage(file, setUploadProgress); 
-      }
+      if (file) imageUrl = await uploadImage(file, setUploadProgress); 
 
-      const { error } = await supabase.from('products').update({ name: editName, price: Number(editPrice), image_url: imageUrl }).eq('id', selectedTagItem.product_id);
-      if (error) throw error;
-
-      await fetchRealInventory(storeData.id);
+      await supabase.from('products').update({ name: editName, price: Number(editPrice), image_url: imageUrl }).eq('id', selectedTagItem.product_id);
+      
+      await fetchRealInventory(storeData.id, true); // Silent Update
       setIsEditModalOpen(false);
       setSelectedTagItem(null);
-    } catch (error) { alert("Error editing product."); console.error(error); } 
+    } catch (error) { alert("Error editing product."); } 
     finally { setActionLoading(false); setUploadProgress(0); }
   };
 
@@ -217,7 +189,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
     if(!confirm("Kya aap is product ko hatana chahte hain? Tag wapas Free ho jayega.")) return;
     try {
       await supabase.from('qr_tags').update({ product_id: null, status: 'free' }).eq('id', tagId);
-      fetchRealInventory(storeData?.id);
+      fetchRealInventory(storeData?.id, true); // Silent Update
     } catch (error) { console.error(error); }
   };
 
@@ -236,29 +208,16 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
   };
 
   const openQrModal = (item: any) => { setSelectedTagItem(item); setIsQrModalOpen(true); };
-  const openEditModal = (item: any) => {
-    setSelectedTagItem(item);
-    setEditName(item.products?.name || '');
-    setEditPrice(item.products?.price || '');
-    setIsEditModalOpen(true);
-  };
+  const openEditModal = (item: any) => { setSelectedTagItem(item); setEditName(item.products?.name || ''); setEditPrice(item.products?.price || ''); setIsEditModalOpen(true); };
+  const openAddModalForSpecificTag = (tagId: string) => { setBindingTagId(tagId); setIsAddModalOpen(true); };
 
-  const openAddModalForSpecificTag = (tagId: string) => {
-    setBindingTagId(tagId);
-    setIsAddModalOpen(true);
-  };
-
-  // Status Counts
   const totalTags = inventory.length;
   const activeTags = inventory.filter(i => i.status === 'active').length;
-  // Free = purely free. Sold = can be repurposed.
   const freeTagsCount = inventory.filter(i => i.status === 'free' || i.status === 'sold').length; 
 
   const filteredInventory = inventory.filter(item => {
     const searchLower = searchQuery.toLowerCase();
     const matchesSearch = item.id.toLowerCase().includes(searchLower) || (item.products?.name && item.products.name.toLowerCase().includes(searchLower));
-    
-    // Logic for filter tabs
     if (activeFilter === 'all') return matchesSearch;
     if (activeFilter === 'in_cart') return matchesSearch && item.status === 'in_cart';
     return matchesSearch && item.status === activeFilter;
@@ -271,44 +230,49 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
       
       {/* 👑 TOP NAV BAR */}
       <header className="bg-[#0A0A0A]/90 backdrop-blur-md border-b border-white/5 sticky top-0 z-30 px-6 py-5">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href={`/admin/${safeStoreSlug}`} className="p-3 bg-white/5 rounded-full hover:bg-white/10 transition-colors">
-              <ArrowLeft className="w-5 h-5 text-zinc-300" />
-            </Link>
-            <div>
-              <h1 className="text-2xl font-black tracking-tight leading-none">Inventory</h1>
-              <p className="text-[10px] uppercase tracking-widest font-bold mt-1" style={{ color: themeColor }}>Manage Tags & Stock</p>
-            </div>
-          </div>
-          
-          {/* FLOATING ACTION BUTTONS (Top Right) */}
-          <div className="flex items-center gap-2">
-            <button onClick={() => router.push(`/admin/${safeStoreSlug}/analytics`)} className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-zinc-300" />
-              <span className="text-[10px] font-black uppercase tracking-widest hidden sm:block">Analytics</span>
-            </button>
-            <button onClick={() => router.push(`/admin/${safeStoreSlug}`)} className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors flex items-center gap-2 border border-white/10 shadow-lg">
-               <Settings className="w-4 h-4" style={{ color: themeColor }} />
-               <span className="text-[10px] font-black uppercase tracking-widest hidden sm:block">Admin</span>
-            </button>
+        <div className="max-w-5xl mx-auto flex items-center gap-4">
+          <Link href={`/admin/${safeStoreSlug}`} className="p-3 bg-white/5 rounded-full hover:bg-white/10 transition-colors">
+            <ArrowLeft className="w-5 h-5 text-zinc-300" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-black tracking-tight leading-none">Inventory</h1>
+            <p className="text-[10px] uppercase tracking-widest font-bold mt-1" style={{ color: themeColor }}>Manage Tags & Stock</p>
           </div>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-6 py-8 flex flex-col gap-8">
+      {/* 🚀 FLOATING ADMIN & ANALYTICS BUTTONS (UPPER RIGHT) */}
+      <div className="fixed top-24 right-4 sm:right-6 z-40 flex flex-col gap-3">
+        <button 
+          onClick={() => router.push(`/admin/${safeStoreSlug}/analytics`)} 
+          className="p-3 sm:px-4 sm:py-3 rounded-2xl flex items-center gap-2 shadow-[0_10px_40px_rgba(0,0,0,0.5)] transition-all hover:scale-105 active:scale-95" 
+          style={{ backgroundColor: themeColor, color: '#fff' }}
+        >
+          <BarChart3 className="w-5 h-5" />
+          <span className="text-[10px] font-black uppercase tracking-widest hidden sm:block">Analytics</span>
+        </button>
+        <button 
+          onClick={() => router.push(`/admin/${safeStoreSlug}`)} 
+          className="p-3 sm:px-4 sm:py-3 bg-[#111] rounded-2xl flex items-center gap-2 border border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.5)] transition-all hover:scale-105 active:scale-95"
+        >
+           <Settings className="w-5 h-5" style={{ color: themeColor }} />
+           <span className="text-[10px] font-black uppercase tracking-widest text-zinc-300 hidden sm:block">Admin</span>
+        </button>
+      </div>
+
+      <main className="max-w-5xl mx-auto px-6 py-8 flex flex-col gap-8 mt-4">
         
         {/* STATS ROW */}
         <div className="grid grid-cols-3 gap-3">
           {[
             { label: 'Total Tags', value: totalTags, icon: Hash, color: '#ffffff' },
-            { label: 'Active Items', value: activeTags, icon: CheckCircle, color: themeColor },
+            { label: 'Active', value: activeTags, icon: CheckCircle, color: themeColor },
             { label: 'Free Tags', value: freeTagsCount, icon: Clock, color: '#f59e0b' },
           ].map((stat, idx) => (
-            <div key={idx} className="bg-[#0A0A0A] border border-white/5 p-5 rounded-[1.5rem] flex flex-col gap-1 shadow-lg">
+            <div key={idx} className="bg-[#0A0A0A] border border-white/5 p-4 sm:p-5 rounded-[1.5rem] flex flex-col gap-1 shadow-lg">
               <stat.icon className="w-5 h-5 mb-2" style={{ color: stat.color }} />
-              <p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest">{stat.label}</p>
-              <h2 className="text-3xl font-black tracking-tighter">{stat.value}</h2>
+              <p className="text-[8px] sm:text-[9px] text-zinc-500 uppercase font-black tracking-widest">{stat.label}</p>
+              <h2 className="text-2xl sm:text-3xl font-black tracking-tighter">{stat.value}</h2>
             </div>
           ))}
         </div>
@@ -321,20 +285,18 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
             </div>
             <div className="text-center">
               <span className="text-sm font-black block">Generate Tags</span>
-              <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mt-1 block">Bulk Create ID</span>
             </div>
           </button>
           <button onClick={() => { setBindingTagId(null); setIsAddModalOpen(true); }} className="bg-white text-black p-6 rounded-[2rem] flex flex-col items-center justify-center gap-3 transition-all hover:bg-zinc-200 active:scale-95 shadow-xl">
             <div className="w-14 h-14 bg-black/5 rounded-[1.2rem] flex items-center justify-center"><Plus className="w-8 h-8" /></div>
             <div className="text-center">
               <span className="text-sm font-black block">Add Product</span>
-              <span className="text-[10px] text-zinc-600 uppercase font-bold tracking-widest mt-1 block">Bind to Lowest ID</span>
             </div>
           </button>
         </div>
 
         {/* SEARCH & FILTERS */}
-        <div className="flex flex-col gap-4 mt-2">
+        <div className="flex flex-col gap-4">
           <div className="relative">
             <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
             <input type="text" placeholder="Search by Tag or Name..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-[#0A0A0A] border border-white/10 rounded-2xl py-4 pl-14 pr-4 text-base font-bold focus:outline-none focus:border-white/20" />
@@ -342,11 +304,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
           
           <div className="flex flex-wrap gap-2 bg-[#0A0A0A] p-1.5 rounded-2xl border border-white/5 overflow-x-auto">
             {['all', 'active', 'in_cart', 'sold', 'free'].map((f) => (
-              <button 
-                key={f} 
-                onClick={() => setActiveFilter(f)} 
-                className={`flex-1 min-w-[80px] py-3 rounded-xl text-[10px] sm:text-[11px] font-black uppercase tracking-widest transition-all ${activeFilter === f ? 'bg-white text-black shadow-md' : 'text-zinc-500 hover:text-white'}`}
-              >
+              <button key={f} onClick={() => setActiveFilter(f)} className={`flex-1 min-w-[70px] py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeFilter === f ? 'bg-white text-black shadow-md' : 'text-zinc-500 hover:text-white'}`}>
                 {f.replace('_', ' ')}
               </button>
             ))}
@@ -357,24 +315,19 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <AnimatePresence>
             {filteredInventory.map((item) => (
-              <motion.div 
-                key={item.id} 
-                layout 
-                initial={{ opacity: 0, scale: 0.95 }} 
-                animate={{ opacity: 1, scale: 1 }} 
-                exit={{ opacity: 0, scale: 0.9 }} 
+              <motion.div key={item.id} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} 
                 className={`relative overflow-hidden p-6 rounded-[2rem] border transition-all ${
                   item.status === 'free' ? 'border-dashed border-white/10 bg-transparent' : 
                   item.status === 'sold' ? 'border-white/5 bg-[#0a0a0a]' : 
-                  item.status === 'in_cart' ? 'border-amber-500/20 bg-amber-500/5 shadow-lg' : // Highlight items in cart
+                  item.status === 'in_cart' ? 'border-amber-500/30 bg-[#111] shadow-[0_0_20px_rgba(245,158,11,0.05)]' : 
                   'border-white/10 bg-[#111] shadow-xl'
                 }`}
               >
                 
-                {/* Background Image (Active or In Cart) */}
+                {/* 🔥 FIXED OPACITY: Now opacity-30 so product is clearly visible */}
                 {(item.status === 'active' || item.status === 'in_cart') && (
                     item.products?.image_url ? (
-                        <img src={item.products.image_url} alt="Item" className="absolute right-[-20px] top-[-20px] w-48 h-48 rounded-full object-cover opacity-10" />
+                        <img src={item.products.image_url} alt="Item" className="absolute right-[-20px] top-[-20px] w-48 h-48 rounded-full object-cover opacity-30 mix-blend-lighten" />
                     ) : (
                         <div className="absolute right-[-10px] top-[-10px] p-4 opacity-5"><Package className="w-32 h-32" /></div>
                     )
@@ -397,26 +350,25 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
                   {/* Action Buttons */}
                   {(item.status === 'active' || item.status === 'in_cart') && (
                     <div className="flex gap-1">
-                      <button onClick={() => openQrModal(item)} className="p-2 bg-white/5 text-zinc-400 rounded-lg hover:bg-white/10 transition-colors"><QrCode className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => openEditModal(item)} className="p-2 bg-white/5 text-zinc-400 rounded-lg hover:bg-white/10 transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
-                      {/* You can still delete an item even if it's in someone's cart, it will force remove it for them later */}
-                      <button onClick={() => handleUnbindItem(item.id)} className="p-2 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500/20 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => openQrModal(item)} className="p-2 bg-black/40 backdrop-blur-md border border-white/5 text-zinc-300 rounded-xl hover:bg-white/10 transition-colors"><QrCode className="w-4 h-4" /></button>
+                      <button onClick={() => openEditModal(item)} className="p-2 bg-black/40 backdrop-blur-md border border-white/5 text-zinc-300 rounded-xl hover:bg-white/10 transition-colors"><Edit2 className="w-4 h-4" /></button>
+                      <button onClick={() => handleUnbindItem(item.id)} className="p-2 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500/20 transition-colors"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   )}
                 </div>
 
-                {/* BOTTOM ROW: Price & Status Actions */}
+                {/* BOTTOM ROW */}
                 <div className="flex items-center justify-between relative z-10">
                   
                   {(item.status === 'active' || item.status === 'in_cart') ? (
                     <>
                       <div className="text-2xl font-black">₹{item.products?.price}</div>
                       
-                      {/* 🔥 THE NEW STATUS BADGE FOR IN_CART */}
+                      {/* 🔥 SMALL, CLEAN "IN BAG" BADGE */}
                       {item.status === 'in_cart' ? (
                          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20">
-                           <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                           <span className="text-[9px] font-black uppercase tracking-widest text-amber-500">Item in Bag</span>
+                           <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                           <span className="text-[9px] font-black uppercase tracking-widest text-amber-500">In Bag</span>
                          </div>
                       ) : (
                          <div className="text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest" style={{ backgroundColor: `${themeColor}1A`, color: themeColor }}>
@@ -430,7 +382,6 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
                         {item.status === 'sold' && <div className="w-fit text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest bg-red-500/10 text-red-400">SOLD</div>}
                         <span className="text-xs text-zinc-600 font-bold">{item.status === 'sold' ? 'Tag ready to reuse' : 'Ready to bind'}</span>
                       </div>
-                      
                       <button onClick={() => openAddModalForSpecificTag(item.id)} className="px-5 py-2.5 bg-white text-black hover:bg-zinc-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg">
                         Link Item
                       </button>
@@ -443,8 +394,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         </div>
       </main>
 
-      {/* --- ALL MODALS REMAIN THE SAME --- */}
-      
+      {/* --- MODALS (Unchanged except Add Modal uses silent refresh internally) --- */}
       {/* 1. ADD PRODUCT MODAL */}
       <AnimatePresence>
         {isAddModalOpen && (
@@ -456,9 +406,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
               <h2 className="text-2xl font-black mb-2">
                 {bindingTagId ? `Link to ${bindingTagId}` : 'Add New Product'}
               </h2>
-              <p className="text-zinc-500 text-sm mb-6">
-                {bindingTagId ? 'Ye product is specific tag se jud jayega.' : 'Ye product automatically sabse chhote Free Tag se jud jayega.'}
-              </p>
+              <p className="text-zinc-500 text-sm mb-6">Ye product khali tag se jud jayega.</p>
               
               <div className="flex flex-col gap-4 mb-8">
                  <input type="text" placeholder="Product Name (e.g. Linen Shirt)" value={newItemName} onChange={e => setNewItemName(e.target.value)} className="w-full bg-[#111] border border-white/10 rounded-xl py-4 px-5 font-bold focus:outline-none focus:border-white/30" />
@@ -466,13 +414,10 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
                    <span className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-500 font-black">₹</span>
                    <input type="number" placeholder="Price" value={newItemPrice} onChange={e => setNewItemPrice(e.target.value)} className="w-full bg-[#111] border border-white/10 rounded-xl py-4 pl-10 pr-5 font-bold focus:outline-none focus:border-white/30" />
                  </div>
-
-                 {/* IMAGE UPLOAD AREA */}
                  <div className="border-2 border-dashed border-white/10 rounded-2xl p-5 flex flex-col items-center justify-center text-center cursor-pointer hover:border-white/30 group transition-colors">
                    <ImageIcon className="w-8 h-8 text-zinc-600 group-hover:text-white mb-2 transition-colors" />
                    <p className="text-xs text-zinc-500 font-bold group-hover:text-white mb-3">Upload a photo</p>
                    <input type="file" ref={addFileInputRef} accept="image/*" className="text-xs text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-black file:bg-white file:text-black hover:file:bg-zinc-200 cursor-pointer" />
-                   
                    {addUploadProgress > 0 && (
                      <div className="w-full h-1.5 bg-white/5 rounded-full mt-4 overflow-hidden">
                         <motion.div animate={{ width: `${addUploadProgress}%` }} className="h-full" style={{ backgroundColor: themeColor }} />
