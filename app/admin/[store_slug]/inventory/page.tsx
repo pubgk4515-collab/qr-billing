@@ -41,9 +41,14 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
   const [newItemPrice, setNewItemPrice] = useState('');
   const [editName, setEditName] = useState('');
   const [editPrice, setEditPrice] = useState('');
-  const [uploadProgress, setUploadProgress] = useState(0);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Upload Progress States
+  const [uploadProgress, setUploadProgress] = useState(0); // Edit form ke liye
+  const [addUploadProgress, setAddUploadProgress] = useState(0); // Add form ke liye
+  
+  // File Input Refs
+  const fileInputRef = useRef<HTMLInputElement>(null); // Edit form ke liye
+  const addFileInputRef = useRef<HTMLInputElement>(null); // Add form ke liye
   const qrRef = useRef<HTMLDivElement>(null);
 
   // --- 1. THE RELATIONAL FETCH ---
@@ -74,10 +79,11 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
     setLoading(false);
   };
 
-  const uploadImage = async (file: File) => {
+  // 📸 Universal Upload Logic
+  const uploadImage = async (file: File, setProgress: (val: number) => void) => {
     if (!storeData) return null;
     try {
-      setUploadProgress(10);
+      setProgress(10);
       const fileExt = file.name.split('.').pop();
       const fileName = `${safeStoreSlug}_item_${Date.now()}.${fileExt}`;
       const filePath = `items/${fileName}`;
@@ -86,11 +92,11 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
       if (uploadError) throw uploadError;
 
       const { data } = supabase.storage.from('product-images').getPublicUrl(filePath);
-      setUploadProgress(100);
+      setProgress(100);
       return data.publicUrl;
     } catch (error) {
       console.error('Error uploading:', error);
-      setUploadProgress(0);
+      setProgress(0);
       return null;
     }
   };
@@ -123,17 +129,15 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
     finally { setActionLoading(false); }
   };
 
-  // --- 3. TARGETED / LOWEST BINDER ---
+  // --- 3. TARGETED / LOWEST BINDER (WITH IMAGE) ---
   const handleAddProduct = async () => {
     if (!newItemName || !newItemPrice || !storeData) return alert("Pehle details bhariye!");
     
     let targetTagToBind: any = null;
 
     if (bindingTagId) {
-      // Agar direct card se link dabaya hai
       targetTagToBind = inventory.find(i => i.id === bindingTagId);
     } else {
-      // Agar main Add button dabaya hai toh lowest free dhoondo
       const freeTags = inventory.filter(item => item.status === 'free');
       if (freeTags.length === 0) return alert("Koi Free Tag bacha nahi hai! Naye generate karein.");
       targetTagToBind = freeTags; 
@@ -143,6 +147,12 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
 
     setActionLoading(true);
     try {
+      let imageUrl = null;
+      const file = addFileInputRef.current?.files?.[0]; // Add form wala photo
+      if (file) {
+        imageUrl = await uploadImage(file, setAddUploadProgress);
+      }
+
       // Products table me naya kapda dalo
       const { data: newProductData, error: productError } = await supabase
         .from('products')
@@ -150,7 +160,8 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
           name: newItemName,
           price: Number(newItemPrice),
           store_id: storeData.id,
-          size: 'Free Size' 
+          size: 'Free Size',
+          image_url: imageUrl // 🔥 Image URL yahan bind ho rahi hai
         })
         .select()
         .single();
@@ -158,7 +169,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
       if (productError || !newProductData) throw productError;
       const newProduct: any = newProductData;
 
-      // qr_tags update karo (is se SOLD bhi wapas ACTIVE ho jayega)
+      // qr_tags update karo
       const { error: tagError } = await supabase
         .from('qr_tags')
         .update({
@@ -173,19 +184,22 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
       setIsAddModalOpen(false);
       setNewItemName('');
       setNewItemPrice('');
-      setBindingTagId(null); // Reset
+      setAddUploadProgress(0);
+      setBindingTagId(null); 
     } catch (err) { alert("Error adding product."); console.error(err); } 
     finally { setActionLoading(false); }
   };
 
-  // --- EDIT PRODUCT ---
+  // --- EDIT PRODUCT (WITH IMAGE) ---
   const handleEditProduct = async () => {
     if (!selectedTagItem?.products || !storeData) return;
     setActionLoading(true);
     try {
       let imageUrl = selectedTagItem.products.image_url;
-      const file = fileInputRef.current?.files?.[0];
-      if (file) imageUrl = await uploadImage(file); 
+      const file = fileInputRef.current?.files?.[0]; // Edit form wala photo
+      if (file) {
+        imageUrl = await uploadImage(file, setUploadProgress); 
+      }
 
       const { error } = await supabase.from('products').update({ name: editName, price: Number(editPrice), image_url: imageUrl }).eq('id', selectedTagItem.product_id);
       if (error) throw error;
@@ -234,7 +248,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
 
   const totalTags = inventory.length;
   const activeTags = inventory.filter(i => i.status === 'active').length;
-  const freeTagsCount = inventory.filter(i => i.status === 'free' || i.status === 'sold').length; // Sold is practically free
+  const freeTagsCount = inventory.filter(i => i.status === 'free' || i.status === 'sold').length;
 
   const filteredInventory = inventory.filter(item => {
     const searchLower = searchQuery.toLowerCase();
@@ -308,7 +322,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
             {filteredInventory.map((item) => (
               <motion.div key={item.id} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className={`relative overflow-hidden p-6 rounded-[2rem] border transition-all ${item.status === 'free' ? 'border-dashed border-white/10 bg-transparent' : item.status === 'sold' ? 'border-white/5 bg-[#0a0a0a]' : 'border-white/10 bg-[#111] shadow-xl'}`}>
                 
-                {/* Image sirf Active pe dikhegi, Sold pe nahi */}
+                {/* Image sirf Active pe dikhegi */}
                 {item.status === 'active' && (
                     item.products?.image_url ? (
                         <img src={item.products.image_url} alt="Item" className="absolute right-[-20px] top-[-20px] w-48 h-48 rounded-full object-cover opacity-10" />
@@ -348,7 +362,6 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
                         <span className="text-xs text-zinc-600 font-bold">{item.status === 'sold' ? 'Tag ready to reuse' : 'Ready to bind'}</span>
                       </div>
                       
-                      {/* 🔥 THE MAGIC RE-LINK BUTTON FOR SOLD & FREE */}
                       <button onClick={() => openAddModalForSpecificTag(item.id)} className="px-5 py-2.5 bg-white text-black hover:bg-zinc-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg">
                         Link Item
                       </button>
@@ -361,12 +374,12 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         </div>
       </main>
 
-      {/* --- ADD PRODUCT MODAL --- */}
+      {/* --- ADD PRODUCT MODAL (IMAGE READY) --- */}
       <AnimatePresence>
         {isAddModalOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm sm:p-4">
             <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 28 }} className="bg-[#0A0A0A] w-full sm:max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] border border-white/10 p-8 relative min-h-[400px]">
-              <button onClick={() => setIsAddModalOpen(false)} className="absolute top-6 right-6 p-2 bg-white/5 rounded-full"><X className="w-5 h-5 text-zinc-400" /></button>
+              <button onClick={() => { setIsAddModalOpen(false); setAddUploadProgress(0); }} className="absolute top-6 right-6 p-2 bg-white/5 rounded-full z-10"><X className="w-5 h-5 text-zinc-400" /></button>
               <div className="w-16 h-16 bg-[#111] rounded-[1.2rem] flex items-center justify-center mb-6"><Plus className="w-8 h-8 text-white" /></div>
               
               <h2 className="text-2xl font-black mb-2">
@@ -377,14 +390,27 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
               </p>
               
               <div className="flex flex-col gap-4 mb-8">
-                 <input type="text" placeholder="Product Name (e.g. Linen Shirt)" value={newItemName} onChange={e => setNewItemName(e.target.value)} className="w-full bg-[#111] border border-white/10 rounded-2xl py-4 px-5 font-bold focus:outline-none focus:border-white/30" />
+                 <input type="text" placeholder="Product Name (e.g. Linen Shirt)" value={newItemName} onChange={e => setNewItemName(e.target.value)} className="w-full bg-[#111] border border-white/10 rounded-xl py-4 px-5 font-bold focus:outline-none focus:border-white/30" />
                  <div className="relative">
                    <span className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-500 font-black">₹</span>
-                   <input type="number" placeholder="Price" value={newItemPrice} onChange={e => setNewItemPrice(e.target.value)} className="w-full bg-[#111] border border-white/10 rounded-2xl py-4 pl-10 pr-5 font-bold focus:outline-none focus:border-white/30" />
+                   <input type="number" placeholder="Price" value={newItemPrice} onChange={e => setNewItemPrice(e.target.value)} className="w-full bg-[#111] border border-white/10 rounded-xl py-4 pl-10 pr-5 font-bold focus:outline-none focus:border-white/30" />
+                 </div>
+
+                 {/* 🔥 ADD MODAL IMAGE UPLOAD AREA */}
+                 <div className="border-2 border-dashed border-white/10 rounded-2xl p-5 flex flex-col items-center justify-center text-center cursor-pointer hover:border-emerald-500/30 group">
+                   <ImageIcon className="w-8 h-8 text-zinc-600 group-hover:text-emerald-500 mb-2 transition-colors" />
+                   <p className="text-xs text-zinc-500 font-bold group-hover:text-white mb-3">Upload a photo</p>
+                   <input type="file" ref={addFileInputRef} accept="image/*" className="text-xs text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-black file:bg-white file:text-black hover:file:bg-zinc-200 cursor-pointer" />
+                   
+                   {addUploadProgress > 0 && (
+                     <div className="w-full h-1.5 bg-white/5 rounded-full mt-4 overflow-hidden">
+                        <motion.div animate={{ width: `${addUploadProgress}%` }} className="h-full bg-emerald-500" />
+                     </div>
+                   )}
                  </div>
               </div>
 
-              <button onClick={handleAddProduct} disabled={actionLoading} className="w-full bg-white text-black font-black py-5 rounded-2xl flex justify-center items-center gap-2 active:scale-95 transition-transform disabled:opacity-50">
+              <button onClick={handleAddProduct} disabled={actionLoading} className="w-full bg-white text-black font-black py-5 rounded-2xl flex justify-center items-center gap-2 active:scale-95 transition-transform disabled:opacity-50 shadow-xl">
                 {actionLoading ? <Loader2 className="animate-spin" /> : 'Save & Bind Tag'}
               </button>
             </motion.div>
@@ -392,7 +418,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         )}
       </AnimatePresence>
 
-      {/* GENERATE TAG MODAL & EDIT MODAL & QR MODAL REMAINS THE SAME AS BEFORE */}
+      {/* --- GENERATE TAG MODAL --- */}
       <AnimatePresence>
         {isGenerateModalOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm sm:p-4">
@@ -414,6 +440,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         )}
       </AnimatePresence>
 
+      {/* --- QR MODAL --- */}
       <AnimatePresence>
         {isQrModalOpen && selectedTagItem && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-6">
@@ -432,6 +459,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         )}
       </AnimatePresence>
 
+      {/* --- EDIT PRODUCT MODAL --- */}
       <AnimatePresence>
         {isEditModalOpen && selectedTagItem && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm sm:p-4">
