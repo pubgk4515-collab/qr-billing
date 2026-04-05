@@ -19,33 +19,28 @@ export default function CustomerScannerPage({ params }: { params: Promise<{ stor
   useEffect(() => {
     if (!safeStoreSlug) return;
 
-    // 1. Initialize Scanner (Sleek API, no ugly default UI)
+    // Initialize Scanner
     scannerRef.current = new Html5Qrcode("premium-scanner-box");
 
     const startCamera = async () => {
       try {
         await scannerRef.current?.start(
-          { facingMode: "environment" }, // Hamesha Back Camera use karega
+          { facingMode: "environment" }, 
           {
-            fps: 15, // Smooth scanning
-            qrbox: { width: 280, height: 280 }, // Viewfinder box size
+            fps: 15, 
+            // 🔥 THE FIX: 'qrbox' hata diya taaki library apna kachra UI na dale
+            // Ab ye pure screen se scan karega, par hamara frame user ko guide karega
           },
           (decodedText) => {
-            // 🎯 SUCCESS LOGIC: QR scan hote hi camera band karo aur redirect maro
             if (scannerRef.current?.isScanning) {
               scannerRef.current.stop().then(() => {
-                // QR Code string se TAG ID nikaalo (e.g. "http://.../mr-fashion/TAG001" -> "TAG001")
                 const parts = decodedText.split('/');
                 const extractedTagId = parts[parts.length - 1];
-                
-                // Route to Magic Page
                 router.push(`/${safeStoreSlug}/${extractedTagId}`);
               });
             }
           },
-          (errorMessage) => {
-            // Background scanning noise ko ignore maro (no console spam)
-          }
+          (errorMessage) => { /* Ignore background noise */ }
         );
         setIsCameraReady(true);
       } catch (err) {
@@ -56,7 +51,6 @@ export default function CustomerScannerPage({ params }: { params: Promise<{ stor
 
     startCamera();
 
-    // 🧹 CLEANUP: Page back karne par camera properly release hona chahiye
     return () => {
       if (scannerRef.current?.isScanning) {
         scannerRef.current.stop().catch(console.error);
@@ -65,12 +59,12 @@ export default function CustomerScannerPage({ params }: { params: Promise<{ stor
   }, [safeStoreSlug, router]);
 
   return (
-    <main className="min-h-screen bg-black text-white relative font-sans overflow-hidden flex flex-col">
+    <main className="min-h-screen bg-black text-white relative font-sans flex flex-col">
       
       {/* 👑 PREMIUM FLOATING HEADER */}
       <header className="absolute top-0 left-0 w-full p-6 flex items-center justify-between z-50">
         <button 
-          onClick={() => router.back()} // Pichle page par wapas le jayega bina crash kiye
+          onClick={() => router.back()} 
           className="w-12 h-12 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 active:scale-90 transition-all"
         >
           <X className="w-6 h-6 text-white" />
@@ -82,19 +76,18 @@ export default function CustomerScannerPage({ params }: { params: Promise<{ stor
       </header>
 
       {/* 📷 CAMERA VIEWFINDER AREA */}
-      <div className="flex-1 relative flex items-center justify-center">
+      <div className="flex-1 relative flex items-center justify-center overflow-hidden">
         
-        {/* Actual Camera Feed Div */}
-        <div 
-          id="premium-scanner-box" 
-          className="w-full h-full absolute inset-0 object-cover" 
-        />
+        {/* 🔥 THE MAGIC FIX: Tailwind arbitrary variants se video ko full screen force kiya */}
+        <div className="absolute inset-0 z-0 [&_video]:w-full [&_video]:h-full [&_video]:object-cover [&_video]:absolute [&_video]:top-0 [&_video]:left-0">
+          <div id="premium-scanner-box" className="w-full h-full" />
+        </div>
 
-        {/* 🎨 UI OVERLAY: Darken the outside of the box (Apple Style) */}
-        <div className="absolute inset-0 pointer-events-none border-[100px] sm:border-[200px] border-black/60 backdrop-blur-[2px] transition-all" />
+        {/* 🎨 UI OVERLAY: Darken the outside of the box */}
+        <div className="absolute inset-0 z-10 pointer-events-none border-[80px] sm:border-[150px] border-black/70 backdrop-blur-[3px] transition-all" />
 
         {/* 🎯 SCANNING BOX GUIDE */}
-        <div className="relative z-10 w-[280px] h-[280px] rounded-3xl border-2 border-white/30 flex items-center justify-center shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+        <div className="relative z-20 w-[260px] h-[260px] rounded-3xl border border-white/20 flex items-center justify-center shadow-[0_0_50px_rgba(0,0,0,0.8)] bg-transparent">
           {/* Corner Accents */}
           <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-emerald-500 rounded-tl-3xl" />
           <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-emerald-500 rounded-tr-3xl" />
@@ -106,7 +99,7 @@ export default function CustomerScannerPage({ params }: { params: Promise<{ stor
             <motion.div 
               animate={{ y:'' }}
               transition={{ repeat: Infinity, duration: 2.5, ease: "linear" }}
-              className="w-full h-[2px] bg-emerald-500 shadow-[0_0_15px_#10b981] absolute top-0"
+              className="w-full h-[2px] bg-emerald-500 shadow-[0_0_20px_#10b981] absolute top-0"
             />
           )}
 
@@ -118,7 +111,7 @@ export default function CustomerScannerPage({ params }: { params: Promise<{ stor
       </div>
 
       {/* 💡 BOTTOM HELPER TEXT */}
-      <div className="absolute bottom-10 left-0 w-full flex flex-col items-center justify-center z-50 pointer-events-none">
+      <div className="absolute bottom-12 left-0 w-full flex flex-col items-center justify-center z-50 pointer-events-none">
         {scanError ? (
           <div className="bg-red-500/90 backdrop-blur-md px-6 py-4 rounded-2xl text-center shadow-2xl">
             <p className="font-black text-sm mb-1">Camera Access Denied</p>
