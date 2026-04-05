@@ -447,7 +447,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
             <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} className="bg-[#111] border border-white/10 p-8 rounded-[3rem] shadow-3xl text-center relative flex flex-col items-center">
               <button onClick={() => { setIsQrModalOpen(false); setSelectedTagItem(null); }} className="absolute top-6 right-6 p-2 bg-white/5 rounded-full"><X className="w-5 h-5 text-zinc-400" /></button>
               <div ref={qrRef} className="p-4 bg-white rounded-3xl mb-6 shadow-xl">
-                 <QRCodeCanvas value={`https://${store_slug}.vercel.app/p/${selectedTagItem.id}`} size={256} bgColor={"#ffffff"} fgColor={"#000000"} level={"H"} includeMargin={false} />
+                 <QRCodeCanvas value={`${window.location.origin}/${safeStoreSlug}/${selectedTagItem.id}`} size={256} bgColor={"#ffffff"} fgColor={"#000000"} level={"H"} includeMargin={false} />
               </div>
               <span className="text-4xl font-black tracking-tighter text-emerald-400">{selectedTagItem.id}</span>
               <p className="text-zinc-500 text-sm mt-1 mb-6 font-bold uppercase tracking-widest">{selectedTagItem.products?.name || 'Empty Tag'}</p>
