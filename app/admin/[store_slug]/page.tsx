@@ -6,7 +6,8 @@ import { supabase } from '../../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Store, CheckCircle2, Loader2, Package, QrCode, Smartphone, 
-  Zap, Trash2, Clock, Lock, KeyRound, MessageCircle, Send, Plus, X 
+  Zap, Trash2, Clock, Lock, KeyRound, MessageCircle, Send, Plus, X, 
+  Eye, XCircle, Image as ImageIcon 
 } from 'lucide-react';
 import Link from 'next/link';
 import { Html5Qrcode } from 'html5-qrcode'; 
@@ -33,8 +34,11 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
   const [isScannerOpen, setIsScannerOpen] = useState(false); 
   const [itemFetching, setItemFetching] = useState(false); 
 
+  // --- Order Details Modal States ---
+  const [viewingOrder, setViewingOrder] = useState<any>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+
   // --- Digital Bill Requests State ---
-  // Placeholder state: To be integrated with a dedicated 'bill_requests' table in Supabase later.
   const [billRequests, setBillRequests] = useState<any[]>([]); 
 
   const safeStoreSlug = decodeURIComponent(store_slug || '').toLowerCase().trim();
@@ -54,7 +58,6 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
         if (store) {
           setStoreData(store);
           
-          // Verify existing session token from local storage
           const savedAuth = localStorage.getItem(`admin_auth_${safeStoreSlug}`);
           if (savedAuth === 'true') {
             setIsAuthed(true);
@@ -71,7 +74,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
     fetchInitialData();
   }, [safeStoreSlug]);
 
-  // 2. LIVE QUEUE SYNCHRONIZATION (Requires active authentication)
+  // 2. LIVE QUEUE SYNCHRONIZATION
   const fetchLiveQueue = async (storeId: string) => {
     if (!isAuthed) return;
     const { data } = await supabase
@@ -104,12 +107,11 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
     }
   };
 
-  // --- CORE CHECKOUT ENGINE: Validates and fetches real-time item data ---
+  // --- CORE CHECKOUT ENGINE (Manual & Scanner) ---
   const processScannedTag = async (tagId: string) => {
     if (!tagId) return;
     const tagUpper = tagId.trim().toUpperCase();
 
-    // Prevent duplicate item additions
     if (scannedItems.some(item => item.tag === tagUpper)) {
       alert("Item conflict: This tag is already in the current checkout session.");
       return;
@@ -134,7 +136,6 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
         return;
       }
 
-      // Normalizing the relational data payload to handle potential Array/Object inconsistencies
       const productInfo: any = Array.isArray(data.products) ? data.products : data.products;
 
       const newItem = { 
@@ -171,11 +172,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
         
         html5QrCode.start(
           { facingMode: "environment" },
-          {
-            fps: 10,
-            qrbox: { width: 250, height: 250 },
-            aspectRatio: 1.0 
-          },
+          { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
           async (decodedText: string) => {
             const scannedTag = decodeURIComponent(decodedText.split('/').pop() || '').toUpperCase().trim(); 
             if (scannedTag) {
@@ -184,15 +181,12 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
               html5QrCode.stop().then(() => setIsScannerOpen(false)).catch(console.error);
             }
           },
-          (errorMessage: any) => {
-             // Suppressing background frame evaluation warnings
-          }
+          (errorMessage: any) => {}
         ).catch((err: any) => console.error("Camera Initialization Error:", err));
       }, 100);
     }
 
     return () => {
-      // Ensure the camera stream is terminated on component unmount
       if (html5QrCode && html5QrCode.isScanning) {
         html5QrCode.stop().catch(console.error);
       }
@@ -200,59 +194,67 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
   }, [isScannerOpen]);
 
   const handleCreateManualBill = async () => {
-    if (scannedItems.length === 0) {
-      return alert("Operation Failed: Please add at least one item to proceed.");
-    }
+    if (scannedItems.length === 0) return alert("Operation Failed: Please add at least one item to proceed.");
     setLoading(true);
     
     const totalAmount = scannedItems.reduce((acc, item) => acc + item.price, 0);
     const cartId = `CART${Math.floor(1000 + Math.random() * 9000)}`;
 
     const { error } = await supabase.from('sales').insert({
-      cart_id: cartId,
-      store_id: storeData.id,
-      total_amount: totalAmount,
-      items_count: scannedItems.length,
-      payment_status: 'completed',
-      payment_method: 'CASH',
-      customer_phone: customerPhone,
-      purchased_items: scannedItems 
+      cart_id: cartId, store_id: storeData.id, total_amount: totalAmount,
+      items_count: scannedItems.length, payment_status: 'completed', payment_method: 'CASH',
+      customer_phone: customerPhone, purchased_items: scannedItems 
     });
 
     if (!error) {
-      // Asynchronously release the purchased tags back into the inventory pool
       const tagIdsToFree = scannedItems.map((item: any) => item.tag);
       await supabase.from('qr_tags').update({ status: 'free', product_id: null }).in('id', tagIdsToFree);
-
       alert("Invoice successfully generated.");
-      setScannedItems([]);
-      setCustomerPhone('');
+      setScannedItems([]); setCustomerPhone('');
     } else {
        alert("Transaction Error: Unable to finalize the bill.");
     }
     setLoading(false);
   };
 
+  // 🔥 ORDER APPROVAL LOGIC
   const handleApprovePayment = async (order: any) => {
-    // Optimistic UI update: Remove the resolved order from the queue instantly
     setPendingOrders(prev => prev.filter(o => o.id !== order.id));
     
     try {
-      // Finalize the transaction record
       await supabase.from('sales').update({ payment_status: 'completed' }).eq('id', order.id);
-
-      // Inventory adjustment: Reset the associated QR tags
       if (order.purchased_items && Array.isArray(order.purchased_items)) {
         const tagIdsToFree = order.purchased_items.map((item: any) => item.id);
         if (tagIdsToFree.length > 0) {
-          await supabase
-            .from('qr_tags')
-            .update({ status: 'free', product_id: null })
-            .in('id', tagIdsToFree); 
+          await supabase.from('qr_tags').update({ status: 'free', product_id: null }).in('id', tagIdsToFree); 
+        }
+      }
+      setIsViewModalOpen(false);
+      setViewingOrder(null);
+    } catch (err) {
+      console.error("Transaction Approval Error:", err);
+    }
+  };
+
+  // 🚨 ORDER REJECTION LOGIC
+  const handleRejectOrder = async (order: any) => {
+    const confirmReject = confirm(`Are you sure you want to reject ${order.cart_id}?`);
+    if (!confirmReject) return;
+
+    setPendingOrders(prev => prev.filter(o => o.id !== order.id));
+    
+    try {
+      await supabase.from('sales').update({ payment_status: 'rejected' }).eq('id', order.id);
+      
+      // Smart Recovery: Revert items back to 'active' so other customers can buy them
+      if (order.purchased_items && Array.isArray(order.purchased_items)) {
+        const tagIdsToRevert = order.purchased_items.map((item: any) => item.id);
+        if (tagIdsToRevert.length > 0) {
+          await supabase.from('qr_tags').update({ status: 'active' }).in('id', tagIdsToRevert); 
         }
       }
     } catch (err) {
-      console.error("Transaction Approval Error:", err);
+      console.error("Order Rejection Error:", err);
     }
   };
 
@@ -261,7 +263,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
   // ⏳ INITIALIZATION SCREEN
   if (loading || authChecking) return <div className="min-h-screen bg-[#050505] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin" style={{ color: themeColor }} /></div>;
 
-  // 🔐 SECURE LOCK SCREEN (UNAUTHENTICATED STATE)
+  // 🔐 SECURE LOCK SCREEN (UNAUTHENTICATED)
   if (!isAuthed) {
     return (
       <div className="min-h-screen bg-[#050505] text-white flex flex-col items-center justify-center p-6 font-sans">
@@ -285,7 +287,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
     );
   }
 
-  // 🔓 COMMAND CENTER (AUTHENTICATED STATE)
+  // 🔓 COMMAND CENTER (AUTHENTICATED)
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans pb-16 relative">
       
@@ -337,17 +339,25 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
                       <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mt-1">{order.items_count} items • Pending Authorization</p>
                     </div>
 
-                    <div className="flex items-center justify-between md:justify-end gap-8 border-t border-white/5 md:border-t-0 pt-4 md:pt-0">
-                      <div>
+                    <div className="flex items-center justify-between md:justify-end gap-4 border-t border-white/5 md:border-t-0 pt-4 md:pt-0">
+                      <div className="mr-4">
                         <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-0.5">Total</p>
                         <p className="text-2xl font-black flex items-center gap-1">₹{order.total_amount}</p>
                       </div>
+                      
+                      {/* 🔥 NEW VIEW AND REJECT BUTTONS */}
                       <button 
-                        onClick={() => handleApprovePayment(order)} 
-                        className="px-8 py-4 rounded-2xl font-black text-black active:scale-95 transition-all shadow-[0_10px_30px_rgba(0,0,0,0.3)]" 
-                        style={{ backgroundColor: themeColor }}
+                        onClick={() => { setViewingOrder(order); setIsViewModalOpen(true); }} 
+                        className="px-4 py-3 rounded-2xl text-xs font-black text-white bg-white/10 hover:bg-white/20 active:scale-95 transition-all flex items-center gap-2"
                       >
-                        Approve
+                        <Eye className="w-4 h-4" /> View
+                      </button>
+
+                      <button 
+                        onClick={() => handleRejectOrder(order)} 
+                        className="px-4 py-3 rounded-2xl text-xs font-black text-red-500 bg-red-500/10 hover:bg-red-500/20 active:scale-95 transition-all flex items-center gap-2"
+                      >
+                        <XCircle className="w-4 h-4" /> Reject
                       </button>
                     </div>
                   </motion.div>
@@ -389,7 +399,6 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
         {/* 3. TERMINAL: QUICK CHECKOUT */}
         <div className="bg-[#0A0A0A] border border-white/10 rounded-[2.5rem] overflow-hidden flex flex-col h-[550px] shadow-2xl mt-4 relative">
           
-          {/* Asynchronous Fetching Overlay */}
           <AnimatePresence>
             {itemFetching && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-10 bg-black/50 backdrop-blur-sm flex items-center justify-center rounded-[2.5rem]">
@@ -470,30 +479,100 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
 
       </main>
 
+      {/* 🔍 VIEW ORDER DETAILS MODAL */}
+      <AnimatePresence>
+        {isViewModalOpen && viewingOrder && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-6"
+          >
+            <motion.div 
+              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 28 }}
+              className="bg-[#0A0A0A] w-full sm:max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] border border-white/10 p-6 sm:p-8 relative max-h-[90vh] flex flex-col shadow-2xl"
+            >
+              <button onClick={() => { setIsViewModalOpen(false); setViewingOrder(null); }} className="absolute top-6 right-6 p-2 bg-white/5 rounded-full hover:bg-white/10 transition-colors z-10">
+                <X className="w-5 h-5 text-zinc-400" />
+              </button>
+              
+              <div className="mb-6 border-b border-white/5 pb-6">
+                <div className="flex items-center gap-2 mb-1">
+                  <Package className="w-5 h-5" style={{ color: themeColor }} />
+                  <span className="text-[10px] font-black tracking-widest uppercase text-zinc-400">Order Details</span>
+                </div>
+                <h2 className="text-3xl font-black tracking-tighter mt-2 mb-1">{viewingOrder.cart_id}</h2>
+                <div className="flex items-center gap-3">
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-widest ${viewingOrder.payment_method === 'ONLINE' ? 'bg-blue-500/20 text-blue-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                    {viewingOrder.payment_method}
+                  </span>
+                  <span className="text-xs text-zinc-500 font-bold">{viewingOrder.customer_phone || 'No Phone Provided'}</span>
+                </div>
+              </div>
+
+              {/* Scrollable Items List */}
+              <div className="flex-1 overflow-y-auto pr-2 mb-6 flex flex-col gap-3 custom-scrollbar">
+                {viewingOrder.purchased_items && viewingOrder.purchased_items.map((item: any, idx: number) => (
+                  <div key={idx} className="bg-[#111] border border-white/5 rounded-2xl p-3 flex items-center gap-4 relative overflow-hidden group">
+                    <div className="w-16 h-16 bg-black rounded-xl overflow-hidden shrink-0 border border-white/10 relative">
+                      {item.products?.image_url ? (
+                        <img src={item.products.image_url} alt={item.products?.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-zinc-900">
+                          <ImageIcon className="w-5 h-5 text-zinc-700" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-bold text-sm leading-tight text-white mb-1">{item.products?.name || 'Item'}</h4>
+                      <span className="text-[9px] font-mono font-black uppercase tracking-widest text-zinc-500 bg-white/5 px-2 py-0.5 rounded">{item.id}</span>
+                    </div>
+                    <div className="font-black text-lg">
+                      ₹{item.products?.price}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Modal Footer with Total & Final Action */}
+              <div className="border-t border-white/5 pt-6 mt-auto">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-zinc-500 font-bold text-sm">Grand Total</span>
+                  <span className="text-3xl font-black">₹{viewingOrder.total_amount}</span>
+                </div>
+                <button 
+                  onClick={() => handleApprovePayment(viewingOrder)}
+                  className="w-full py-4 rounded-2xl font-black text-black active:scale-95 transition-all flex items-center justify-center gap-2 shadow-[0_10px_30px_rgba(0,0,0,0.3)]"
+                  style={{ backgroundColor: themeColor }}
+                >
+                  <CheckCircle2 className="w-5 h-5" /> Approve & Complete Sale
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* 📸 OPTICAL SCANNER MODAL (ADMIN INTERFACE) */}
       <AnimatePresence>
         {isScannerOpen && (
           <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z- bg-black flex flex-col items-center justify-center p-6"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z- bg-[#050505] flex flex-col items-center justify-center p-6"
           >
-            <button 
-              onClick={() => setIsScannerOpen(false)}
-              className="absolute top-8 right-8 p-3 bg-white/10 rounded-full text-white z-50 hover:bg-white/20 transition-colors"
-            >
-              <X className="w-6 h-6" />
-            </button>
-
-            <div className="w-full max-w-sm aspect-square rounded-[2rem] overflow-hidden border-2 border-dashed border-white/20 relative">
+            <div className="w-full max-w-sm aspect-square rounded-[2rem] overflow-hidden border-2 border-dashed border-white/20 relative shadow-[0_0_50px_rgba(0,0,0,0.5)]">
               <div id="admin-reader" className="w-full h-full bg-[#111]"></div>
               <div className="absolute inset-10 border-2 border-white/10 rounded-2xl pointer-events-none animate-pulse"></div>
             </div>
             
-            <p className="mt-8 text-zinc-400 font-mono text-xs tracking-widest uppercase">
+            <p className="mt-8 text-zinc-400 font-mono text-xs tracking-widest uppercase text-center">
               Position the QR code within the frame to add
             </p>
+
+            <button 
+              onClick={() => setIsScannerOpen(false)}
+              className="mt-12 px-8 py-4 bg-white/10 text-white rounded-full font-black tracking-widest uppercase text-xs flex items-center gap-3 hover:bg-white/20 active:scale-95 transition-all border border-white/5"
+            >
+              <X className="w-5 h-5" /> Cancel Scan
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
