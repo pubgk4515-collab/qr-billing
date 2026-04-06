@@ -241,22 +241,22 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         </div>
       </header>
 
-      {/* 🚀 FLOATING ADMIN & ANALYTICS BUTTONS (UPPER RIGHT) */}
-      <div className="fixed top-24 right-4 sm:right-6 z-40 flex flex-col gap-3">
+      {/* 🚀 FLOATING ADMIN & ANALYTICS BUTTONS (BOTTOM RIGHT) */}
+      <div className="fixed bottom-6 right-6 sm:bottom-10 sm:right-10 z-50 flex flex-col items-end gap-3">
         <button 
           onClick={() => router.push(`/admin/${safeStoreSlug}/analytics`)} 
-          className="p-3 sm:px-4 sm:py-3 rounded-2xl flex items-center gap-2 shadow-[0_10px_40px_rgba(0,0,0,0.5)] transition-all hover:scale-105 active:scale-95" 
+          className="p-3 sm:px-5 sm:py-3.5 rounded-[1.25rem] flex items-center gap-3 shadow-[0_10px_40px_rgba(0,0,0,0.5)] transition-all hover:scale-105 active:scale-95 group" 
           style={{ backgroundColor: themeColor, color: '#fff' }}
         >
-          <BarChart3 className="w-5 h-5" />
-          <span className="text-[10px] font-black uppercase tracking-widest hidden sm:block">Analytics</span>
+          <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6" />
+          <span className="text-[11px] font-black uppercase tracking-widest hidden sm:block">Analytics</span>
         </button>
         <button 
           onClick={() => router.push(`/admin/${safeStoreSlug}`)} 
-          className="p-3 sm:px-4 sm:py-3 bg-[#111] rounded-2xl flex items-center gap-2 border border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.5)] transition-all hover:scale-105 active:scale-95"
+          className="p-3 sm:px-5 sm:py-3.5 bg-[#111] rounded-[1.25rem] flex items-center gap-3 border border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.5)] transition-all hover:scale-105 active:scale-95 group"
         >
-           <Settings className="w-5 h-5" style={{ color: themeColor }} />
-           <span className="text-[10px] font-black uppercase tracking-widest text-zinc-300 hidden sm:block">Admin</span>
+           <Settings className="w-5 h-5 sm:w-6 sm:h-6" style={{ color: themeColor }} />
+           <span className="text-[11px] font-black uppercase tracking-widest text-zinc-300 hidden sm:block">Admin</span>
         </button>
       </div>
 
