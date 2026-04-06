@@ -62,6 +62,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
           if (savedAuth === 'true') {
             setIsAuthed(true);
             fetchLiveQueue(store.id); 
+            fetchBillRequests(store.id); // 🔥 Start polling bill requests too
           }
         }
       } catch (err) { 
@@ -87,9 +88,25 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
     if (data) setPendingOrders(data);
   };
 
+  // 🔥 3. FETCH BILL REQUESTS (POLLING)
+  const fetchBillRequests = async (storeId: string) => {
+    if (!isAuthed) return;
+    const { data } = await supabase
+      .from('bill_requests')
+      .select('*')
+      .eq('store_id', storeId)
+      .eq('status', 'pending') // Only fetch pending ones
+      .order('created_at', { ascending: true });
+      
+    if (data) setBillRequests(data);
+  };
+
   useEffect(() => {
     if (!storeData?.id || !isAuthed) return;
-    const interval = setInterval(() => fetchLiveQueue(storeData.id), 3000); 
+    const interval = setInterval(() => {
+      fetchLiveQueue(storeData.id);
+      fetchBillRequests(storeData.id); // 🔥 Poll bill requests every 3s
+    }, 3000); 
     return () => clearInterval(interval);
   }, [storeData?.id, isAuthed]);
 
@@ -100,6 +117,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
       localStorage.setItem(`admin_auth_${safeStoreSlug}`, 'true');
       setIsAuthed(true);
       fetchLiveQueue(storeData.id);
+      fetchBillRequests(storeData.id);
     } else {
       setPinError(true);
       setPinInput('');
@@ -246,7 +264,6 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
     try {
       await supabase.from('sales').update({ payment_status: 'rejected' }).eq('id', order.id);
       
-      // Smart Recovery: Revert items back to 'active' so other customers can buy them
       if (order.purchased_items && Array.isArray(order.purchased_items)) {
         const tagIdsToRevert = order.purchased_items.map((item: any) => item.id);
         if (tagIdsToRevert.length > 0) {
@@ -255,6 +272,35 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
       }
     } catch (err) {
       console.error("Order Rejection Error:", err);
+    }
+  };
+
+  // 🔥 DISPATCH DIGITAL BILL LOGIC
+  const handleDispatchBill = async (request: any) => {
+    // 1. Optimistically remove from UI
+    setBillRequests(prev => prev.filter(r => r.id !== request.id));
+
+    // 2. Generate WhatsApp Link
+    const storeName = storeData?.store_name || "our store";
+    // NOTE: Change window.location.origin to your actual prod domain if testing locally, 
+    // e.g. `https://your-domain.vercel.app/${safeStoreSlug}/bill/${request.cart_id}`
+    const billUrl = `${window.location.origin}/${safeStoreSlug}/bill/${request.cart_id}`; 
+    const message = encodeURIComponent(`Hi! Thank you for shopping at ${storeName}. You can view and download your digital bill here: \n\n${billUrl}`);
+    
+    // Add country code if not present (Assuming India +91 for now)
+    let phone = request.customer_phone.replace(/\D/g, '');
+    if (phone.length === 10) phone = `91${phone}`;
+
+    const waLink = `https://wa.me/${phone}?text=${message}`;
+
+    try {
+      // 3. Update database status to 'completed'
+      await supabase.from('bill_requests').update({ status: 'completed' }).eq('id', request.id);
+      
+      // 4. Open WhatsApp in new tab
+      window.open(waLink, '_blank');
+    } catch (err) {
+      console.error("Error dispatching bill:", err);
     }
   };
 
@@ -345,7 +391,6 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
                         <p className="text-2xl font-black flex items-center gap-1">₹{order.total_amount}</p>
                       </div>
                       
-                      {/* 🔥 NEW VIEW AND REJECT BUTTONS */}
                       <button 
                         onClick={() => { setViewingOrder(order); setIsViewModalOpen(true); }} 
                         className="px-4 py-3 rounded-2xl text-xs font-black text-white bg-white/10 hover:bg-white/20 active:scale-95 transition-all flex items-center gap-2"
@@ -376,23 +421,28 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
           </div>
           
           <div className="grid grid-cols-1 gap-3">
-            {billRequests.length === 0 ? (
-              <div className="bg-[#0A0A0A] border border-white/5 rounded-[1.5rem] p-6 text-center opacity-50 flex items-center justify-center gap-3">
-                 <p className="text-xs font-bold text-zinc-500">No active digital bill requests.</p>
-              </div>
-            ) : (
-              billRequests.map((request, idx) => (
-                <div key={idx} className="bg-[#111] border border-white/5 rounded-2xl p-4 flex items-center justify-between shadow-md">
-                   <div>
-                     <p className="text-sm font-black text-white">{request.cart_id}</p>
-                     <p className="text-[10px] text-zinc-500 font-bold tracking-widest uppercase">{request.phone}</p>
-                   </div>
-                   <button className="bg-[#25D366]/10 text-[#25D366] border border-[#25D366]/20 px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 hover:bg-[#25D366]/20 transition-all">
-                     <Send className="w-3 h-3" /> Dispatch PDF
-                   </button>
-                </div>
-              ))
-            )}
+            <AnimatePresence>
+              {billRequests.length === 0 ? (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="bg-[#0A0A0A] border border-white/5 rounded-[1.5rem] p-6 text-center opacity-50 flex items-center justify-center gap-3">
+                   <p className="text-xs font-bold text-zinc-500">No active digital bill requests.</p>
+                </motion.div>
+              ) : (
+                billRequests.map((request) => (
+                  <motion.div key={request.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, scale: 0.9 }} className="bg-[#111] border border-white/5 rounded-2xl p-4 flex items-center justify-between shadow-md">
+                     <div>
+                       <p className="text-sm font-black text-white">{request.cart_id}</p>
+                       <p className="text-[10px] text-zinc-500 font-bold tracking-widest uppercase">{request.customer_phone}</p>
+                     </div>
+                     <button 
+                        onClick={() => handleDispatchBill(request)}
+                        className="bg-[#25D366]/10 text-[#25D366] border border-[#25D366]/20 px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 hover:bg-[#25D366]/20 active:scale-95 transition-all"
+                     >
+                       <Send className="w-3 h-3" /> Dispatch PDF
+                     </button>
+                  </motion.div>
+                ))
+              )}
+            </AnimatePresence>
           </div>
         </div>
 

@@ -1,253 +1,275 @@
 'use client';
 
 import { use, useEffect, useState } from 'react';
-import { supabase } from '../../../lib/supabase'; // Path verify kar lena (4 levels deep)
-import { motion } from 'framer-motion';
-import { Loader2, MapPin, Download, CheckCircle2, Store, ShoppingBag } from 'lucide-react';
-import Link from 'next/link';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  CheckCircle2, MapPin, Instagram, Facebook, Youtube, 
+  MessageCircle, ArrowRight, Loader2, Clock, Check 
+} from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { supabase } from '../../../lib/supabase'; // Path verify kar lena
 
-export default function DigitalBillPage({ params }: { params: Promise<{ store_slug: string, cart_id: string }> }) {
+export default function SuccessPage({ params }: { params: Promise<{ store_slug: string, cart_id: string }> }) {
+  const router = useRouter();
   const resolvedParams = use(params);
   const { store_slug, cart_id } = resolvedParams;
 
   const [loading, setLoading] = useState(true);
   const [storeData, setStoreData] = useState<any>(null);
-  const [billData, setBillData] = useState<any>(null);
-  const [trendingProducts, setTrendingProducts] = useState<any[]>([]);
+  
+  // States for Order & Bill Request
+  const [orderStatus, setOrderStatus] = useState<string>('pending'); 
+  const [customerPhone, setCustomerPhone] = useState<string>('');
+  const [billRequested, setBillRequested] = useState(false);
+  const [billRequestLoading, setBillRequestLoading] = useState(false);
 
   const safeStoreSlug = decodeURIComponent(store_slug || '').toLowerCase().trim();
   const safeCartId = decodeURIComponent(cart_id || '').toUpperCase().trim();
 
+  // 1. Fetch Store Info (Added 'id' fetch for relational mapping)
   useEffect(() => {
-    if (!safeStoreSlug || !safeCartId) return;
-
-    async function fetchBillAndStore() {
+    if (!safeStoreSlug) return;
+    async function fetchStore() {
       try {
-        // 1. Fetch Store Data
-        const { data: store } = await supabase
+        const { data } = await supabase
           .from('stores')
-          .select('*')
+          .select('id, store_name, theme_color, whatsapp_number') 
           .ilike('slug', safeStoreSlug)
           .single();
-
-        if (!store) throw new Error("Store not found");
-        setStoreData(store);
-
-        // 2. Fetch Bill Data
-        const { data: bill } = await supabase
-          .from('sales')
-          .select('*')
-          .eq('cart_id', safeCartId)
-          .eq('store_id', store.id)
-          .single();
-
-        if (bill) setBillData(bill);
-
-        // 3. Fetch Trending Products (Latest 5-6 items for the marquee)
-        const { data: products } = await supabase
-          .from('products')
-          .select('*')
-          .eq('store_id', store.id)
-          .order('created_at', { ascending: false })
-          .limit(6);
-
-        if (products) setTrendingProducts(products);
-
+        if (data) setStoreData(data);
       } catch (err) {
-        console.error("Error fetching data:", err);
-      } finally {
-        setLoading(false);
+        console.error("Error fetching store:", err);
       }
     }
+    fetchStore();
+  }, [safeStoreSlug]);
 
-    fetchBillAndStore();
-  }, [safeStoreSlug, safeCartId]);
+  // 2. 🔥 SILENT LIVE POLLING
+  useEffect(() => {
+    if (!safeCartId) return;
 
-  // Handle PDF Download (Native Browser Print)
-  const handleDownload = () => {
-    window.print();
+    const checkOrderStatus = async () => {
+      try {
+        // Fetch payment status and customer phone from sales table
+        const { data, error } = await supabase
+          .from('sales') 
+          .select('payment_status, customer_phone')
+          .eq('cart_id', safeCartId)
+          .single();
+
+        if (error) {
+          console.error("Supabase Query Error:", error.message);
+          return;
+        }
+
+        if (data) {
+          setOrderStatus(data.payment_status);
+          if (data.customer_phone) setCustomerPhone(data.customer_phone);
+          
+          if (data.payment_status === 'completed') {
+             localStorage.removeItem(`cart_${safeStoreSlug}`);
+          }
+        }
+      } catch (err) {
+        console.error("Cart sync error:", err);
+      } finally {
+        setLoading(false); 
+      }
+    };
+
+    checkOrderStatus(); 
+    const intervalId = setInterval(checkOrderStatus, 2000); 
+
+    return () => clearInterval(intervalId); 
+  }, [safeCartId, safeStoreSlug]);
+
+  // 🔥 NEW: Trigger Digital Bill Request
+  const handleRequestBill = async () => {
+    if (!storeData?.id || billRequested) return;
+    
+    setBillRequestLoading(true);
+    try {
+      const { error } = await supabase.from('bill_requests').insert({
+        store_id: storeData.id,
+        cart_id: safeCartId,
+        customer_phone: customerPhone || 'Not Provided' // Falback in case of missing phone
+      });
+
+      if (error) throw error;
+      
+      setBillRequested(true);
+    } catch (err) {
+      console.error("Error requesting bill:", err);
+      alert("Failed to send request to counter. Please try again.");
+    } finally {
+      setBillRequestLoading(false);
+    }
   };
 
-  const themeColor = storeData?.theme_color || '#10b981';
+  // Dynamic values
+  const themeColor = storeData?.theme_color || '#10b981'; 
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center gap-4">
+      <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-white gap-4">
         <Loader2 className="w-10 h-10 animate-spin" style={{ color: themeColor }} />
-        <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Loading Invoice...</p>
+        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600">Connecting to Counter</p>
       </div>
     );
   }
-
-  if (!billData) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center text-zinc-500 font-bold">
-        Bill not found or invalid request.
-      </div>
-    );
-  }
-
-  // Format Date safely
-  const billDate = new Date(billData.created_at);
-  const formattedDate = billDate.toLocaleDateString('en-IN', {
-    day: 'numeric', month: 'short', year: 'numeric'
-  });
-  const formattedTime = billDate.toLocaleTimeString('en-IN', {
-    hour: '2-digit', minute: '2-digit'
-  });
 
   return (
-    <div className="min-h-screen bg-[#fafafa] text-black font-sans selection:bg-black selection:text-white pb-32">
+    <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-6 font-sans overflow-hidden relative">
       
-      {/* 🧾 BILL SECTION (MVP Style) */}
-      {/* We use print:w-full print:p-0 print:shadow-none to format it perfectly for PDF generation */}
-      <main className="max-w-md mx-auto bg-white min-h-screen sm:min-h-0 sm:mt-10 sm:rounded-[2rem] sm:shadow-[0_20px_60px_rgba(0,0,0,0.05)] print:shadow-none print:mt-0 p-8 sm:p-10 relative">
-        
-        {/* Store Header */}
-        <div className="flex flex-col items-center text-center mb-10">
-          <div className="w-14 h-14 bg-black rounded-2xl flex items-center justify-center mb-4">
-            {storeData?.logo_url ? (
-              <img src={storeData.logo_url} alt="Logo" className="w-full h-full object-cover rounded-2xl" />
-            ) : (
-              <span className="text-white font-black text-xl tracking-tighter">
-                {storeData?.store_name?.substring(0, 3).toUpperCase() || 'SME'}
-              </span>
-            )}
-          </div>
-          <h1 className="text-2xl font-black tracking-tighter uppercase">{storeData?.store_name || 'Premium Store'}</h1>
-          <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest flex items-center gap-1 mt-1">
-            <MapPin className="w-3 h-3" /> {storeData?.address || 'Store Location, City'}
-          </p>
-        </div>
+      {/* 🌟 Dynamic Background Glow */}
+      <div 
+        className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 blur-[120px] rounded-full pointer-events-none opacity-20 transition-colors duration-1000" 
+        style={{ backgroundColor: orderStatus === 'pending' ? '#ef4444' : themeColor }} 
+      />
 
-        <div className="border-t-2 border-dashed border-zinc-200 w-full my-6" />
-
-        {/* Bill Meta Data */}
-        <div className="grid grid-cols-2 gap-y-6 text-sm mb-6">
-          <div>
-            <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Order ID</p>
-            <p className="font-black text-base">{billData.cart_id}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Date & Time</p>
-            <p className="font-bold text-zinc-800">{formattedDate} at {formattedTime}</p>
-          </div>
-          <div>
-            <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Status</p>
-            <p className="font-bold flex items-center gap-1.5 text-zinc-800">
-              <CheckCircle2 className="w-4 h-4" style={{ color: themeColor }} /> 
-              {billData.payment_status === 'completed' ? 'Payment Completed' : 'Pending'}
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Method</p>
-            <p className="font-black uppercase">{billData.payment_method}</p>
-          </div>
-        </div>
-
-        <div className="border-t-2 border-dashed border-zinc-200 w-full my-6" />
-
-        {/* Purchased Items List */}
-        <div className="mb-6">
-          <p className="text-[10px] text-zinc-400 font-black uppercase tracking-widest mb-4">Purchased Items ({billData.items_count})</p>
-          <div className="flex flex-col gap-4">
-            {billData.purchased_items && billData.purchased_items.map((item: any, idx: number) => (
-              <div key={idx} className="flex justify-between items-start">
-                <div>
-                  <p className="font-bold text-sm text-zinc-900">{idx + 1}. {item.name || item.products?.name || 'Item'}</p>
-                  <p className="text-[9px] text-zinc-400 font-mono font-bold uppercase tracking-widest mt-0.5">TAG: {item.tag || item.id}</p>
-                </div>
-                <p className="font-black text-sm">₹{item.price || item.products?.price}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="border-t border-zinc-200 w-full my-4" />
-
-        {/* Totals */}
-        <div className="flex flex-col gap-2 mb-6">
-          <div className="flex justify-between items-center text-sm">
-            <p className="text-zinc-500 font-bold">Subtotal</p>
-            <p className="font-black text-zinc-800">₹{billData.total_amount}</p>
-          </div>
-          <div className="flex justify-between items-center text-sm">
-            <p className="text-zinc-500 font-bold">Tax</p>
-            <p className="font-black text-zinc-800">₹0.00</p>
-          </div>
-        </div>
-
-        <div className="border-t-2 border-dashed border-zinc-200 w-full my-6" />
-
-        <div className="flex justify-between items-end mb-10">
-          <p className="text-[11px] font-black uppercase tracking-widest text-zinc-400">Grand Total</p>
-          <p className="text-3xl font-black tracking-tighter">₹{billData.total_amount}</p>
-        </div>
-
-        <div className="text-center text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
-          <p>Thank you for shopping</p>
-          <p>Visit again!</p>
-        </div>
-      </main>
-
-      {/* 🚀 TRENDING PRODUCTS CAROUSEL (Hidden during printing) */}
-      {trendingProducts.length > 0 && (
-        <div className="mt-20 print:hidden overflow-hidden">
-          <div className="px-6 sm:max-w-md mx-auto mb-6 flex items-center justify-between">
-            <h3 className="text-lg font-black tracking-tight uppercase">Trending Now</h3>
-            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">At {storeData?.store_name}</span>
-          </div>
-
-          {/* Endless Marquee Container */}
-          <div className="relative w-full flex overflow-x-hidden">
-            {/* Gradient Mask for smooth fade at edges */}
-            <div className="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-[#fafafa] to-transparent z-10" />
-            <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[#fafafa] to-transparent z-10" />
-
+      <div className="w-full max-w-md relative z-10">
+        <AnimatePresence mode="wait">
+          
+          {/* =========================================
+              STATE 1: WAITING FOR APPROVAL 
+              ========================================= */}
+          {orderStatus === 'pending' ? (
             <motion.div 
-              className="flex gap-4 px-4 items-center whitespace-nowrap"
-              animate={{ x: ["0%", "-50%"] }}
-              transition={{ ease: "linear", duration: 25, repeat: Infinity }}
-              style={{ width: "fit-content" }}
+              key="waiting"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.05 }}
+              className="flex flex-col items-center text-center mt-10"
             >
-              {/* Render the array twice to create a seamless loop effect */}
-              {[...trendingProducts, ...trendingProducts].map((product, index) => (
-                <div key={index} className="w-[160px] flex-shrink-0 bg-white rounded-[1.5rem] p-3 shadow-[0_10px_30px_rgba(0,0,0,0.04)] border border-zinc-100 flex flex-col gap-3">
-                  <div className="w-full h-[180px] bg-zinc-100 rounded-xl overflow-hidden relative">
-                    {product.image_url ? (
-                      <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center"><ShoppingBag className="text-zinc-300 w-8 h-8" /></div>
-                    )}
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-sm text-zinc-900 truncate">{product.name}</h4>
-                    <p className="font-black text-sm mt-0.5">₹{product.price}</p>
-                  </div>
-                  
-                  {/* ⚡ NO-LOGIC CHECKOUT BUTTON (Just Animation) */}
-                  <motion.button 
-                    whileTap={{ scale: 0.95 }}
-                    className="w-full py-3 rounded-xl font-black text-[11px] uppercase tracking-widest text-white transition-colors hover:opacity-90"
-                    style={{ backgroundColor: themeColor }}
-                  >
-                    Checkout
-                  </motion.button>
-                </div>
-              ))}
+               <div className="relative mb-8">
+                 <div className="w-24 h-24 bg-red-500/10 rounded-full flex items-center justify-center border border-red-500/20 shadow-[0_0_40px_rgba(239,68,68,0.2)]">
+                   <Clock className="w-10 h-10 text-red-500" />
+                 </div>
+                 <motion.div 
+                   animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0, 0.5] }}
+                   transition={{ repeat: Infinity, duration: 2 }}
+                   className="absolute inset-0 border-2 border-red-500/30 rounded-full"
+                 />
+               </div>
+
+               <h1 className="text-3xl font-black text-white mb-3 tracking-tight">Waiting for approval</h1>
+               <p className="text-sm text-zinc-400 mb-10 max-w-[280px] leading-relaxed">
+                 Please show this Cart ID at the billing counter to verify your items.
+               </p>
+
+               <div className="bg-[#111] border border-white/10 rounded-3xl p-6 w-full shadow-2xl mb-12 relative overflow-hidden">
+                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-red-500 to-transparent opacity-50" />
+                 <p className="text-[10px] text-zinc-500 uppercase font-black tracking-[0.2em] mb-2">CART ID</p>
+                 <p className="text-4xl font-black text-white tracking-tighter">{safeCartId}</p>
+               </div>
+
+               <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">
+                 Do not press back or close this app
+               </p>
             </motion.div>
-          </div>
-        </div>
-      )}
+          ) : 
+          
+          /* =========================================
+             STATE 2: SUCCESS / PAYMENT DONE 
+             ========================================= */
+          (
+            <motion.div 
+              key="success"
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="w-full"
+            >
+              <div className="bg-[#111]/80 backdrop-blur-xl border border-white/10 rounded-[3rem] p-8 text-center shadow-[0_20px_50px_rgba(0,0,0,0.5)] mb-6">
+                <motion.div 
+                  initial={{ scale: 0, rotate: -180 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.1 }}
+                  className="w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 border-2 shadow-2xl"
+                  style={{ backgroundColor: `${themeColor}15`, borderColor: `${themeColor}40` }}
+                >
+                  <CheckCircle2 className="w-12 h-12" style={{ color: themeColor }} />
+                </motion.div>
 
-      {/* ⬇️ FLOATING DOWNLOAD BUTTON (Hidden during printing) */}
-      <button 
-        onClick={handleDownload}
-        className="fixed bottom-8 right-8 z-50 w-14 h-14 bg-white border border-zinc-200 rounded-full flex items-center justify-center shadow-[0_15px_30px_rgba(0,0,0,0.1)] active:scale-90 transition-all print:hidden group"
-      >
-        <Download className="w-5 h-5 text-zinc-800 group-hover:translate-y-0.5 transition-transform" />
-      </button>
+                <h1 className="text-4xl font-black text-white mb-3 tracking-tighter leading-none">Payment Done!</h1>
+                <p className="text-zinc-400 mb-8 text-sm font-medium">Thank you for shopping at <span className="font-black text-white">{storeData?.store_name || 'our store'}</span>.</p>
+                
+                <div className="bg-black/50 rounded-[2rem] p-5 mb-8 border border-white/5 shadow-inner">
+                  <p className="text-[10px] text-zinc-500 uppercase font-black tracking-[0.2em] mb-1">Order ID</p>
+                  <p className="text-2xl font-black text-white tracking-tighter">{safeCartId}</p>
+                </div>
 
+                {/* 🔥 NEW: Smart Request Bill Button */}
+                <button 
+                  onClick={handleRequestBill}
+                  disabled={billRequested || billRequestLoading}
+                  className={`w-full font-black py-5 rounded-2xl flex items-center justify-center gap-3 text-lg transition-all shadow-xl ${
+                    billRequested 
+                      ? 'bg-white/10 text-white border border-white/20' 
+                      : 'bg-[#25D366] text-black hover:scale-[1.02] active:scale-95 shadow-[0_10px_30px_rgba(37,211,102,0.3)]'
+                  }`}
+                >
+                  {billRequestLoading ? (
+                    <Loader2 className="w-6 h-6 animate-spin text-black" />
+                  ) : billRequested ? (
+                    <>
+                      <Check className="w-6 h-6 text-[#25D366]" />
+                      Request Sent to Counter
+                    </>
+                  ) : (
+                    <>
+                      <MessageCircle className="w-6 h-6" />
+                      Get VIP Digital Bill
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Marketing / Retention Links */}
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="space-y-3"
+              >
+                <p className="text-center text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] mb-4 mt-8">Connect With Us</p>
+                
+                <SocialButton icon={<MapPin className="w-5 h-5 text-red-400" />} label="Rate us on Google Maps" color="hover:border-red-500/30 hover:bg-red-500/10" delay={0.4} />
+                <SocialButton icon={<Instagram className="w-5 h-5 text-pink-400" />} label="Follow on Instagram" color="hover:border-pink-500/30 hover:bg-pink-500/10" delay={0.5} />
+                <SocialButton icon={<Facebook className="w-5 h-5 text-blue-400" />} label="Join our Facebook VIPs" color="hover:border-blue-500/30 hover:bg-blue-500/10" delay={0.6} />
+                <SocialButton icon={<Youtube className="w-5 h-5 text-red-500" />} label="Subscribe on YouTube" color="hover:border-red-600/30 hover:bg-red-600/10" delay={0.7} />
+              </motion.div>
+              
+              <motion.button 
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.9 }}
+                onClick={() => router.push(`/${safeStoreSlug}/cart`)}
+                className="w-full mt-8 text-[11px] font-black uppercase tracking-widest text-zinc-500 hover:text-white transition-colors py-3"
+              >
+                Start a new session
+              </motion.button>
+            </motion.div>
+          )}
+
+        </AnimatePresence>
+      </div>
     </div>
+  );
+}
+
+// Reusable Social Button Component
+function SocialButton({ icon, label, color, delay }: { icon: React.ReactNode, label: string, color: string, delay: number }) {
+  return (
+    <motion.button 
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay }}
+      className={`w-full bg-[#111] border border-white/5 p-4 rounded-2xl flex items-center justify-between group transition-all active:scale-95 ${color}`}
+    >
+      <div className="flex items-center gap-4">
+        <div className="bg-black/50 p-2.5 rounded-xl border border-white/5 shadow-inner">{icon}</div>
+        <span className="font-black text-sm text-zinc-300 group-hover:text-white transition-colors">{label}</span>
+      </div>
+      <ArrowRight className="w-5 h-5 text-zinc-600 group-hover:text-white transition-transform group-hover:translate-x-1" />
+    </motion.button>
   );
 }
