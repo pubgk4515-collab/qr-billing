@@ -28,10 +28,9 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
   // --- Manual Checkout States ---
   const [scannedItems, setScannedItems] = useState<any[]>([]); 
   const [customerPhone, setCustomerPhone] = useState('');
-  const [manualTagId, setManualTagId] = useState(''); // New state for manual input
+  const [manualTagId, setManualTagId] = useState(''); 
 
   // --- Digital Bill Requests State ---
-  // Ye dummy state hai, future me aap isko Supabase ke kisi 'bill_requests' table se fetch kar sakte hain
   const [billRequests, setBillRequests] = useState<any[]>([]); 
 
   const safeStoreSlug = decodeURIComponent(store_slug || '').toLowerCase().trim();
@@ -102,7 +101,6 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
 
   // --- QUICK CHECKOUT ADD ITEMS LOGIC ---
   const handleScanItem = async () => {
-    // Ye pehle jaisa dummy scan hai (Aap isme In-App scanner logic add kar sakte hain)
     const newItem = { id: Date.now(), tag: `TAG00${scannedItems.length + 1}`, name: "Scanned Item", price: 999 };
     setScannedItems(prev => [newItem, ...prev]);
   };
@@ -111,13 +109,11 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
     e.preventDefault();
     if (!manualTagId.trim()) return;
 
-    // Yahan aap Supabase se real product fetch karne ka logic laga sakte hain.
-    // Abhi ke liye main isko ek dummy item me convert karke list me daal raha hu.
     const tagUpper = manualTagId.trim().toUpperCase();
-    const newItem = { id: Date.now(), tag: tagUpper, name: "Manual Added Item", price: 599 }; // Dummy data
+    const newItem = { id: Date.now(), tag: tagUpper, name: "Manual Added Item", price: 599 }; 
     
     setScannedItems(prev => [newItem, ...prev]);
-    setManualTagId(''); // Clear input after adding
+    setManualTagId(''); 
   };
 
   const handleCreateManualBill = async () => {
@@ -148,9 +144,35 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
     setLoading(false);
   };
 
-  const handleApprovePayment = async (orderId: string) => {
-    setPendingOrders(prev => prev.filter(o => o.id !== orderId));
-    await supabase.from('sales').update({ payment_status: 'completed' }).eq('id', orderId);
+  // 🔥 UPDATED APPROVAL LOGIC (Frees the tags in inventory)
+  const handleApprovePayment = async (order: any) => {
+    // 1. Optimistic UI update (Remove from Live Queue instantly)
+    setPendingOrders(prev => prev.filter(o => o.id !== order.id));
+    
+    try {
+      // 2. Mark order as completed in 'sales' table
+      await supabase.from('sales').update({ payment_status: 'completed' }).eq('id', order.id);
+
+      // 3. Clear tags in 'qr_tags' table
+      if (order.purchased_items && Array.isArray(order.purchased_items)) {
+        
+        // Extract tag IDs (based on your cart/page.tsx, it's saved in the 'id' field)
+        const tagIdsToFree = order.purchased_items.map((item: any) => item.id);
+
+        if (tagIdsToFree.length > 0) {
+          await supabase
+            .from('qr_tags')
+            .update({ 
+              status: 'free', 
+              product_id: null 
+            })
+            .in('id', tagIdsToFree); // Bulk update all purchased tags
+        }
+      }
+    } catch (err) {
+      console.error("Error approving payment:", err);
+      // In a real prod app, you might want to rollback the UI state if this fails
+    }
   };
 
   const themeColor = storeData?.theme_color || '#10b981';
@@ -228,7 +250,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
 
       <main className="max-w-4xl mx-auto px-6 py-8 flex flex-col gap-10">
 
-        {/* 1. 🔴 LIVE ACTION QUEUE (MOVED TO TOP) */}
+        {/* 1. 🔴 LIVE ACTION QUEUE */}
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-black tracking-tight">Live Queue</h2>
@@ -264,7 +286,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
                         <p className="text-2xl font-black flex items-center gap-1">₹{order.total_amount}</p>
                       </div>
                       <button 
-                        onClick={() => handleApprovePayment(order.id)} 
+                        onClick={() => handleApprovePayment(order)} // ⚠️ CHANGED: Passing the full order object now
                         className="px-8 py-4 rounded-2xl font-black text-black active:scale-95 transition-all shadow-[0_10px_30px_rgba(0,0,0,0.3)]" 
                         style={{ backgroundColor: themeColor }}
                       >
@@ -278,7 +300,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
           </div>
         </div>
 
-        {/* 2. 🟢 DIGITAL BILL REQUESTS (NEW NOTIFICATION BLOCK) */}
+        {/* 2. 🟢 DIGITAL BILL REQUESTS */}
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-black tracking-tight flex items-center gap-2">
@@ -292,7 +314,6 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
                  <p className="text-xs font-bold text-zinc-500">No pending digital bill requests</p>
               </div>
             ) : (
-              // Map through real bill requests here
               billRequests.map((request, idx) => (
                 <div key={idx} className="bg-[#111] border border-white/5 rounded-2xl p-4 flex items-center justify-between shadow-md">
                    <div>
@@ -308,14 +329,13 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
           </div>
         </div>
 
-        {/* 3. 📋 QUICK CHECKOUT (MOVED TO BOTTOM, WITH MANUAL ADD) */}
+        {/* 3. 📋 QUICK CHECKOUT */}
         <div className="bg-[#0A0A0A] border border-white/10 rounded-[2.5rem] overflow-hidden flex flex-col h-[550px] shadow-2xl mt-4">
           <div className="p-6 border-b border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 whitespace-nowrap" style={{ color: themeColor }}>
               <Zap className="w-4 h-4" /> Quick Checkout
             </h3>
             
-            {/* Action Buttons: Scan OR Manual Tag Input */}
             <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
               <button onClick={handleScanItem} className="w-full sm:w-auto px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-black text-xs flex items-center justify-center gap-2 active:scale-95 transition-all">
                 <QrCode className="w-4 h-4" /> Scan
@@ -336,7 +356,6 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
             </div>
           </div>
 
-          {/* Scanned Items List */}
           <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2 bg-[#050505]/50">
             <AnimatePresence>
               {scannedItems.length === 0 ? (
@@ -363,7 +382,6 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
             </AnimatePresence>
           </div>
 
-          {/* Checkout Footer */}
           <div className="p-6 bg-[#0A0A0A] border-t border-white/5 flex flex-col gap-4">
             <div className="relative">
               <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
