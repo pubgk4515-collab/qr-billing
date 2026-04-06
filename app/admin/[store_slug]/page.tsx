@@ -4,7 +4,7 @@ import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Store, CheckCircle2, Loader2, Package, QrCode, Smartphone, Zap, Trash2, Clock } from 'lucide-react';
+import { Store, CheckCircle2, Loader2, Package, QrCode, Smartphone, Zap, Trash2, Clock, Lock, KeyRound } from 'lucide-react';
 import Link from 'next/link';
 
 export default function AdminDashboard({ params }: { params: Promise<{ store_slug: string }> }) {
@@ -16,39 +16,54 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
   const [pendingOrders, setPendingOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
+  // --- Auth States ---
+  const [isAuthed, setIsAuthed] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState(false);
+
   // --- Manual Checkout States ---
   const [scannedItems, setScannedItems] = useState<any[]>([]); 
   const [customerPhone, setCustomerPhone] = useState('');
 
   const safeStoreSlug = decodeURIComponent(store_slug || '').toLowerCase().trim();
 
-  // 1. 🔒 AUTHENTICATION GUARD & INITIAL FETCH
+  // 1. FETCH STORE DATA & CHECK AUTH STATUS
   useEffect(() => {
     if (!safeStoreSlug) return;
     
-    // Check if Admin PIN was entered successfully
-    const isAuthed = localStorage.getItem(`admin_auth_${safeStoreSlug}`);
-    if (!isAuthed) {
-      router.replace(`/admin`); // Wapas PIN wale page par bhej do
-      return; // Aage ka code mat chalne do
-    }
-
     async function fetchInitialData() {
       try {
-        const { data: store } = await supabase.from('stores').select('*').ilike('slug', safeStoreSlug).single();
+        // Fetch store details including admin_pin from database
+        const { data: store } = await supabase
+          .from('stores')
+          .select('*')
+          .ilike('slug', safeStoreSlug)
+          .single();
+          
         if (store) {
           setStoreData(store);
-          fetchLiveQueue(store.id);
+          
+          // Check local storage for existing session
+          const savedAuth = localStorage.getItem(`admin_auth_${safeStoreSlug}`);
+          if (savedAuth === 'true') {
+            setIsAuthed(true);
+            fetchLiveQueue(store.id); // Only fetch queue if authed
+          }
         }
-      } catch (err) { console.error(err); }
-      finally { setLoading(false); }
+      } catch (err) { 
+        console.error(err); 
+      } finally { 
+        setAuthChecking(false);
+        setLoading(false); 
+      }
     }
     fetchInitialData();
-  }, [safeStoreSlug, router]);
+  }, [safeStoreSlug]);
 
-  // 2. 🔴 LIVE QUEUE: Real-time update (Polling every 3s for faster sync)
+  // 2. LIVE QUEUE POLLING (Only runs if authenticated)
   const fetchLiveQueue = async (storeId: string) => {
-    // Sirf 'pending' wale dikhao queue mein
+    if (!isAuthed) return;
     const { data } = await supabase
       .from('sales')
       .select('*')
@@ -60,21 +75,31 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
   };
 
   useEffect(() => {
-    if (!storeData?.id) return;
-    // Fast polling taki customer ko zyada wait na karna pade
+    if (!storeData?.id || !isAuthed) return;
     const interval = setInterval(() => fetchLiveQueue(storeData.id), 3000); 
     return () => clearInterval(interval);
-  }, [storeData?.id]);
+  }, [storeData?.id, isAuthed]);
 
   // --- Functions ---
+  const handlePinSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    // Match entered PIN with database admin_pin
+    if (storeData && pinInput === storeData.admin_pin) {
+      localStorage.setItem(`admin_auth_${safeStoreSlug}`, 'true');
+      setIsAuthed(true);
+      fetchLiveQueue(storeData.id); // Fetch data immediately after unlock
+    } else {
+      setPinError(true);
+      setPinInput('');
+      setTimeout(() => setPinError(false), 2000);
+    }
+  };
 
-  // 1. Mock Scan Function (Asli camera baad mein integrate karenge)
   const handleScanItem = async () => {
     const newItem = { id: Date.now(), tag: `TAG00${scannedItems.length + 1}`, name: "Premium Item", price: 999 };
     setScannedItems(prev => [newItem, ...prev]);
   };
 
-  // 2. Create Bill (Manual)
   const handleCreateManualBill = async () => {
     if (scannedItems.length === 0) return alert("Pehle item scan karein!");
     setLoading(true);
@@ -87,7 +112,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
       store_id: storeData.id,
       total_amount: totalAmount,
       items_count: scannedItems.length,
-      payment_status: 'completed', // Direct completed, no queue
+      payment_status: 'completed',
       payment_method: 'CASH',
       customer_phone: customerPhone,
       purchased_items: scannedItems
@@ -103,19 +128,66 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
     setLoading(false);
   };
 
-  // 3. 🔥 THE FIX: Approve Payment (Syncs with Success Page)
   const handleApprovePayment = async (orderId: string) => {
-    // Optimistic UI update - turant queue se hatao bina DB wait kiye
     setPendingOrders(prev => prev.filter(o => o.id !== orderId));
-    
-    // Database mein 'approved' ya 'completed' set karo (Donon success page accept karega ab)
     await supabase.from('sales').update({ payment_status: 'completed' }).eq('id', orderId);
   };
 
   const themeColor = storeData?.theme_color || '#10b981';
 
-  if (loading && !storeData) return <div className="min-h-screen bg-[#050505] flex items-center justify-center"><Loader2 className="w-8 h-8 text-zinc-600 animate-spin" /></div>;
+  // ⏳ LOADING SCREEN
+  if (loading || authChecking) return <div className="min-h-screen bg-[#050505] flex items-center justify-center"><Loader2 className="w-8 h-8 text-zinc-600 animate-spin" /></div>;
 
+  // 🔐 LOCK SCREEN (IF NOT AUTHENTICATED)
+  if (!isAuthed) {
+    return (
+      <div className="min-h-screen bg-[#050505] text-white flex flex-col items-center justify-center p-6 font-sans">
+        <motion.div 
+          initial={{ scale: 0.9, opacity: 0 }} 
+          animate={{ scale: 1, opacity: 1 }} 
+          className="w-full max-w-xs bg-[#0A0A0A] border border-white/10 rounded-[2.5rem] p-8 text-center shadow-2xl relative overflow-hidden"
+        >
+          {/* Dynamic Top Glow */}
+          <div className="absolute top-0 left-0 w-full h-1 opacity-50" style={{ backgroundColor: themeColor }} />
+          
+          <div className="w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-6 border border-white/5" style={{ backgroundColor: `${themeColor}15` }}>
+            <Lock className="w-8 h-8" style={{ color: themeColor }} />
+          </div>
+          
+          <h1 className="text-2xl font-black tracking-tight mb-2">Admin Access</h1>
+          <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mb-8">{storeData?.store_name}</p>
+
+          <form onSubmit={handlePinSubmit} className="flex flex-col gap-4">
+            <div className="relative">
+              <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+              <input 
+                type="password" 
+                maxLength={4}
+                value={pinInput}
+                onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
+                placeholder="Enter 4-Digit PIN"
+                autoFocus
+                className={`w-full bg-[#111] border ${pinError ? 'border-red-500' : 'border-white/10'} rounded-2xl py-4 pl-12 pr-4 text-center text-lg tracking-[0.5em] font-black focus:outline-none transition-all`}
+              />
+            </div>
+            
+            {pinError && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs text-red-500 font-bold">Incorrect PIN</motion.p>}
+            
+            <button 
+              type="submit"
+              disabled={pinInput.length !== 4}
+              className="w-full py-4 rounded-2xl font-black text-black mt-2 disabled:opacity-50 transition-all active:scale-95 shadow-xl"
+              style={{ backgroundColor: themeColor }}
+            >
+              Unlock Dashboard
+            </button>
+          </form>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // 🔓 MAIN DASHBOARD (IF AUTHENTICATED)
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans pb-10">
       
@@ -141,7 +213,6 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
             </button>
           </div>
 
-          {/* SCROLLABLE ITEM LIST */}
           <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2 bg-[#050505]/50">
             <AnimatePresence>
               {scannedItems.length === 0 ? (
@@ -168,7 +239,6 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
             </AnimatePresence>
           </div>
 
-          {/* FIXED BOTTOM ACTION AREA */}
           <div className="p-6 bg-[#0A0A0A] border-t border-white/5 flex flex-col gap-4">
             <div className="relative">
               <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
@@ -208,178 +278,6 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
                   <motion.div key={order.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
                     className="bg-[#0A0A0A] border border-white/10 rounded-[2rem] p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 relative group shadow-lg"
                   >
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                    
                     <div className="absolute left-0 top-6 bottom-6 w-1 rounded-r-full animate-pulse" style={{ backgroundColor: themeColor }} />
                     <div>
                       <div className="flex items-center gap-3 mb-2">
