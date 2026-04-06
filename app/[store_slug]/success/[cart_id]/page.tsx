@@ -47,18 +47,23 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
 
     const checkOrderStatus = async () => {
       try {
-        // Apne table ka naam 'carts' ya 'orders' jo bhi ho, wo yahan daalein
+        // Updated: Correct Table, Column, and ID match based on Supabase
         const { data, error } = await supabase
-          .from('carts') 
-          .select('status')
-          .eq('id', safeCartId)
+          .from('sales') 
+          .select('payment_status')
+          .eq('cart_id', safeCartId)
           .single();
 
+        if (error) {
+          console.error("Supabase Query Error:", error.message);
+          return;
+        }
+
         if (data) {
-          setOrderStatus(data.status);
+          setOrderStatus(data.payment_status);
           
-          // Agar Admin ne approve kar diya hai, toh cart khaali kardo
-          if (data.status === 'approved' || data.status === 'completed') {
+          // Agar Admin ne approve kar diya hai ('completed'), toh cart khaali kardo
+          if (data.payment_status === 'completed') {
              localStorage.removeItem(`cart_${safeStoreSlug}`);
           }
         }
