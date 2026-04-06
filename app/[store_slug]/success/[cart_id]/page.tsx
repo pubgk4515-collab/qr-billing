@@ -20,13 +20,15 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
   // States for Order & Bill Request
   const [orderStatus, setOrderStatus] = useState<string>('pending'); 
   const [customerPhone, setCustomerPhone] = useState<string>('');
+  const [fetchedStoreId, setFetchedStoreId] = useState<string | null>(null); // 🔥 NEW: Guaranteed Store ID
+  
   const [billRequested, setBillRequested] = useState(false);
   const [billRequestLoading, setBillRequestLoading] = useState(false);
 
   const safeStoreSlug = decodeURIComponent(store_slug || '').toLowerCase().trim();
   const safeCartId = decodeURIComponent(cart_id || '').toUpperCase().trim();
 
-  // 1. Fetch Store Info
+  // 1. Fetch Store Info (For UI Branding)
   useEffect(() => {
     if (!safeStoreSlug) return;
     async function fetchStore() {
@@ -44,7 +46,7 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
     fetchStore();
   }, [safeStoreSlug]);
 
-  // 2. SILENT LIVE POLLING
+  // 2. SILENT LIVE POLLING (Fetches exact store_id from sales table)
   useEffect(() => {
     if (!safeCartId) return;
 
@@ -52,13 +54,14 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
       try {
         const { data, error } = await supabase
           .from('sales') 
-          .select('payment_status, customer_phone')
+          .select('payment_status, customer_phone, store_id') // 🔥 Fetching store_id directly from the order
           .eq('cart_id', safeCartId)
           .single();
 
         if (data) {
           setOrderStatus(data.payment_status);
           if (data.customer_phone) setCustomerPhone(data.customer_phone);
+          if (data.store_id) setFetchedStoreId(data.store_id); // Save guaranteed Store ID
           
           if (data.payment_status === 'completed') {
              localStorage.removeItem(`cart_${safeStoreSlug}`);
@@ -77,14 +80,22 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
     return () => clearInterval(intervalId); 
   }, [safeCartId, safeStoreSlug]);
 
-  // 🔥 NEW: Trigger Digital Bill Request (Saves to Database instead of opening WhatsApp)
+  // 🔥 ROCK-SOLID TRIGGER BILL REQUEST
   const handleRequestBill = async () => {
-    if (!storeData?.id || billRequested) return;
+    // Use storeData ID first, if missing (like in video), fallback to fetchedStoreId from sales table
+    const finalStoreId = storeData?.id || fetchedStoreId;
+
+    if (!finalStoreId) {
+      alert("Please wait a second, connecting to the store database...");
+      return;
+    }
+
+    if (billRequested) return;
     
     setBillRequestLoading(true);
     try {
       const { error } = await supabase.from('bill_requests').insert({
-        store_id: storeData.id,
+        store_id: finalStoreId,
         cart_id: safeCartId,
         customer_phone: customerPhone || 'Not Provided' 
       });
@@ -185,11 +196,11 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
                   <p className="text-2xl font-black text-white tracking-tighter">{safeCartId}</p>
                 </div>
 
-                {/* 🔥 NEW LOGIC: This will NOT open WhatsApp. It will save to DB. */}
+                {/* 🔥 BUG FIX: Added 'select-none touch-manipulation' to prevent text highlighting */}
                 <button 
                   onClick={handleRequestBill}
                   disabled={billRequested || billRequestLoading}
-                  className={`w-full font-black py-5 rounded-2xl flex items-center justify-center gap-3 text-lg transition-all shadow-xl ${
+                  className={`w-full font-black py-5 rounded-2xl flex items-center justify-center gap-3 text-lg transition-all shadow-xl select-none touch-manipulation ${
                     billRequested 
                       ? 'bg-white/10 text-white border border-white/20' 
                       : 'bg-[#25D366] text-black hover:scale-[1.02] active:scale-95 shadow-[0_10px_30px_rgba(37,211,102,0.3)]'
@@ -246,7 +257,7 @@ function SocialButton({ icon, label, color, delay }: { icon: React.ReactNode, la
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay }}
-      className={`w-full bg-[#111] border border-white/5 p-4 rounded-2xl flex items-center justify-between group transition-all active:scale-95 ${color}`}
+      className={`w-full bg-[#111] border border-white/5 p-4 rounded-2xl flex items-center justify-between group transition-all active:scale-95 select-none ${color}`}
     >
       <div className="flex items-center gap-4">
         <div className="bg-black/50 p-2.5 rounded-xl border border-white/5 shadow-inner">{icon}</div>
