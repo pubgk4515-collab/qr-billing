@@ -317,8 +317,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
             {filteredInventory.map((item) => (
               <motion.div key={item.id} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} 
                 className={`relative overflow-hidden p-6 rounded-[2rem] border transition-all ${
-                  item.status === 'free' ? 'border-dashed border-white/10 bg-transparent' : 
-                  item.status === 'sold' ? 'border-white/5 bg-[#0a0a0a]' : 
+                  (item.status === 'free' || item.status === 'sold') ? 'border-dashed border-white/10 bg-transparent' : 
                   item.status === 'in_cart' ? 'border-amber-500/30 bg-[#111] shadow-[0_0_20px_rgba(245,158,11,0.05)]' : 
                   'border-white/10 bg-[#111] shadow-xl'
                 }`}
@@ -338,12 +337,12 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
                     <span className={`text-[11px] font-black tracking-widest uppercase ${
                       item.status === 'active' ? 'text-emerald-500' : 
                       item.status === 'in_cart' ? 'text-amber-500' :
-                      item.status === 'sold' ? 'text-red-500' : 'text-zinc-500'
+                      'text-zinc-500'
                     }`} style={item.status === 'active' ? { color: themeColor } : {}}>
                       {item.id}
                     </span>
-                    <h3 className={`text-xl font-black tracking-tight mt-1 ${item.status === 'sold' ? 'text-zinc-500 line-through' : ''}`}>
-                      {item.status !== 'free' ? item.products?.name : 'Empty Tag'}
+                    <h3 className="text-xl font-black tracking-tight mt-1">
+                      {(item.status === 'active' || item.status === 'in_cart') ? item.products?.name : 'Empty Tag'}
                     </h3>
                   </div>
                   
@@ -379,8 +378,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
                   ) : (
                     <>
                       <div className="flex flex-col gap-1">
-                        {item.status === 'sold' && <div className="w-fit text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest bg-red-500/10 text-red-400">SOLD</div>}
-                        <span className="text-xs text-zinc-600 font-bold">{item.status === 'sold' ? 'Tag ready to reuse' : 'Ready to bind'}</span>
+                        <span className="text-xs text-zinc-600 font-bold">Ready to bind</span>
                       </div>
                       <button onClick={() => openAddModalForSpecificTag(item.id)} className="px-5 py-2.5 bg-white text-black hover:bg-zinc-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg">
                         Link Item
