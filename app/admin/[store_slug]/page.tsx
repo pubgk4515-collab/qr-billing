@@ -6,9 +6,10 @@ import { supabase } from '../../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Store, CheckCircle2, Loader2, Package, QrCode, Smartphone, 
-  Zap, Trash2, Clock, Lock, KeyRound, MessageCircle, Send, Plus 
+  Zap, Trash2, Clock, Lock, KeyRound, MessageCircle, Send, Plus, X 
 } from 'lucide-react';
 import Link from 'next/link';
+import { Html5Qrcode } from 'html5-qrcode'; 
 
 export default function AdminDashboard({ params }: { params: Promise<{ store_slug: string }> }) {
   const router = useRouter();
@@ -19,7 +20,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
   const [pendingOrders, setPendingOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // --- Auth States ---
+  // --- Authentication States ---
   const [isAuthed, setIsAuthed] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
   const [pinInput, setPinInput] = useState('');
@@ -29,13 +30,16 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
   const [scannedItems, setScannedItems] = useState<any[]>([]); 
   const [customerPhone, setCustomerPhone] = useState('');
   const [manualTagId, setManualTagId] = useState(''); 
+  const [isScannerOpen, setIsScannerOpen] = useState(false); 
+  const [itemFetching, setItemFetching] = useState(false); 
 
   // --- Digital Bill Requests State ---
+  // Placeholder state: To be integrated with a dedicated 'bill_requests' table in Supabase later.
   const [billRequests, setBillRequests] = useState<any[]>([]); 
 
   const safeStoreSlug = decodeURIComponent(store_slug || '').toLowerCase().trim();
 
-  // 1. FETCH STORE DATA & CHECK AUTH STATUS
+  // 1. INITIALIZE STORE CONFIGURATION & VERIFY AUTHENTICATION
   useEffect(() => {
     if (!safeStoreSlug) return;
     
@@ -50,6 +54,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
         if (store) {
           setStoreData(store);
           
+          // Verify existing session token from local storage
           const savedAuth = localStorage.getItem(`admin_auth_${safeStoreSlug}`);
           if (savedAuth === 'true') {
             setIsAuthed(true);
@@ -57,7 +62,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
           }
         }
       } catch (err) { 
-        console.error(err); 
+        console.error("Initialization Error:", err); 
       } finally { 
         setAuthChecking(false);
         setLoading(false); 
@@ -66,7 +71,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
     fetchInitialData();
   }, [safeStoreSlug]);
 
-  // 2. LIVE QUEUE POLLING (Only runs if authenticated)
+  // 2. LIVE QUEUE SYNCHRONIZATION (Requires active authentication)
   const fetchLiveQueue = async (storeId: string) => {
     if (!isAuthed) return;
     const { data } = await supabase
@@ -85,7 +90,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
     return () => clearInterval(interval);
   }, [storeData?.id, isAuthed]);
 
-  // --- Functions ---
+  // --- Utility Functions ---
   const handlePinSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (storeData && pinInput === storeData.admin_pin) {
@@ -99,25 +104,105 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
     }
   };
 
-  // --- QUICK CHECKOUT ADD ITEMS LOGIC ---
-  const handleScanItem = async () => {
-    const newItem = { id: Date.now(), tag: `TAG00${scannedItems.length + 1}`, name: "Scanned Item", price: 999 };
-    setScannedItems(prev => [newItem, ...prev]);
+  // --- CORE CHECKOUT ENGINE: Validates and fetches real-time item data ---
+  const processScannedTag = async (tagId: string) => {
+    if (!tagId) return;
+    const tagUpper = tagId.trim().toUpperCase();
+
+    // Prevent duplicate item additions
+    if (scannedItems.some(item => item.tag === tagUpper)) {
+      alert("Item conflict: This tag is already in the current checkout session.");
+      return;
+    }
+
+    setItemFetching(true);
+    try {
+      const { data, error } = await supabase
+        .from('qr_tags')
+        .select(`id, status, products ( id, name, price )`)
+        .eq('id', tagUpper)
+        .eq('store_id', storeData.id) 
+        .single();
+
+      if (error || !data || !data.products) {
+        alert("Invalid Tag: The scanned tag is either unregistered or empty.");
+        return;
+      }
+
+      if (data.status === 'sold') {
+        alert("Validation Failed: This item is marked as previously sold.");
+        return;
+      }
+
+      // Normalizing the relational data payload to handle potential Array/Object inconsistencies
+      const productInfo: any = Array.isArray(data.products) ? data.products : data.products;
+
+      const newItem = { 
+        id: Date.now(), 
+        tag: data.id, 
+        name: productInfo.name, 
+        price: productInfo.price,
+        product_id: productInfo.id 
+      }; 
+      
+      setScannedItems(prev => [newItem, ...prev]);
+    } catch (err) {
+      console.error("Data Fetch Error:", err);
+      alert("Network timeout. Please verify your connection and try again.");
+    } finally {
+      setItemFetching(false);
+    }
   };
 
   const handleManualTagSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualTagId.trim()) return;
-
-    const tagUpper = manualTagId.trim().toUpperCase();
-    const newItem = { id: Date.now(), tag: tagUpper, name: "Manual Added Item", price: 599 }; 
-    
-    setScannedItems(prev => [newItem, ...prev]);
+    await processScannedTag(manualTagId);
     setManualTagId(''); 
   };
 
+  // --- INTEGRATED CAMERA SCANNER ENGINE ---
+  useEffect(() => {
+    let html5QrCode: Html5Qrcode;
+
+    if (isScannerOpen) {
+      setTimeout(() => {
+        html5QrCode = new Html5Qrcode("admin-reader"); 
+        
+        html5QrCode.start(
+          { facingMode: "environment" },
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0 
+          },
+          async (decodedText: string) => {
+            const scannedTag = decodeURIComponent(decodedText.split('/').pop() || '').toUpperCase().trim(); 
+            if (scannedTag) {
+              html5QrCode.pause(); 
+              await processScannedTag(scannedTag);
+              html5QrCode.stop().then(() => setIsScannerOpen(false)).catch(console.error);
+            }
+          },
+          (errorMessage: any) => {
+             // Suppressing background frame evaluation warnings
+          }
+        ).catch((err: any) => console.error("Camera Initialization Error:", err));
+      }, 100);
+    }
+
+    return () => {
+      // Ensure the camera stream is terminated on component unmount
+      if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().catch(console.error);
+      }
+    };
+  }, [isScannerOpen]);
+
   const handleCreateManualBill = async () => {
-    if (scannedItems.length === 0) return alert("Pehle item add karein!");
+    if (scannedItems.length === 0) {
+      return alert("Operation Failed: Please add at least one item to proceed.");
+    }
     setLoading(true);
     
     const totalAmount = scannedItems.reduce((acc, item) => acc + item.price, 0);
@@ -131,108 +216,80 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
       payment_status: 'completed',
       payment_method: 'CASH',
       customer_phone: customerPhone,
-      purchased_items: scannedItems
+      purchased_items: scannedItems 
     });
 
     if (!error) {
-      alert("Bill Generated Successfully!");
+      // Asynchronously release the purchased tags back into the inventory pool
+      const tagIdsToFree = scannedItems.map((item: any) => item.tag);
+      await supabase.from('qr_tags').update({ status: 'free', product_id: null }).in('id', tagIdsToFree);
+
+      alert("Invoice successfully generated.");
       setScannedItems([]);
       setCustomerPhone('');
     } else {
-       alert("Error creating bill.");
+       alert("Transaction Error: Unable to finalize the bill.");
     }
     setLoading(false);
   };
 
-  // 🔥 UPDATED APPROVAL LOGIC (Frees the tags in inventory)
   const handleApprovePayment = async (order: any) => {
-    // 1. Optimistic UI update (Remove from Live Queue instantly)
+    // Optimistic UI update: Remove the resolved order from the queue instantly
     setPendingOrders(prev => prev.filter(o => o.id !== order.id));
     
     try {
-      // 2. Mark order as completed in 'sales' table
+      // Finalize the transaction record
       await supabase.from('sales').update({ payment_status: 'completed' }).eq('id', order.id);
 
-      // 3. Clear tags in 'qr_tags' table
+      // Inventory adjustment: Reset the associated QR tags
       if (order.purchased_items && Array.isArray(order.purchased_items)) {
-        
-        // Extract tag IDs (based on your cart/page.tsx, it's saved in the 'id' field)
         const tagIdsToFree = order.purchased_items.map((item: any) => item.id);
-
         if (tagIdsToFree.length > 0) {
           await supabase
             .from('qr_tags')
-            .update({ 
-              status: 'free', 
-              product_id: null 
-            })
-            .in('id', tagIdsToFree); // Bulk update all purchased tags
+            .update({ status: 'free', product_id: null })
+            .in('id', tagIdsToFree); 
         }
       }
     } catch (err) {
-      console.error("Error approving payment:", err);
-      // In a real prod app, you might want to rollback the UI state if this fails
+      console.error("Transaction Approval Error:", err);
     }
   };
 
   const themeColor = storeData?.theme_color || '#10b981';
 
-  // ⏳ LOADING SCREEN
+  // ⏳ INITIALIZATION SCREEN
   if (loading || authChecking) return <div className="min-h-screen bg-[#050505] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin" style={{ color: themeColor }} /></div>;
 
-  // 🔐 LOCK SCREEN (IF NOT AUTHENTICATED)
+  // 🔐 SECURE LOCK SCREEN (UNAUTHENTICATED STATE)
   if (!isAuthed) {
     return (
       <div className="min-h-screen bg-[#050505] text-white flex flex-col items-center justify-center p-6 font-sans">
-        <motion.div 
-          initial={{ scale: 0.9, opacity: 0 }} 
-          animate={{ scale: 1, opacity: 1 }} 
-          className="w-full max-w-xs bg-[#0A0A0A] border border-white/10 rounded-[2.5rem] p-8 text-center shadow-2xl relative overflow-hidden"
-        >
+        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-xs bg-[#0A0A0A] border border-white/10 rounded-[2.5rem] p-8 text-center shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-1 opacity-50" style={{ backgroundColor: themeColor }} />
-          
           <div className="w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-6 border border-white/5" style={{ backgroundColor: `${themeColor}15` }}>
             <Lock className="w-8 h-8" style={{ color: themeColor }} />
           </div>
-          
           <h1 className="text-2xl font-black tracking-tight mb-2">Admin Access</h1>
           <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mb-8">{storeData?.store_name}</p>
-
           <form onSubmit={handlePinSubmit} className="flex flex-col gap-4">
             <div className="relative">
               <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-              <input 
-                type="password" 
-                maxLength={4}
-                value={pinInput}
-                onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
-                placeholder="Enter 4-Digit PIN"
-                autoFocus
-                className={`w-full bg-[#111] border ${pinError ? 'border-red-500' : 'border-white/10'} rounded-2xl py-4 pl-12 pr-4 text-center text-lg tracking-[0.5em] font-black focus:outline-none transition-all`}
-              />
+              <input type="password" maxLength={4} value={pinInput} onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))} placeholder="Enter 4-Digit PIN" autoFocus className={`w-full bg-[#111] border ${pinError ? 'border-red-500' : 'border-white/10'} rounded-2xl py-4 pl-12 pr-4 text-center text-lg tracking-[0.5em] font-black focus:outline-none transition-all`} />
             </div>
-            
-            {pinError && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs text-red-500 font-bold">Incorrect PIN</motion.p>}
-            
-            <button 
-              type="submit"
-              disabled={pinInput.length !== 4}
-              className="w-full py-4 rounded-2xl font-black text-black mt-2 disabled:opacity-50 transition-all active:scale-95 shadow-xl"
-              style={{ backgroundColor: themeColor }}
-            >
-              Unlock Dashboard
-            </button>
+            {pinError && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs text-red-500 font-bold">Authentication Failed</motion.p>}
+            <button type="submit" disabled={pinInput.length !== 4} className="w-full py-4 rounded-2xl font-black text-black mt-2 disabled:opacity-50 transition-all active:scale-95 shadow-xl" style={{ backgroundColor: themeColor }}>Unlock Dashboard</button>
           </form>
         </motion.div>
       </div>
     );
   }
 
-  // 🔓 MAIN DASHBOARD (IF AUTHENTICATED)
+  // 🔓 COMMAND CENTER (AUTHENTICATED STATE)
   return (
-    <div className="min-h-screen bg-[#050505] text-white font-sans pb-16">
+    <div className="min-h-screen bg-[#050505] text-white font-sans pb-16 relative">
       
-      {/* HEADER */}
+      {/* GLOBAL HEADER */}
       <header className="bg-[#0A0A0A]/80 backdrop-blur-xl border-b border-white/5 sticky top-0 z-40 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center border border-white/10" style={{ backgroundColor: `${themeColor}15` }}>
@@ -250,7 +307,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
 
       <main className="max-w-4xl mx-auto px-6 py-8 flex flex-col gap-10">
 
-        {/* 1. 🔴 LIVE ACTION QUEUE */}
+        {/* 1. REAL-TIME ACTION QUEUE */}
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-black tracking-tight">Live Queue</h2>
@@ -262,8 +319,8 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
               {pendingOrders.length === 0 ? (
                  <div className="bg-[#0A0A0A] border border-white/5 rounded-[2rem] p-10 flex flex-col items-center justify-center text-center opacity-50">
                     <Clock className="w-10 h-10 text-zinc-600 mb-3" />
-                    <p className="font-bold text-zinc-400">Queue is empty</p>
-                    <p className="text-xs text-zinc-600 mt-1">New online carts will appear here.</p>
+                    <p className="font-bold text-zinc-400">Queue is currently empty</p>
+                    <p className="text-xs text-zinc-600 mt-1">Incoming digital carts will be listed here.</p>
                  </div>
               ) : (
                 pendingOrders.map((order) => (
@@ -277,7 +334,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
                          <span className="text-xs text-zinc-400 font-mono font-bold">{order.customer_phone}</span>
                       </div>
                       <h3 className="text-3xl font-black tracking-tighter text-white">{order.cart_id}</h3>
-                      <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mt-1">{order.items_count} items • Waiting for approval</p>
+                      <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mt-1">{order.items_count} items • Pending Authorization</p>
                     </div>
 
                     <div className="flex items-center justify-between md:justify-end gap-8 border-t border-white/5 md:border-t-0 pt-4 md:pt-0">
@@ -286,7 +343,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
                         <p className="text-2xl font-black flex items-center gap-1">₹{order.total_amount}</p>
                       </div>
                       <button 
-                        onClick={() => handleApprovePayment(order)} // ⚠️ CHANGED: Passing the full order object now
+                        onClick={() => handleApprovePayment(order)} 
                         className="px-8 py-4 rounded-2xl font-black text-black active:scale-95 transition-all shadow-[0_10px_30px_rgba(0,0,0,0.3)]" 
                         style={{ backgroundColor: themeColor }}
                       >
@@ -300,7 +357,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
           </div>
         </div>
 
-        {/* 2. 🟢 DIGITAL BILL REQUESTS */}
+        {/* 2. DIGITAL BILL DISPATCHER */}
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-black tracking-tight flex items-center gap-2">
@@ -311,7 +368,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
           <div className="grid grid-cols-1 gap-3">
             {billRequests.length === 0 ? (
               <div className="bg-[#0A0A0A] border border-white/5 rounded-[1.5rem] p-6 text-center opacity-50 flex items-center justify-center gap-3">
-                 <p className="text-xs font-bold text-zinc-500">No pending digital bill requests</p>
+                 <p className="text-xs font-bold text-zinc-500">No active digital bill requests.</p>
               </div>
             ) : (
               billRequests.map((request, idx) => (
@@ -321,7 +378,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
                      <p className="text-[10px] text-zinc-500 font-bold tracking-widest uppercase">{request.phone}</p>
                    </div>
                    <button className="bg-[#25D366]/10 text-[#25D366] border border-[#25D366]/20 px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 hover:bg-[#25D366]/20 transition-all">
-                     <Send className="w-3 h-3" /> Send PDF
+                     <Send className="w-3 h-3" /> Dispatch PDF
                    </button>
                 </div>
               ))
@@ -329,15 +386,25 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
           </div>
         </div>
 
-        {/* 3. 📋 QUICK CHECKOUT */}
-        <div className="bg-[#0A0A0A] border border-white/10 rounded-[2.5rem] overflow-hidden flex flex-col h-[550px] shadow-2xl mt-4">
+        {/* 3. TERMINAL: QUICK CHECKOUT */}
+        <div className="bg-[#0A0A0A] border border-white/10 rounded-[2.5rem] overflow-hidden flex flex-col h-[550px] shadow-2xl mt-4 relative">
+          
+          {/* Asynchronous Fetching Overlay */}
+          <AnimatePresence>
+            {itemFetching && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-10 bg-black/50 backdrop-blur-sm flex items-center justify-center rounded-[2.5rem]">
+                <Loader2 className="w-8 h-8 animate-spin" style={{ color: themeColor }} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div className="p-6 border-b border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 whitespace-nowrap" style={{ color: themeColor }}>
-              <Zap className="w-4 h-4" /> Quick Checkout
+              <Zap className="w-4 h-4" /> POS Terminal
             </h3>
             
             <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
-              <button onClick={handleScanItem} className="w-full sm:w-auto px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-black text-xs flex items-center justify-center gap-2 active:scale-95 transition-all">
+              <button onClick={() => setIsScannerOpen(true)} className="w-full sm:w-auto px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-black text-xs flex items-center justify-center gap-2 active:scale-95 transition-all">
                 <QrCode className="w-4 h-4" /> Scan
               </button>
               <div className="text-zinc-600 text-xs font-black uppercase hidden sm:block">OR</div>
@@ -349,7 +416,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
                   placeholder="Enter TAG ID..." 
                   className="w-full sm:w-40 bg-[#111] border border-white/10 rounded-l-xl py-3 pl-4 pr-2 text-xs font-bold uppercase focus:outline-none focus:border-white/30"
                 />
-                <button type="submit" className="px-3 bg-white text-black rounded-r-xl font-black active:scale-95 transition-all flex items-center justify-center">
+                <button type="submit" disabled={itemFetching} className="px-3 bg-white text-black rounded-r-xl font-black active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center">
                   <Plus className="w-4 h-4" />
                 </button>
               </form>
@@ -396,12 +463,41 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
               className="w-full bg-white text-black font-black py-4 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all shadow-xl disabled:opacity-50"
               disabled={scannedItems.length === 0}
             >
-              <CheckCircle2 className="w-5 h-5" /> Generate Cash Bill (₹{scannedItems.reduce((a, b) => a + b.price, 0)})
+              <CheckCircle2 className="w-5 h-5" /> Process Checkout (₹{scannedItems.reduce((a, b) => a + b.price, 0)})
             </button>
           </div>
         </div>
 
       </main>
+
+      {/* 📸 OPTICAL SCANNER MODAL (ADMIN INTERFACE) */}
+      <AnimatePresence>
+        {isScannerOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z- bg-black flex flex-col items-center justify-center p-6"
+          >
+            <button 
+              onClick={() => setIsScannerOpen(false)}
+              className="absolute top-8 right-8 p-3 bg-white/10 rounded-full text-white z-50 hover:bg-white/20 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            <div className="w-full max-w-sm aspect-square rounded-[2rem] overflow-hidden border-2 border-dashed border-white/20 relative">
+              <div id="admin-reader" className="w-full h-full bg-[#111]"></div>
+              <div className="absolute inset-10 border-2 border-white/10 rounded-2xl pointer-events-none animate-pulse"></div>
+            </div>
+            
+            <p className="mt-8 text-zinc-400 font-mono text-xs tracking-widest uppercase">
+              Position the QR code within the frame to add
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }
