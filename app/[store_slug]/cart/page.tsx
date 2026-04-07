@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ShoppingBag, Loader2, Trash2, QrCode, CreditCard, Store, ChevronLeft, X, ShieldCheck, Smartphone, CheckCircle2, Clock, Send } from 'lucide-react';
-import { supabase } from '../../lib/supabase'; // Path verify kar lena
+import { supabase } from '../../lib/supabase'; 
 import { motion, AnimatePresence } from 'framer-motion';
 import { Html5Qrcode } from 'html5-qrcode';
 
@@ -33,9 +33,10 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
 
     async function loadCartAndStore() {
       try {
+        // 🔥 FIX 1: Added upi_id to the select query
         const { data: store, error: storeError } = await supabase
           .from('stores')
-          .select('id, store_name, logo_url, theme_color')
+          .select('id, store_name, logo_url, theme_color, upi_id') 
           .ilike('slug', safeStoreSlug)
           .single();
 
@@ -137,13 +138,18 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
   const handlePaymentSelection = async (method: 'online' | 'offline') => {
     // 1. UPI Intent Logic
     if (method === 'online') {
-      const upiId = "merchant@upi"; 
+      // 🔥 FIX 2: Dynamic UPI ID from Database
+      if (!storeData?.upi_id) {
+        alert("Online payment is currently not setup for this store.");
+        return;
+      }
+      const upiId = storeData.upi_id; 
       const amount = calculateTotal();
       const upiUrl = `upi://pay?pa=${upiId}&pn=${storeData?.store_name}&am=${amount}&cu=INR&tn=Bill-${cartId}`;
       window.location.href = upiUrl;
     }
     
-    // 2. Drawer animation on (gives a premium loading feel)
+    // 2. Drawer animation on
     setCheckoutStep('polling');
 
     // 3. ASLI LOGIC: Insert to database
@@ -153,7 +159,6 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         products: { id: item.product_id, name: item.name, price: item.price, image_url: item.image_url }
       }));
 
-      // ⚠️ IMPORTANT: Aapne pichle message me "sales" table use ki thi. SuccessPage me ise handle karna.
       const { error } = await supabase.from('sales').insert({
         cart_id: cartId,
         store_id: storeData.id,
@@ -167,11 +172,10 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
 
       if (error) throw error;
       
-      // 🚀 BOOM! Yahi tha missing piece. Drawer band karke Success Page pe bhejo!
       setTimeout(() => {
         setIsCheckoutOpen(false); 
         router.push(`/${safeStoreSlug}/success/${cartId}`);
-      }, 800); // 800ms ka chhota sa delay smooth transition ke liye
+      }, 800); 
 
     } catch (error) {
       console.error("Order creation failed:", error);
@@ -185,7 +189,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     return cartItems.reduce((total, item) => total + (Number(item.price) || 0), 0);
   };
 
-  const themeColor = storeData?.theme_color || '#B91C1C';
+  const themeColor = storeData?.theme_color || '#10b981';
 
   if (loading) {
     return (
@@ -218,7 +222,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
             <Store className="w-4 h-4" style={{ color: themeColor }} />
           )}
           <span className="text-sm font-bold tracking-[0.15em] uppercase text-zinc-200">
-            {storeData?.store_name || 'Premium Store'}
+          {storeData?.store_name || safeStoreSlug.replace(/-/g, ' ')}
           </span>
         </div>
 
