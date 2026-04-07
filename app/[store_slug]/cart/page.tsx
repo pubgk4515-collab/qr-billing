@@ -189,7 +189,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     return cartItems.reduce((total, item) => total + (Number(item.price) || 0), 0);
   };
 
-  const themeColor = storeData?.theme_color || '#10b981';
+  const themeColor = storeData?.theme_color || '#B91C1C';
 
   if (loading) {
     return (
@@ -222,7 +222,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
             <Store className="w-4 h-4" style={{ color: themeColor }} />
           )}
           <span className="text-sm font-bold tracking-[0.15em] uppercase text-zinc-200">
-          {storeData?.store_name || safeStoreSlug.replace(/-/g, ' ')}
+            {storeData?.store_name || 'Premium Store'}
           </span>
         </div>
 
