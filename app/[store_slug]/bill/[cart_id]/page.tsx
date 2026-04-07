@@ -1,18 +1,19 @@
 'use client';
 
 import { use, useEffect, useState } from 'react';
-import { supabase } from '../../../lib/supabase'; // Path check kar lena agar jarurat ho
 import { motion } from 'framer-motion';
-import { Loader2, MapPin, Download, CheckCircle2, Store, ShoppingBag } from 'lucide-react';
-import Link from 'next/link';
+import { Download, CheckCircle2, MapPin, Receipt, Loader2, ShoppingBag } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { supabase } from '../../../lib/supabase'; // Path verify kar lena
 
-export default function DigitalBillPage({ params }: { params: Promise<{ store_slug: string, cart_id: string }> }) {
+export default function PremiumDigitalBillPage({ params }: { params: Promise<{ store_slug: string, cart_id: string }> }) {
+  const router = useRouter();
   const resolvedParams = use(params);
   const { store_slug, cart_id } = resolvedParams;
 
   const [loading, setLoading] = useState(true);
   const [storeData, setStoreData] = useState<any>(null);
-  const [billData, setBillData] = useState<any>(null);
+  const [saleData, setSaleData] = useState<any>(null);
   const [trendingProducts, setTrendingProducts] = useState<any[]>([]);
 
   const safeStoreSlug = decodeURIComponent(store_slug || '').toLowerCase().trim();
@@ -20,134 +21,159 @@ export default function DigitalBillPage({ params }: { params: Promise<{ store_sl
 
   useEffect(() => {
     if (!safeStoreSlug || !safeCartId) return;
-
-    async function fetchBillAndStore() {
+    
+    async function fetchEverything() {
       try {
+        // 1. Fetch Dynamic Store Branding
         const { data: store } = await supabase
           .from('stores')
-          .select('*')
+          .select('*') 
           .ilike('slug', safeStoreSlug)
           .single();
+          
+        if (store) setStoreData(store);
 
-        if (!store) throw new Error("Store not found");
-        setStoreData(store);
-
-        const { data: bill } = await supabase
-          .from('sales')
+        // 2. Fetch The Order Details
+        const { data: sale } = await supabase
+          .from('sales') 
           .select('*')
           .eq('cart_id', safeCartId)
-          .eq('store_id', store.id)
+          .eq('store_id', store?.id)
           .single();
 
-        if (bill) setBillData(bill);
+        if (sale) setSaleData(sale);
 
-        const { data: products } = await supabase
-          .from('products')
-          .select('*')
-          .eq('store_id', store.id)
-          .order('created_at', { ascending: false })
-          .limit(6);
-
-        if (products) setTrendingProducts(products);
+        // 3. Fetch Trending Items for Retention (Psychological Hook)
+        if (store?.id) {
+          const { data: products } = await supabase
+            .from('products')
+            .select('*')
+            .eq('store_id', store.id)
+            .order('created_at', { ascending: false })
+            .limit(6);
+          if (products) setTrendingProducts(products);
+        }
 
       } catch (err) {
-        console.error("Error fetching data:", err);
+        console.error("Error fetching bill details:", err);
       } finally {
         setLoading(false);
       }
     }
+    fetchEverything();
+  }, [safeCartId, safeStoreSlug]);
 
-    fetchBillAndStore();
-  }, [safeStoreSlug, safeCartId]);
-
-  const handleDownload = () => {
+  const handlePrint = () => {
     window.print();
   };
 
-  const themeColor = storeData?.theme_color || '#10b981';
+  const themeColor = storeData?.theme_color || '#111111'; 
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center gap-4">
-        <Loader2 className="w-10 h-10 animate-spin" style={{ color: themeColor }} />
-        <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Loading Invoice...</p>
+      <div className="min-h-screen bg-[#fafafa] flex flex-col items-center justify-center gap-4">
+        <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }}>
+          <Loader2 className="w-10 h-10 text-zinc-300" style={{ color: themeColor }} />
+        </motion.div>
+        <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Generating VIP Receipt</p>
       </div>
     );
   }
 
-  if (!billData) {
+  if (!saleData) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center text-zinc-500 font-bold">
-        Bill not found or invalid request.
+      <div className="min-h-screen bg-[#fafafa] flex items-center justify-center text-zinc-400 font-bold">
+        <div className="text-center">
+          <Receipt className="w-12 h-12 mx-auto mb-4 text-zinc-300" />
+          <p>Invoice not found or link expired.</p>
+        </div>
       </div>
     );
   }
 
-  const billDate = new Date(billData.created_at);
-  const formattedDate = billDate.toLocaleDateString('en-IN', {
-    day: 'numeric', month: 'short', year: 'numeric'
-  });
-  const formattedTime = billDate.toLocaleTimeString('en-IN', {
-    hour: '2-digit', minute: '2-digit'
-  });
+  // Safe formatting for dates
+  const billDate = new Date(saleData.created_at);
+  const formattedDate = billDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const formattedTime = billDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+
+  // Parsing purchased items safely
+  let itemsList = [];
+  if (saleData.purchased_items) {
+    itemsList = typeof saleData.purchased_items === 'string' ? JSON.parse(saleData.purchased_items) : saleData.purchased_items;
+  }
 
   return (
-    <div className="min-h-screen bg-[#fafafa] text-black font-sans selection:bg-black selection:text-white pb-32">
+    <div className="min-h-screen bg-[#F5F5F7] text-[#111] font-sans selection:bg-black selection:text-white pb-32">
       
-      <main className="max-w-md mx-auto bg-white min-h-screen sm:min-h-0 sm:mt-10 sm:rounded-[2rem] sm:shadow-[0_20px_60px_rgba(0,0,0,0.05)] print:shadow-none print:mt-0 p-8 sm:p-10 relative">
-        
-        <div className="flex flex-col items-center text-center mb-10">
-          <div className="w-14 h-14 bg-black rounded-2xl flex items-center justify-center mb-4">
+      {/* 🧾 THE PREMIUM RECEIPT CARD */}
+      <motion.main 
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: "spring", damping: 25, stiffness: 200 }}
+        className="max-w-md mx-auto bg-white min-h-screen sm:min-h-0 sm:mt-12 sm:rounded-[2rem] sm:shadow-[0_20px_60px_rgba(0,0,0,0.06)] print:shadow-none print:mt-0 p-8 sm:p-10 relative overflow-hidden"
+      >
+        {/* Subtle Top Accent */}
+        <div className="absolute top-0 left-0 w-full h-1.5 print:hidden" style={{ backgroundColor: themeColor }} />
+
+        {/* 1. STORE BRANDING */}
+        <div className="flex flex-col items-center text-center mb-10 mt-4">
+          <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center mb-5 shadow-lg overflow-hidden border border-zinc-100">
             {storeData?.logo_url ? (
-              <img src={storeData.logo_url} alt="Logo" className="w-full h-full object-cover rounded-2xl" />
+              <img src={storeData.logo_url} alt="Store Logo" className="w-full h-full object-cover" />
             ) : (
-              <span className="text-white font-black text-xl tracking-tighter">
-                {storeData?.store_name?.substring(0, 3).toUpperCase() || 'SME'}
+              <span className="text-white font-black text-2xl tracking-tighter">
+                {storeData?.store_name?.substring(0, 3).toUpperCase() || 'VIP'}
               </span>
             )}
           </div>
-          <h1 className="text-2xl font-black tracking-tighter uppercase">{storeData?.store_name || 'Premium Store'}</h1>
-          <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest flex items-center gap-1 mt-1">
-            <MapPin className="w-3 h-3" /> {storeData?.address || 'Store Location, City'}
+          <h1 className="text-2xl font-black tracking-tighter uppercase text-black leading-none">{storeData?.store_name || 'Premium Store'}</h1>
+          <p className="text-[9px] text-zinc-400 font-black uppercase tracking-[0.2em] mt-2 flex items-center gap-1">
+            <MapPin className="w-3 h-3" /> {storeData?.address || 'Verified Merchant'}
           </p>
         </div>
 
         <div className="border-t-2 border-dashed border-zinc-200 w-full my-6" />
 
+        {/* 2. ORDER METADATA */}
         <div className="grid grid-cols-2 gap-y-6 text-sm mb-6">
           <div>
             <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Order ID</p>
-            <p className="font-black text-base">{billData.cart_id}</p>
+            <p className="font-black text-zinc-900 text-base">{safeCartId}</p>
           </div>
           <div className="text-right">
             <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Date & Time</p>
-            <p className="font-bold text-zinc-800">{formattedDate} at {formattedTime}</p>
+            <p className="font-bold text-zinc-800">{formattedDate} <br/> <span className="text-xs text-zinc-500">{formattedTime}</span></p>
           </div>
           <div>
             <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Status</p>
             <p className="font-bold flex items-center gap-1.5 text-zinc-800">
               <CheckCircle2 className="w-4 h-4" style={{ color: themeColor }} /> 
-              {billData.payment_status === 'completed' ? 'Payment Completed' : 'Pending'}
+              {saleData.payment_status === 'completed' ? 'Paid' : 'Pending'}
             </p>
           </div>
           <div className="text-right">
             <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Method</p>
-            <p className="font-black uppercase">{billData.payment_method}</p>
+            <p className="font-black uppercase text-zinc-900">{saleData.payment_method || 'CASH'}</p>
           </div>
         </div>
 
         <div className="border-t-2 border-dashed border-zinc-200 w-full my-6" />
 
-        <div className="mb-6">
-          <p className="text-[10px] text-zinc-400 font-black uppercase tracking-widest mb-4">Purchased Items ({billData.items_count})</p>
-          <div className="flex flex-col gap-4">
-            {billData.purchased_items && billData.purchased_items.map((item: any, idx: number) => (
-              <div key={idx} className="flex justify-between items-start">
-                <div>
-                  <p className="font-bold text-sm text-zinc-900">{idx + 1}. {item.name || item.products?.name || 'Item'}</p>
-                  <p className="text-[9px] text-zinc-400 font-mono font-bold uppercase tracking-widest mt-0.5">TAG: {item.tag || item.id}</p>
+        {/* 3. ITEMIZED BILLING */}
+        <div className="mb-8">
+          <p className="text-[10px] text-zinc-400 font-black uppercase tracking-widest mb-5">Purchased Items ({saleData.items_count})</p>
+          <div className="flex flex-col gap-5">
+            {itemsList.map((item: any, idx: number) => (
+              <div key={idx} className="flex justify-between items-start group">
+                <div className="max-w-[75%]">
+                  <p className="font-bold text-sm text-zinc-900 leading-tight">
+                    {item.products?.name || item.name || 'Premium Item'}
+                  </p>
+                  <p className="text-[9px] text-zinc-400 font-mono font-bold uppercase tracking-widest mt-1">
+                    TAG: {item.id || item.tag_id || 'N/A'}
+                  </p>
                 </div>
-                <p className="font-black text-sm">₹{item.price || item.products?.price}</p>
+                <p className="font-black text-sm text-zinc-900">₹{item.products?.price || item.price || 0}</p>
               </div>
             ))}
           </div>
@@ -155,67 +181,65 @@ export default function DigitalBillPage({ params }: { params: Promise<{ store_sl
 
         <div className="border-t border-zinc-200 w-full my-4" />
 
+        {/* 4. TOTALS */}
         <div className="flex flex-col gap-2 mb-6">
           <div className="flex justify-between items-center text-sm">
             <p className="text-zinc-500 font-bold">Subtotal</p>
-            <p className="font-black text-zinc-800">₹{billData.total_amount}</p>
+            <p className="font-black text-zinc-800">₹{saleData.total_amount}</p>
           </div>
           <div className="flex justify-between items-center text-sm">
-            <p className="text-zinc-500 font-bold">Tax</p>
-            <p className="font-black text-zinc-800">₹0.00</p>
+            <p className="text-zinc-500 font-bold">Tax & Charges</p>
+            <p className="font-black text-zinc-400">₹0.00</p>
           </div>
         </div>
 
         <div className="border-t-2 border-dashed border-zinc-200 w-full my-6" />
 
-        <div className="flex justify-between items-end mb-10">
-          <p className="text-[11px] font-black uppercase tracking-widest text-zinc-400">Grand Total</p>
-          <p className="text-3xl font-black tracking-tighter">₹{billData.total_amount}</p>
+        {/* GRAND TOTAL */}
+        <div className="flex justify-between items-end mb-12 bg-zinc-50 p-5 rounded-2xl print:bg-transparent print:p-0">
+          <p className="text-[11px] font-black uppercase tracking-widest text-zinc-500">Grand Total</p>
+          <p className="text-4xl font-black tracking-tighter text-zinc-900">₹{saleData.total_amount}</p>
         </div>
 
-        <div className="text-center text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+        {/* FOOTER */}
+        <div className="text-center text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex flex-col gap-1 items-center">
+          <Receipt className="w-4 h-4 mb-1 text-zinc-300" />
           <p>Thank you for shopping</p>
-          <p>Visit again!</p>
+          <p>This is a computer generated receipt.</p>
         </div>
-      </main>
+      </motion.main>
 
+      {/* 🚀 PSYCHOLOGICAL RETENTION: TRENDING LOOP (Hidden in PDF Print) */}
       {trendingProducts.length > 0 && (
-        <div className="mt-20 print:hidden overflow-hidden">
+        <div className="mt-16 print:hidden overflow-hidden">
           <div className="px-6 sm:max-w-md mx-auto mb-6 flex items-center justify-between">
-            <h3 className="text-lg font-black tracking-tight uppercase">Trending Now</h3>
-            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">At {storeData?.store_name}</span>
+            <h3 className="text-base font-black tracking-tight uppercase text-zinc-800">Trending Now</h3>
+            <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">New Arrivals</span>
           </div>
 
           <div className="relative w-full flex overflow-x-hidden">
-            <div className="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-[#fafafa] to-transparent z-10" />
-            <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[#fafafa] to-transparent z-10" />
+            <div className="absolute inset-y-0 left-0 w-12 bg-gradient-to-r from-[#F5F5F7] to-transparent z-10" />
+            <div className="absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-[#F5F5F7] to-transparent z-10" />
 
             <motion.div 
-              className="flex gap-4 px-4 items-center whitespace-nowrap"
+              className="flex gap-4 px-6 items-center whitespace-nowrap py-4"
               animate={{ x: ["0%", "-50%"] }}
-              transition={{ ease: "linear", duration: 25, repeat: Infinity }}
+              transition={{ ease: "linear", duration: 30, repeat: Infinity }}
               style={{ width: "fit-content" }}
             >
               {[...trendingProducts, ...trendingProducts].map((product, index) => (
-                <div key={index} className="w-[160px] flex-shrink-0 bg-white rounded-[1.5rem] p-3 shadow-[0_10px_30px_rgba(0,0,0,0.04)] border border-zinc-100 flex flex-col gap-3">
-                  <div className="w-full h-[180px] bg-zinc-100 rounded-xl overflow-hidden relative">
+                <div key={index} className="w-[150px] flex-shrink-0 bg-white rounded-3xl p-2.5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] border border-zinc-100 group cursor-pointer hover:shadow-xl transition-all">
+                  <div className="w-full h-[160px] bg-zinc-100 rounded-2xl overflow-hidden relative mb-3">
                     {product.image_url ? (
-                      <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+                      <img src={product.image_url} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center"><ShoppingBag className="text-zinc-300 w-8 h-8" /></div>
                     )}
                   </div>
-                  <div>
-                    <h4 className="font-bold text-sm text-zinc-900 truncate">{product.name}</h4>
-                    <p className="font-black text-sm mt-0.5">₹{product.price}</p>
+                  <div className="px-1 pb-1">
+                    <h4 className="font-bold text-xs text-zinc-900 truncate">{product.name}</h4>
+                    <p className="font-black text-sm mt-0.5" style={{ color: themeColor }}>₹{product.price}</p>
                   </div>
-                  <motion.button 
-                    whileTap={{ scale: 0.95 }}
-                    className="w-full py-3 rounded-xl font-black text-[11px] uppercase tracking-widest text-white transition-colors hover:opacity-90"
-                    style={{ backgroundColor: themeColor }}
-                  >
-                    Checkout
-                  </motion.button>
                 </div>
               ))}
             </motion.div>
@@ -223,11 +247,12 @@ export default function DigitalBillPage({ params }: { params: Promise<{ store_sl
         </div>
       )}
 
+      {/* ⬇️ FLOATING ACTION BUTTON (Download PDF) */}
       <button 
-        onClick={handleDownload}
-        className="fixed bottom-8 right-8 z-50 w-14 h-14 bg-white border border-zinc-200 rounded-full flex items-center justify-center shadow-[0_15px_30px_rgba(0,0,0,0.1)] active:scale-90 transition-all print:hidden group"
+        onClick={handlePrint}
+        className="fixed bottom-8 right-8 z-50 w-14 h-14 bg-black text-white rounded-full flex items-center justify-center shadow-[0_15px_30px_rgba(0,0,0,0.2)] hover:scale-110 active:scale-90 transition-all print:hidden"
       >
-        <Download className="w-5 h-5 text-zinc-800 group-hover:translate-y-0.5 transition-transform" />
+        <Download className="w-5 h-5" />
       </button>
 
     </div>
