@@ -24,23 +24,31 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     
     async function fetchEverything() {
       try {
-        // 1. Fetch Dynamic Store Branding (Using accurate schema)
-        const { data: store } = await supabase
+        // 🔥 FIX 1: Changed specific columns to '*' to prevent Supabase missing column crashes
+        const { data: store, error: storeError } = await supabase
           .from('stores')
-          .select('id, name, store_name, slug, logo_url, theme_color, owner_phone') 
+          .select('*') 
           .ilike('slug', safeStoreSlug)
           .single();
           
-        if (store) setStoreData(store);
+        if (storeError) {
+           console.error("Store Info Error:", storeError);
+        }
+          
+        if (store) {
+          setStoreData(store);
 
-        // 2. Fetch The Order Details
-        if (store?.id) {
-          const { data: sale } = await supabase
+          // 2. Fetch The Order Details
+          const { data: sale, error: saleError } = await supabase
             .from('sales') 
             .select('*')
             .eq('cart_id', safeCartId)
             .eq('store_id', store.id)
             .single();
+
+          if (saleError) {
+             console.error("Sale Info Error:", saleError);
+          }
 
           if (sale) setSaleData(sale);
 
@@ -70,8 +78,8 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
 
   // --- Dynamic Values Extraction ---
   const themeColor = storeData?.theme_color || '#111111'; 
-  // Future proofing: Prefer 'name', fallback to 'store_name', then 'Premium Store'
-  const displayName = storeData?.name || storeData?.store_name || 'Premium Store';
+  // 🔥 FIX 2: Safely access store_name without the fallback that caused the bug
+  const displayName = storeData?.store_name || 'Premium Store';
   const displayInitials = displayName.substring(0, 3).toUpperCase();
 
   if (loading) {
