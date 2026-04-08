@@ -428,39 +428,49 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         </main>
       </div>
 
-      {/* 🖨️ THE HIDDEN PRINTABLE A4 SHEET */}
-      <div className="hidden print:block bg-white w-full text-black min-h-screen pb-10">
-        <div className="text-center py-6 border-b-2 border-black mb-8">
+            {/* 🖨️ THE HIDDEN PRINTABLE A4 SHEET (Only visible when printing) */}
+      <div className="hidden print:block bg-white w-full text-black">
+        
+        {/* 🔥 THE MASTER CSS HACK FOR MULTIPLE PAGES */}
+        <style dangerouslySetInnerHTML={{__html: `
+          @media print {
+            html, body, main, div {
+              height: auto !important;
+              overflow: visible !important;
+              position: static !important;
+            }
+          }
+        `}} />
+
+        <div className="text-center py-6 border-b-2 border-black mb-8 break-inside-avoid">
           <h1 className="text-3xl font-black uppercase tracking-widest">{storeData?.name || 'Premium Store'} - Inventory Tags</h1>
           <p className="text-sm font-bold text-gray-500 mt-1">Reusable QR Codes for Distributed Binding</p>
         </div>
 
-        {tagsToPrint.length === 0 ? (
-          <p className="text-center text-gray-500 font-bold mt-10">No tags found for the selected range.</p>
-        ) : (
-          <div className="grid grid-cols-5 gap-6 px-4" style={{ pageBreakInside: 'auto' }}>
-            {tagsToPrint.map((item) => (
-              <div 
-                key={item.id} 
-                className="flex flex-col items-center justify-center border-2 border-dashed border-gray-400 p-2 break-inside-avoid" 
-                style={{ width: '1.5in', height: '1.5in' }}
-              >
-                <QRCodeCanvas 
-                  value={`${window.location.origin}/${safeStoreSlug}/${item.id}`} 
-                  size={90} 
-                  bgColor={"#ffffff"} 
-                  fgColor={"#000000"} 
-                  level={"H"} 
-                  includeMargin={false} 
-                />
-                <span className="mt-2 text-[10px] font-black tracking-widest uppercase text-black leading-none">
-                  {item.id}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
+        {/* Changed from 'grid' to 'flex flex-wrap' for flawless pagination */}
+        <div className="flex flex-wrap justify-center gap-4 px-4">
+          {inventory.map((item) => (
+            <div 
+              key={item.id} 
+              className="flex flex-col items-center justify-center border-2 border-dashed border-gray-400 p-2 break-inside-avoid mb-4" 
+              style={{ width: '1.5in', height: '1.5in' }}
+            >
+              <QRCodeCanvas 
+                value={`${window.location.origin}/${safeStoreSlug}/${item.id}`} 
+                size={90} 
+                bgColor={"#ffffff"} 
+                fgColor={"#000000"} 
+                level={"H"} 
+                includeMargin={false} 
+              />
+              <span className="mt-2 text-[10px] font-black tracking-widest uppercase text-black leading-none">
+                {item.id}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
+
 
       {/* --- MODALS --- */}
       {/* 1. ADD PRODUCT MODAL */}
