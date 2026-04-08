@@ -240,13 +240,20 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
   });
 
   // Calculate which tags to show on the printed PDF
-  const tagsToPrint = inventory.filter(item => {
-    if (!printStart || !printEnd) return true; // fallback
+    const tagsToPrint = inventory.filter(item => {
+    if (!printStart || !printEnd) return true; 
     const num = parseInt(item.id.replace('TAG', ''), 10);
     return num >= printStart && num <= printEnd;
   });
 
+  // 🔥 THE MASTERSTROKE: Break tags into arrays of 25 to force PDF pages
+  const chunkedTags = [];
+  for (let i = 0; i < tagsToPrint.length; i += 25) {
+    chunkedTags.push(tagsToPrint.slice(i, i + 25));
+  }
+
   if (loading) return <div className="min-h-screen bg-[#050505] flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin" style={{ color: themeColor }} /></div>;
+
 
   return (
     <>
@@ -428,46 +435,53 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         </main>
       </div>
 
-                  {/* 🖨️ THE HIDDEN PRINTABLE A4 SHEET (Only visible when printing) */}
+          {/* 🖨️ THE HIDDEN PRINTABLE A4 SHEET (Only visible when printing) */}
       <div className="hidden print:block bg-white w-full text-black">
         
-        {/* 🔥 CSS HACK: Cleaned up for mobile compatibility */}
         <style dangerouslySetInnerHTML={{__html: `
           @media print {
             html, body { height: auto !important; overflow: visible !important; }
-            @page { margin: 10mm; }
           }
         `}} />
 
-        <div className="text-center py-6 border-b-2 border-black mb-6" style={{ pageBreakInside: 'avoid' }}>
-          <h1 className="text-3xl font-black uppercase tracking-widest">{storeData?.name || 'Premium Store'} - Inventory Tags</h1>
-          <p className="text-sm font-bold text-gray-500 mt-1">Reusable QR Codes for Distributed Binding</p>
-        </div>
-
-        {/* 🔥 FIX 1: Changed to "block text-center" with inline-flex items. This forces Chrome to create new pages flawlessly. */}
-        {/* 🔥 FIX 2: Now using "tagsToPrint.map" instead of "inventory.map" */}
-        <div className="block text-center px-2">
-          {tagsToPrint.map((item) => (
-            <div 
-              key={item.id} 
-              className="inline-flex flex-col items-center justify-center border-2 border-dashed border-gray-400 p-2 m-2" 
-              style={{ width: '1.5in', height: '1.5in', pageBreakInside: 'avoid' }}
-            >
-              <QRCodeCanvas 
-                value={`${window.location.origin}/${safeStoreSlug}/${item.id}`} 
-                size={90} 
-                bgColor={"#ffffff"} 
-                fgColor={"#000000"} 
-                level={"H"} 
-                includeMargin={false} 
-              />
-              <span className="mt-2 text-[10px] font-black tracking-widest uppercase text-black leading-none">
-                {item.id}
-              </span>
+        {/* 🔥 Map through chunks (Each chunk is a guaranteed NEW PDF PAGE) */}
+        {chunkedTags.map((pageTags, pageIndex) => (
+          <div key={pageIndex} className="pt-4" style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>
+            
+            {/* Header on Every Page for Professional Look */}
+            <div className="text-center pb-4 mb-6 border-b-2 border-black" style={{ pageBreakInside: 'avoid' }}>
+              <h1 className="text-3xl font-black uppercase tracking-widest">{storeData?.name || 'Premium Store'} - Inventory Tags</h1>
+              <p className="text-sm font-bold text-gray-500 mt-1">
+                Page {pageIndex + 1} of {chunkedTags.length} • Distributed Binding
+              </p>
             </div>
-          ))}
-        </div>
+
+            {/* The 25 Tags Grid for this specific page */}
+            <div className="flex flex-wrap justify-center gap-4 px-2">
+              {pageTags.map((item) => (
+                <div 
+                  key={item.id} 
+                  className="flex flex-col items-center justify-center border-2 border-dashed border-gray-400 p-2 break-inside-avoid" 
+                  style={{ width: '1.5in', height: '1.5in' }}
+                >
+                  <QRCodeCanvas 
+                    value={`${window.location.origin}/${safeStoreSlug}/${item.id}`} 
+                    size={90} 
+                    bgColor={"#ffffff"} 
+                    fgColor={"#000000"} 
+                    level={"H"} 
+                    includeMargin={false} 
+                  />
+                  <span className="mt-2 text-[10px] font-black tracking-widest uppercase text-black leading-none">
+                    {item.id}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
+
       
 
       {/* --- MODALS --- */}
