@@ -428,32 +428,30 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         </main>
       </div>
 
-            {/* 🖨️ THE HIDDEN PRINTABLE A4 SHEET (Only visible when printing) */}
+                  {/* 🖨️ THE HIDDEN PRINTABLE A4 SHEET (Only visible when printing) */}
       <div className="hidden print:block bg-white w-full text-black">
         
-        {/* 🔥 THE MASTER CSS HACK FOR MULTIPLE PAGES */}
+        {/* 🔥 CSS HACK: Cleaned up for mobile compatibility */}
         <style dangerouslySetInnerHTML={{__html: `
           @media print {
-            html, body, main, div {
-              height: auto !important;
-              overflow: visible !important;
-              position: static !important;
-            }
+            html, body { height: auto !important; overflow: visible !important; }
+            @page { margin: 10mm; }
           }
         `}} />
 
-        <div className="text-center py-6 border-b-2 border-black mb-8 break-inside-avoid">
+        <div className="text-center py-6 border-b-2 border-black mb-6" style={{ pageBreakInside: 'avoid' }}>
           <h1 className="text-3xl font-black uppercase tracking-widest">{storeData?.name || 'Premium Store'} - Inventory Tags</h1>
           <p className="text-sm font-bold text-gray-500 mt-1">Reusable QR Codes for Distributed Binding</p>
         </div>
 
-        {/* Changed from 'grid' to 'flex flex-wrap' for flawless pagination */}
-        <div className="flex flex-wrap justify-center gap-4 px-4">
-          {inventory.map((item) => (
+        {/* 🔥 FIX 1: Changed to "block text-center" with inline-flex items. This forces Chrome to create new pages flawlessly. */}
+        {/* 🔥 FIX 2: Now using "tagsToPrint.map" instead of "inventory.map" */}
+        <div className="block text-center px-2">
+          {tagsToPrint.map((item) => (
             <div 
               key={item.id} 
-              className="flex flex-col items-center justify-center border-2 border-dashed border-gray-400 p-2 break-inside-avoid mb-4" 
-              style={{ width: '1.5in', height: '1.5in' }}
+              className="inline-flex flex-col items-center justify-center border-2 border-dashed border-gray-400 p-2 m-2" 
+              style={{ width: '1.5in', height: '1.5in', pageBreakInside: 'avoid' }}
             >
               <QRCodeCanvas 
                 value={`${window.location.origin}/${safeStoreSlug}/${item.id}`} 
@@ -470,7 +468,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
           ))}
         </div>
       </div>
-
+      
 
       {/* --- MODALS --- */}
       {/* 1. ADD PRODUCT MODAL */}
