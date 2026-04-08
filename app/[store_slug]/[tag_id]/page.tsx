@@ -36,12 +36,12 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
         if (storeError || !store) throw new Error(`Dukaan '${store_slug}' nahi mili! Kripya sahi QR scan karein.`);
         setStoreData(store);
 
-        // 2. PHIR TAG FETCH KARO 
+        // 2. PHIR TAG FETCH KARO (Yahan lock sahi laga tha)
         const { data: tag, error: tagError } = await supabase
           .from('qr_tags')
           .select('*, products(*)')
           .ilike('id', safeTagId)
-          .eq('store_id', store.id)
+          .eq('store_id', store.id) 
           .single();
 
         if (tagError || !tag) throw new Error(`QR Code ${safeTagId} is store ka nahi hai.`);
@@ -75,14 +75,16 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
   }, [safeStoreSlug, safeTagId]);
 
   const handleAddToBag = async () => {
-    if (!productData || isInBag) return;
+    if (!productData || isInBag || !storeData) return; // storeData check added
     setIsAdding(true);
     
     try {
+      // 🔥 FIX: TENANT ISOLATION LOCK ADDED HERE
       const { error: updateError } = await supabase
         .from('qr_tags')
         .update({ status: 'in_cart' }) 
-        .eq('id', safeTagId);
+        .eq('id', safeTagId)
+        .eq('store_id', storeData.id); // Ab sirf is dukaan ka tag update hoga!
 
       if (updateError) throw updateError;
 

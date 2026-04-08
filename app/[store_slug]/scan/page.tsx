@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { Html5Qrcode } from 'html5-qrcode';
 import { X, QrCode, Loader2, ScanLine } from 'lucide-react';
 import { motion } from 'framer-motion';
-// Pura path check kar lena apne project ke hisaab se
 import { supabase } from '../../lib/supabase'; 
 
 export default function CustomerScannerPage({ params }: { params: Promise<{ store_slug: string }> }) {
@@ -16,14 +15,12 @@ export default function CustomerScannerPage({ params }: { params: Promise<{ stor
 
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [scanError, setScanError] = useState('');
-  // Theme Color State (Default Emerald)
   const [themeColor, setThemeColor] = useState('#10b981'); 
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
     if (!safeStoreSlug) return;
 
-    // 🎨 Fetch Store Theme Color
     const fetchStoreTheme = async () => {
       try {
         const { data: store } = await supabase
@@ -40,7 +37,6 @@ export default function CustomerScannerPage({ params }: { params: Promise<{ stor
     };
     fetchStoreTheme();
 
-    // 📷 Initialize Scanner
     scannerRef.current = new Html5Qrcode("premium-scanner-box");
 
     const startCamera = async () => {
@@ -68,7 +64,6 @@ export default function CustomerScannerPage({ params }: { params: Promise<{ stor
 
     startCamera();
 
-    // 🧹 CLEANUP
     return () => {
       if (scannerRef.current?.isScanning) {
         scannerRef.current.stop().catch(console.error);
@@ -88,7 +83,6 @@ export default function CustomerScannerPage({ params }: { params: Promise<{ stor
           <X className="w-6 h-6 text-white" />
         </button>
         <div className="bg-black/40 backdrop-blur-sm px-5 py-2.5 rounded-full border border-white/10 flex items-center gap-2">
-          {/* Dynamic Color to Icon */}
           <QrCode className="w-4 h-4" style={{ color: themeColor }} />
           <span className="text-[10px] font-black tracking-widest uppercase text-white">Scanner Active</span>
         </div>
@@ -99,16 +93,11 @@ export default function CustomerScannerPage({ params }: { params: Promise<{ stor
         <div id="premium-scanner-box" className="w-full h-full" />
       </div>
 
-      {/* 🎯 THE PERFECT SQUARE CUTOUT (Box-Shadow Hack) */}
+      {/* 🎯 THE PERFECT SQUARE CUTOUT */}
       <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none overflow-hidden">
-        
-        {/* Ye dabba humesha perfect 280x280 rahega */}
         <div 
           className="relative w-[280px] h-[280px] rounded-[2rem] bg-transparent"
-          style={{
-            // Ye shadow poori screen ko black(70%) kar degi, sirf is dabbe ko chhod kar!
-            boxShadow: '0 0 0 4000px rgba(0, 0, 0, 0.7)', 
-          }}
+          style={{ boxShadow: '0 0 0 4000px rgba(0, 0, 0, 0.7)' }}
         >
           {/* 🎨 DYNAMIC THEME CORNER ACCENTS */}
           <div className="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4 rounded-tl-[2rem]" style={{ borderColor: themeColor }} />
@@ -116,11 +105,11 @@ export default function CustomerScannerPage({ params }: { params: Promise<{ stor
           <div className="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4 rounded-bl-[2rem]" style={{ borderColor: themeColor }} />
           <div className="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4 rounded-br-[2rem]" style={{ borderColor: themeColor }} />
 
-          {/* ⚡ DYNAMIC THEME SCANNING LINE */}
+          {/* 🔥 FIX: Scanning Line Animation Fixed */}
           {isCameraReady && (
             <motion.div 
-              animate={{ y:'' }} // Adjusted for 280px height
-              transition={{ repeat: Infinity, duration: 2.2, ease: "easeInOut" }}
+              animate={{ y: [0, 280] }} // Ye 0 se neeche jayega aur wapas aayega
+              transition={{ repeat: Infinity, duration: 2.5, ease: "linear" }}
               className="w-[90%] h-[2px] absolute top-0 left-[5%]"
               style={{ backgroundColor: themeColor, boxShadow: `0 0 15px ${themeColor}` }}
             />

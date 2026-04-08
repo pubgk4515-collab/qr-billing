@@ -17,13 +17,11 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
 
-  // Floating Checkout Drawer States
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState<'whatsapp' | 'payment' | 'polling'>('whatsapp');
   const [whatsappNumber, setWhatsappNumber] = useState('');
   const [cartId, setCartId] = useState('');
   
-  // Premium Alert State
   const [duplicateTag, setDuplicateTag] = useState<string | null>(null);
 
   const safeStoreSlug = decodeURIComponent(store_slug || '').toLowerCase().trim();
@@ -33,7 +31,6 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
 
     async function loadCartAndStore() {
       try {
-        // 🔥 FIX 1: Added upi_id to the select query
         const { data: store, error: storeError } = await supabase
           .from('stores')
           .select('id, store_name, logo_url, theme_color, upi_id') 
@@ -61,7 +58,6 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     loadCartAndStore();
   }, [safeStoreSlug]);
 
-  // 📸 SCANNER LOGIC
   useEffect(() => {
     let html5QrCode: Html5Qrcode;
 
@@ -111,15 +107,25 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     };
   }, [isScannerOpen, safeStoreSlug, router]);
 
-
-  const handleRemoveItem = (tagIdToRemove: string) => {
+  // 🔥 FIX 1: Database sync when item is removed from cart (with Tenant Isolation)
+  const handleRemoveItem = async (tagIdToRemove: string) => {
     const cartKey = `cart_${safeStoreSlug}`;
     const updatedCart = cartItems.filter(item => item.tag_id !== tagIdToRemove);
     setCartItems(updatedCart);
     localStorage.setItem(cartKey, JSON.stringify(updatedCart));
+
+    if (storeData?.id) {
+      try {
+        await supabase.from('qr_tags')
+          .update({ status: 'active' })
+          .eq('id', tagIdToRemove)
+          .eq('store_id', storeData.id); // Security Lock!
+      } catch (err) {
+        console.error("Failed to release tag", err);
+      }
+    }
   };
 
-  // 🔥 CHECKOUT FLOW LOGIC
   const handleCheckoutClick = () => {
     setCartId(`CART${Math.floor(1000 + Math.random() * 9000)}`);
     setCheckoutStep('whatsapp');
@@ -136,9 +142,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
   };
 
   const handlePaymentSelection = async (method: 'online' | 'offline') => {
-    // 1. UPI Intent Logic
     if (method === 'online') {
-      // 🔥 FIX 2: Dynamic UPI ID from Database
       if (!storeData?.upi_id) {
         alert("Online payment is currently not setup for this store.");
         return;
@@ -149,10 +153,8 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
       window.location.href = upiUrl;
     }
     
-    // 2. Drawer animation on
     setCheckoutStep('polling');
 
-    // 3. ASLI LOGIC: Insert to database
     try {
       const purchasedItemsJson = cartItems.map(item => ({
         id: item.tag_id,
@@ -171,6 +173,18 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
       });
 
       if (error) throw error;
+
+      // 🔥 FIX 2: Mark items as 'sold' after checkout (with Tenant Isolation)
+      const purchasedTagIds = cartItems.map(item => item.tag_id);
+      if (purchasedTagIds.length > 0) {
+        await supabase.from('qr_tags')
+          .update({ status: 'sold' })
+          .in('id', purchasedTagIds)
+          .eq('store_id', storeData.id); // Security Lock!
+      }
+      
+      // Clear Local Cart
+      localStorage.removeItem(`cart_${safeStoreSlug}`);
       
       setTimeout(() => {
         setIsCheckoutOpen(false); 
@@ -183,7 +197,6 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
       setCheckoutStep('payment'); 
     }
   };
-
 
   const calculateTotal = () => {
     return cartItems.reduce((total, item) => total + (Number(item.price) || 0), 0);
