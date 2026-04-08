@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShoppingBag, Loader2, Trash2, QrCode, CreditCard, Store, ChevronLeft, X, ShieldCheck, Smartphone, CheckCircle2, Clock, Send } from 'lucide-react';
+import { ShoppingBag, Loader2, Trash2, QrCode, CreditCard, Store, ChevronLeft, X, ShieldCheck, Smartphone, CheckCircle2, Send, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase'; 
 import { motion, AnimatePresence } from 'framer-motion';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -23,6 +23,9 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
   const [cartId, setCartId] = useState('');
   
   const [duplicateTag, setDuplicateTag] = useState<string | null>(null);
+  
+  // 🔥 NEW: Premium Custom Alert State
+  const [customAlert, setCustomAlert] = useState<{title: string, message: string, isError: boolean} | null>(null);
 
   const safeStoreSlug = decodeURIComponent(store_slug || '').toLowerCase().trim();
 
@@ -67,11 +70,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         
         html5QrCode.start(
           { facingMode: "environment" },
-          {
-            fps: 10,
-            qrbox: { width: 250, height: 250 },
-            aspectRatio: 1.0 
-          },
+          { fps: 15, qrbox: { width: 250, height: 250 }, disableFlip: false },
           (decodedText: string) => {
             const scannedTag = decodeURIComponent(decodedText.split('/').pop() || '').toUpperCase().trim(); 
             if (scannedTag) {
@@ -91,9 +90,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
               });
             }
           },
-          (errorMessage: any) => {
-            // Ignore errors
-          }
+          (errorMessage: any) => { /* Ignore background noise */ }
         ).catch((err: any) => {
           console.error("Camera error:", err);
         });
@@ -134,7 +131,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
   const handleWhatsappSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (whatsappNumber.length < 10) {
-      alert("Please enter a valid 10-digit number");
+      setCustomAlert({ title: 'Invalid Input', message: 'Please enter a valid 10-digit mobile number.', isError: true });
       return;
     }
     setCheckoutStep('payment');
@@ -143,7 +140,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
   const handlePaymentSelection = async (method: 'online' | 'offline') => {
     if (method === 'online') {
       if (!storeData?.upi_id) {
-        alert("Online payment is currently not setup for this store.");
+        setCustomAlert({ title: 'Not Available', message: 'Online payment is currently not setup for this store.', isError: true });
         return;
       }
       const upiId = storeData.upi_id; 
@@ -173,7 +170,6 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
 
       if (error) throw error;
 
-      // 🔥 THE MASTER FIX: Real Database Polling instead of Fake Timeout
       const checkPaymentStatus = setInterval(async () => {
         const { data: saleData } = await supabase
           .from('sales')
@@ -182,10 +178,9 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
           .single();
 
         if (saleData?.payment_status === 'completed') {
-          // 🟢 ADMIN NE ACCEPT KAR LIYA
+          // 🟢 ACCEPTED
           clearInterval(checkPaymentStatus);
 
-          // Ab safely tags ko 'sold' mark karo
           const purchasedTagIds = cartItems.map(item => item.tag_id);
           if (purchasedTagIds.length > 0) {
             await supabase.from('qr_tags')
@@ -199,16 +194,22 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
           router.push(`/${safeStoreSlug}/success/${cartId}`);
 
         } else if (saleData?.payment_status === 'rejected') {
-          // 🔴 ADMIN NE REJECT KAR DIYA
+          // 🔴 REJECTED
           clearInterval(checkPaymentStatus);
-          alert("Your payment request was rejected by the store counter. Please try again.");
-          setCheckoutStep('payment'); // Wapas payment screen pe bhej do
+          setCustomAlert({
+            title: 'Payment Rejected',
+            message: 'Your payment request was rejected by the store counter. You can try again.',
+            isError: true
+          });
+          // 🔥 THE BUG FIX: Generate a NEW Cart ID so the next attempt doesn't crash the database!
+          setCartId(`CART${Math.floor(1000 + Math.random() * 9000)}`);
+          setCheckoutStep('payment'); 
         }
-      }, 2000); // Har 2 seconds me database check karega!
+      }, 2000); 
 
     } catch (error) {
       console.error("Order creation failed:", error);
-      alert("Network error! Please try again.");
+      setCustomAlert({ title: 'Network Error', message: 'Failed to process checkout. Please try again.', isError: true });
       setCheckoutStep('payment'); 
     }
   };
@@ -217,7 +218,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     return cartItems.reduce((total, item) => total + (Number(item.price) || 0), 0);
   };
 
-  const themeColor = storeData?.theme_color || '#B91C1C';
+  const themeColor = storeData?.theme_color || '#10b981';
 
   if (loading) {
     return (
@@ -232,7 +233,6 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
   return (
     <main className="min-h-screen bg-[#050505] text-white flex flex-col relative font-sans selection:bg-white/10 pb-40">
       
-      {/* 👑 HEADER */}
       <motion.header 
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -259,7 +259,6 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         </div>
       </motion.header>
 
-      {/* 🎒 HERO SECTION */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -272,7 +271,6 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         <p className="text-sm text-zinc-500 mt-3 font-medium">Review your items before secure checkout.</p>
       </motion.div>
 
-      {/* 📦 CART CONTENT */}
       <div className="px-6 flex flex-col gap-5">
         <AnimatePresence>
           {cartItems.length === 0 ? (
@@ -340,7 +338,6 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         </AnimatePresence>
       </div>
 
-      {/* 🔥 BOTTOM DOCK */}
       {cartItems.length > 0 && !isCheckoutOpen && (
         <motion.div 
           initial={{ y: 100, opacity: 0 }}
@@ -409,7 +406,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-6"
+            className="fixed inset-0 z- bg-black/70 backdrop-blur-md flex items-center justify-center p-6"
           >
             <motion.div
               initial={{ scale: 0.9, y: 20 }}
@@ -434,6 +431,39 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                 className="w-full py-4 rounded-full font-black text-black bg-white hover:bg-zinc-200 active:scale-95 transition-all shadow-lg"
               >
                 Okay, Got it
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 🚨 CUSTOM PREMIUM ALERT MODAL */}
+      <AnimatePresence>
+        {customAlert && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z- bg-black/70 backdrop-blur-md flex items-center justify-center p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-[#111] border border-white/10 rounded-[2.5rem] p-8 w-full max-w-xs shadow-[0_30px_60px_rgba(0,0,0,0.9)] flex flex-col items-center text-center relative overflow-hidden"
+            >
+              <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-6 border ${customAlert.isError ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-white/5 border-white/10 text-white'}`}>
+                {customAlert.isError ? <AlertCircle className="w-10 h-10" /> : <ShieldCheck className="w-10 h-10" />}
+              </div>
+
+              <h3 className="text-2xl font-black mb-2 tracking-tight text-white">{customAlert.title}</h3>
+              <p className="text-sm text-zinc-400 mb-8 leading-relaxed">{customAlert.message}</p>
+
+              <button
+                onClick={() => setCustomAlert(null)}
+                className="w-full py-4 rounded-full font-black text-black bg-white hover:bg-zinc-200 active:scale-95 transition-all shadow-lg"
+              >
+                Okay
               </button>
             </motion.div>
           </motion.div>
@@ -542,10 +572,10 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                 </motion.div>
               )}
 
-              {/* STEP 3: REAL POLLING */}
+              {/* STEP 3: REAL POLLING WITH CART ID */}
               {checkoutStep === 'polling' && (
-                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center text-center py-6">
-                  <div className="relative w-24 h-24 flex items-center justify-center mb-6">
+                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center text-center py-4">
+                  <div className="relative w-24 h-24 flex items-center justify-center mb-5">
                     <motion.div 
                       animate={{ scale: [1, 1.5, 2], opacity: [0.5, 0.2, 0] }} 
                       transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
@@ -560,8 +590,15 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                       <Loader2 className="w-8 h-8 animate-spin" style={{ color: themeColor }} />
                     </motion.div>
                   </div>
-                  <h3 className="text-2xl font-black mb-2">Processing Order</h3>
-                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest">Waiting for counter approval...</p>
+                  <h3 className="text-2xl font-black mb-1">Processing Order</h3>
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-6">Waiting for counter approval...</p>
+                  
+                  {/* Cart ID Box */}
+                  <div className="bg-[#141414] border border-white/5 w-full rounded-2xl py-4 flex flex-col items-center justify-center shadow-inner relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: themeColor, opacity: 0.5 }} />
+                    <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Show this ID at counter</span>
+                    <span className="text-3xl font-black tracking-widest text-white font-mono">{cartId}</span>
+                  </div>
                 </motion.div>
               )}
 
