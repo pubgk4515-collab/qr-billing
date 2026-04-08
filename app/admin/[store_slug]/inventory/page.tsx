@@ -356,11 +356,11 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
                   )}
                 </div>
 
-                {/* BOTTOM ROW */}
-                <div className="flex items-center justify-between relative z-10">
+                                {/* BOTTOM ROW */}
+                <div className="flex items-end justify-between relative z-10">
                   
                   {(item.status === 'active' || item.status === 'in_cart') ? (
-                    <>
+                    <div className="flex items-center justify-between w-full">
                       <div className="text-2xl font-black">₹{item.products?.price}</div>
                       
                       {/* 🔥 SMALL, CLEAN "IN BAG" BADGE */}
@@ -374,18 +374,33 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
                            ACTIVE
                          </div>
                       )}
-                    </>
+                    </div>
                   ) : (
                     <>
-                      <div className="flex flex-col gap-1">
+                      <div className="flex flex-col gap-1 pb-1">
                         <span className="text-xs text-zinc-600 font-bold">Ready to bind</span>
                       </div>
-                      <button onClick={() => openAddModalForSpecificTag(item.id)} className="px-5 py-2.5 bg-white text-black hover:bg-zinc-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg">
-                        Link Item
-                      </button>
+                      
+                      <div className="flex flex-col items-end gap-3">
+                        {/* 🔥 NEW: Mini QR Button for Empty Tags */}
+                        <button 
+                          onClick={() => openQrModal(item)} 
+                          className="flex items-center gap-2 text-zinc-500 hover:text-white transition-colors group"
+                        >
+                          <span className="text-[9px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">View QR</span>
+                          <div className="p-1.5 bg-white/5 rounded-lg border border-white/10 group-hover:bg-white/10 transition-colors shadow-inner">
+                            <QrCode className="w-4 h-4" />
+                          </div>
+                        </button>
+
+                        <button onClick={() => openAddModalForSpecificTag(item.id)} className="px-5 py-2.5 bg-white text-black hover:bg-zinc-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg">
+                          Link Item
+                        </button>
+                      </div>
                     </>
                   )}
                 </div>
+
               </motion.div>
             ))}
           </AnimatePresence>
