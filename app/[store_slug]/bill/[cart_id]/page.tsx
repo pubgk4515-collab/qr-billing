@@ -2,9 +2,9 @@
 
 import { use, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Download, CheckCircle2, MapPin, Receipt, Loader2, ShoppingBag } from 'lucide-react';
+import { Download, CheckCircle2, Receipt, Loader2, ShoppingBag, Store } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '../../../lib/supabase'; // Path verify kar lena
+import { supabase } from '../../../lib/supabase';
 
 export default function PremiumDigitalBillPage({ params }: { params: Promise<{ store_slug: string, cart_id: string }> }) {
   const router = useRouter();
@@ -24,33 +24,34 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     
     async function fetchEverything() {
       try {
-        // 1. Fetch Dynamic Store Branding
+        // 1. Fetch Dynamic Store Branding (Using accurate schema)
         const { data: store } = await supabase
           .from('stores')
-          .select('*') 
+          .select('id, name, store_name, slug, logo_url, theme_color, owner_phone') 
           .ilike('slug', safeStoreSlug)
           .single();
           
         if (store) setStoreData(store);
 
         // 2. Fetch The Order Details
-        const { data: sale } = await supabase
-          .from('sales') 
-          .select('*')
-          .eq('cart_id', safeCartId)
-          .eq('store_id', store?.id)
-          .single();
-
-        if (sale) setSaleData(sale);
-
-        // 3. Fetch Trending Items for Retention (Psychological Hook)
         if (store?.id) {
+          const { data: sale } = await supabase
+            .from('sales') 
+            .select('*')
+            .eq('cart_id', safeCartId)
+            .eq('store_id', store.id)
+            .single();
+
+          if (sale) setSaleData(sale);
+
+          // 3. Fetch Trending Items for Retention
           const { data: products } = await supabase
             .from('products')
             .select('*')
             .eq('store_id', store.id)
             .order('created_at', { ascending: false })
             .limit(6);
+            
           if (products) setTrendingProducts(products);
         }
 
@@ -67,7 +68,11 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     window.print();
   };
 
+  // --- Dynamic Values Extraction ---
   const themeColor = storeData?.theme_color || '#111111'; 
+  // Future proofing: Prefer 'name', fallback to 'store_name', then 'Premium Store'
+  const displayName = storeData?.name || storeData?.store_name || 'Premium Store';
+  const displayInitials = displayName.substring(0, 3).toUpperCase();
 
   if (loading) {
     return (
@@ -98,8 +103,12 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
 
   // Parsing purchased items safely
   let itemsList = [];
-  if (saleData.purchased_items) {
-    itemsList = typeof saleData.purchased_items === 'string' ? JSON.parse(saleData.purchased_items) : saleData.purchased_items;
+  try {
+    itemsList = typeof saleData.purchased_items === 'string' 
+      ? JSON.parse(saleData.purchased_items) 
+      : (saleData.purchased_items || []);
+  } catch (e) {
+    console.error("Failed to parse items", e);
   }
 
   return (
@@ -122,13 +131,13 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
               <img src={storeData.logo_url} alt="Store Logo" className="w-full h-full object-cover" />
             ) : (
               <span className="text-white font-black text-2xl tracking-tighter">
-                {storeData?.store_name?.substring(0, 3).toUpperCase() || 'VIP'}
+                {displayInitials}
               </span>
             )}
           </div>
-          <h1 className="text-2xl font-black tracking-tighter uppercase text-black leading-none">{storeData?.store_name || 'Premium Store'}</h1>
-          <p className="text-[9px] text-zinc-400 font-black uppercase tracking-[0.2em] mt-2 flex items-center gap-1">
-            <MapPin className="w-3 h-3" /> {storeData?.address || 'Verified Merchant'}
+          <h1 className="text-2xl font-black tracking-tighter uppercase text-black leading-none">{displayName}</h1>
+          <p className="text-[9px] text-zinc-400 font-black uppercase tracking-[0.2em] mt-2 flex items-center justify-center gap-1">
+            <Store className="w-3 h-3" /> OFFICIAL DIGITAL RECEIPT
           </p>
         </div>
 
@@ -204,7 +213,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
         {/* FOOTER */}
         <div className="text-center text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex flex-col gap-1 items-center">
           <Receipt className="w-4 h-4 mb-1 text-zinc-300" />
-          <p>Thank you for shopping</p>
+          <p>Thank you for shopping at {displayName}</p>
           <p>This is a computer generated receipt.</p>
         </div>
       </motion.main>
