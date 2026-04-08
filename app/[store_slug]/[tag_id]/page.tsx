@@ -36,7 +36,7 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
         if (storeError || !store) throw new Error(`Dukaan '${store_slug}' nahi mili! Kripya sahi QR scan karein.`);
         setStoreData(store);
 
-        // 2. PHIR TAG FETCH KARO (Yahan lock sahi laga tha)
+        // 2. PHIR TAG FETCH KARO
         const { data: tag, error: tagError } = await supabase
           .from('qr_tags')
           .select('*, products(*)')
@@ -47,6 +47,16 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
         if (tagError || !tag) throw new Error(`QR Code ${safeTagId} is store ka nahi hai.`);
         if (!tag.products) throw new Error(`Ye QR Code abhi kisi kapde se juda nahi hai.`);
         if (tag.status === 'sold') throw new Error(`Ye kapda bik chuka hai ya checkout mein hai.`);
+
+        // 🔥 NEW: THE SILENT TRACKER FOR ANALYTICS (Real-time Live Scans)
+        // Ye background me silently scan_count badhayega bina page slow kiye!
+        supabase
+          .from('products')
+          .update({ scan_count: (tag.products.scan_count || 0) + 1 })
+          .eq('id', tag.products.id)
+          .then(({ error }) => {
+             if (error) console.error("Silent Tracking Error:", error);
+          });
 
         // 🔥 GLOBAL SYNC & SWAP CHECK
         if (tag.status === 'in_cart') {
@@ -75,16 +85,15 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
   }, [safeStoreSlug, safeTagId]);
 
   const handleAddToBag = async () => {
-    if (!productData || isInBag || !storeData) return; // storeData check added
+    if (!productData || isInBag || !storeData) return; 
     setIsAdding(true);
     
     try {
-      // 🔥 FIX: TENANT ISOLATION LOCK ADDED HERE
       const { error: updateError } = await supabase
         .from('qr_tags')
         .update({ status: 'in_cart' }) 
         .eq('id', safeTagId)
-        .eq('store_id', storeData.id); // Ab sirf is dukaan ka tag update hoga!
+        .eq('store_id', storeData.id); 
 
       if (updateError) throw updateError;
 
@@ -107,8 +116,9 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
     }
   };
 
-  const themeColor = storeData?.theme_color || '#10b981'; // Default Fallback
+  const themeColor = storeData?.theme_color || '#10b981'; 
 
+  // --- ERROR AND LOADING UIs REMAIN UNCHANGED ---
   if (loading) return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white gap-4">
       <Loader2 className="w-10 h-10 animate-spin text-zinc-500" />
@@ -142,13 +152,11 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
           </button>
           <div>
             <h1 className="text-sm font-black tracking-tight uppercase">{storeData?.store_name}</h1>
-            {/* Theme synced text */}
             <p className="text-[8px] font-bold tracking-widest uppercase" style={{ color: themeColor }}>Verified Partner</p>
           </div>
         </div>
         <button onClick={() => router.push(`/${safeStoreSlug}/cart`)} className="relative p-2 bg-white/5 rounded-full">
             <ShoppingBag className="w-5 h-5 text-zinc-400" />
-            {/* Theme synced dot */}
             {isInBag && <span className="absolute top-0 right-0 w-2 h-2 rounded-full border border-black" style={{ backgroundColor: themeColor }} />}
         </button>
       </header>
@@ -167,7 +175,6 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
              <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10 text-[10px] font-black tracking-widest uppercase">
                 {safeTagId}
              </div>
-             {/* 🎨 DYNAMIC THEME BADGE: TEXT CHANGED TO "ALREADY ADDED" */}
              {isInBag && (
                 <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="px-4 py-2 rounded-2xl flex items-center gap-2 shadow-xl" style={{ backgroundColor: themeColor, color: '#fff' }}>
                    <ShieldCheck className="w-4 h-4" />
@@ -181,9 +188,8 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
         <div className="px-2">
           <AnimatePresence mode="wait">
             {isInBag ? (
-              // ✨ ALREADY ADDED INTERFACE (DYNAMIC THEME)
+              // ✨ ALREADY ADDED INTERFACE
               <motion.div key="added" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center flex flex-col items-center">
-                {/* Dynamic Center Icon */}
                 <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4 border" style={{ backgroundColor: `${themeColor}1A`, borderColor: `${themeColor}33` }}>
                   <ShieldCheck className="w-8 h-8" style={{ color: themeColor }} />
                 </div>
