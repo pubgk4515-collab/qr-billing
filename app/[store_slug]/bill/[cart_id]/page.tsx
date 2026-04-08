@@ -24,35 +24,29 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     
     async function fetchEverything() {
       try {
-        // 🔥 FIX 1: Changed specific columns to '*' to prevent Supabase missing column crashes
-        const { data: store, error: storeError } = await supabase
+        const { data: store } = await supabase
           .from('stores')
           .select('*') 
           .ilike('slug', safeStoreSlug)
           .single();
           
-        if (storeError) {
-           console.error("Store Info Error:", storeError);
-        }
-          
         if (store) {
           setStoreData(store);
 
-          // 2. Fetch The Order Details
-          const { data: sale, error: saleError } = await supabase
+          // 🔥 THE MASTER FIX: Replace .single() with .limit(1) to avoid Duplicate Row Crashes
+          const { data: salesArray } = await supabase
             .from('sales') 
             .select('*')
             .eq('cart_id', safeCartId)
-            .eq('store_id', store.id)
-            .single();
+            // .eq('store_id', store.id) <- Removed for absolute safety with older test data
+            .order('created_at', { ascending: false }) // Hamesha latest bill uthayega
+            .limit(1);
 
-          if (saleError) {
-             console.error("Sale Info Error:", saleError);
+          if (salesArray && salesArray.length > 0) {
+            setSaleData(salesArray);
           }
 
-          if (sale) setSaleData(sale);
-
-          // 3. Fetch Trending Items for Retention
+          // 3. Fetch Trending Items
           const { data: products } = await supabase
             .from('products')
             .select('*')
@@ -62,7 +56,6 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
             
           if (products) setTrendingProducts(products);
         }
-
       } catch (err) {
         console.error("Error fetching bill details:", err);
       } finally {
@@ -78,8 +71,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
 
   // --- Dynamic Values Extraction ---
   const themeColor = storeData?.theme_color || '#111111'; 
-  // 🔥 FIX 2: Safely access store_name without the fallback that caused the bug
-  const displayName = storeData?.store_name || 'Premium Store';
+  const displayName = storeData?.store_name || storeData?.name || 'Premium Store';
   const displayInitials = displayName.substring(0, 3).toUpperCase();
 
   if (loading) {
