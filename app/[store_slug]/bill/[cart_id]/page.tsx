@@ -33,20 +33,20 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
         if (store) {
           setStoreData(store);
 
-          // 🔥 THE MASTER FIX: Replace .single() with .limit(1) to avoid Duplicate Row Crashes
+          // Fetch Order Details
           const { data: salesArray } = await supabase
             .from('sales') 
             .select('*')
             .eq('cart_id', safeCartId)
-            // .eq('store_id', store.id) <- Removed for absolute safety with older test data
-            .order('created_at', { ascending: false }) // Hamesha latest bill uthayega
+            .order('created_at', { ascending: false }) 
             .limit(1);
 
+          // 🔥 THE FIX: Extracting the Object from the Array using
           if (salesArray && salesArray.length > 0) {
-            setSaleData(salesArray);
+            setSaleData(salesArray); 
           }
 
-          // 3. Fetch Trending Items
+          // Fetch Trending Items for Retention
           const { data: products } = await supabase
             .from('products')
             .select('*')
@@ -56,6 +56,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
             
           if (products) setTrendingProducts(products);
         }
+
       } catch (err) {
         console.error("Error fetching bill details:", err);
       } finally {
@@ -69,7 +70,6 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     window.print();
   };
 
-  // --- Dynamic Values Extraction ---
   const themeColor = storeData?.theme_color || '#111111'; 
   const displayName = storeData?.store_name || storeData?.name || 'Premium Store';
   const displayInitials = displayName.substring(0, 3).toUpperCase();
