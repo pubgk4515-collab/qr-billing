@@ -253,10 +253,10 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
     return num >= printStart && num <= printEnd;
   });
 
-  // 🔥 CHANGED: 15 tags per page (3 columns x 5 rows) for perfect 2-inch fit
+  // 🔥 CHANGED: 12 tags per page (3 columns x 4 rows) for perfect 2-inch fit
   const chunkedTags = [];
-  for (let i = 0; i < tagsToPrint.length; i += 15) {
-    chunkedTags.push(tagsToPrint.slice(i, i + 15));
+  for (let i = 0; i < tagsToPrint.length; i += 12) {
+    chunkedTags.push(tagsToPrint.slice(i, i + 12));
   }
 
   if (loading) return <div className="min-h-screen bg-[#050505] flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin" style={{ color: themeColor }} /></div>;
