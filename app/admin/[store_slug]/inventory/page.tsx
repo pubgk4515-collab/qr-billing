@@ -36,7 +36,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   
-  // 🔥 NEW: Print Modal States
+  // Print Modal States
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [printStart, setPrintStart] = useState<number | ''>('');
   const [printEnd, setPrintEnd] = useState<number | ''>('');
@@ -147,7 +147,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
     } else {
       const freeTags = inventory.filter(item => item.status === 'free');
       if (freeTags.length === 0) return alert("Koi Free Tag bacha nahi hai!");
-      targetTagToBind = freeTags; 
+      targetTagToBind = freeTags; // Always grab the first element
     }
     if (!targetTagToBind) return alert("Tag nahi mila!");
 
@@ -162,7 +162,11 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         .insert({ name: newItemName, price: Number(newItemPrice), store_id: storeData.id, size: 'Free Size', image_url: imageUrl })
         .select().single();
 
-      await supabase.from('qr_tags').update({ product_id: newProductData.id, status: 'active' }).eq('id', targetTagToBind.id);
+      // 🔥 FIX 1: Add store_id to isolate the update query
+      await supabase.from('qr_tags')
+        .update({ product_id: newProductData.id, status: 'active' })
+        .eq('id', targetTagToBind.id)
+        .eq('store_id', storeData.id);
 
       await fetchRealInventory(storeData.id, true);
       setIsAddModalOpen(false);
@@ -179,7 +183,11 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
       const file = fileInputRef.current?.files?.[0]; 
       if (file) imageUrl = await uploadImage(file, setUploadProgress); 
 
-      await supabase.from('products').update({ name: editName, price: Number(editPrice), image_url: imageUrl }).eq('id', selectedTagItem.product_id);
+      // 🔥 FIX 2: Added store_id to isolate the edit update query
+      await supabase.from('products')
+        .update({ name: editName, price: Number(editPrice), image_url: imageUrl })
+        .eq('id', selectedTagItem.product_id)
+        .eq('store_id', storeData.id);
       
       await fetchRealInventory(storeData.id, true);
       setIsEditModalOpen(false);
@@ -191,7 +199,12 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
   const handleUnbindItem = async (tagId: string) => {
     if(!confirm("Kya aap is product ko hatana chahte hain? Tag wapas Free ho jayega.")) return;
     try {
-      await supabase.from('qr_tags').update({ product_id: null, status: 'free' }).eq('id', tagId);
+      // 🔥 FIX 3: Add store_id to isolate the unbind query
+      await supabase.from('qr_tags')
+        .update({ product_id: null, status: 'free' })
+        .eq('id', tagId)
+        .eq('store_id', storeData.id);
+
       fetchRealInventory(storeData?.id, true);
     } catch (error) { console.error(error); }
   };
@@ -210,14 +223,12 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
     }
   };
 
-  // 🔥 NEW: Trigger Print after Modal closes
   const triggerPrintAction = () => {
     if (!printStart || !printEnd || printStart > printEnd) {
       alert("Please enter a valid tag range (e.g., 1 to 100).");
       return;
     }
     setIsPrintModalOpen(false);
-    // Give the modal animation time to exit before printing
     setTimeout(() => {
       window.print();
     }, 500); 
@@ -239,14 +250,12 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
     return matchesSearch && item.status === activeFilter;
   });
 
-  // Calculate which tags to show on the printed PDF
-    const tagsToPrint = inventory.filter(item => {
+  const tagsToPrint = inventory.filter(item => {
     if (!printStart || !printEnd) return true; 
     const num = parseInt(item.id.replace('TAG', ''), 10);
     return num >= printStart && num <= printEnd;
   });
 
-  // 🔥 THE MASTERSTROKE: Break tags into arrays of 20 to force PDF pages
   const chunkedTags = [];
   for (let i = 0; i < tagsToPrint.length; i += 20) {
     chunkedTags.push(tagsToPrint.slice(i, i + 20));
@@ -456,7 +465,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
               </p>
             </div>
 
-            {/* The 25 Tags Grid for this specific page */}
+            {/* The 20 Tags Grid for this specific page */}
             <div className="flex flex-wrap justify-center gap-4 px-2">
               {pageTags.map((item) => (
                 <div 
@@ -548,7 +557,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         )}
       </AnimatePresence>
 
-      {/* 🔥 3. NEW: RANGE-BASED PRINT TAG MODAL */}
+      {/* 🔥 3. RANGE-BASED PRINT TAG MODAL */}
       <AnimatePresence>
         {isPrintModalOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm sm:p-4">
