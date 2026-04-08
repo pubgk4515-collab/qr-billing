@@ -253,10 +253,10 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
     return num >= printStart && num <= printEnd;
   });
 
-  // 🔥 CHANGED: 12 tags per page (3 columns x 4 rows) for perfect 2-inch fit
+  // 🔥 COST OPTIMIZATION: 20 tags per page (4 columns x 5 rows)
   const chunkedTags = [];
-  for (let i = 0; i < tagsToPrint.length; i += 12) {
-    chunkedTags.push(tagsToPrint.slice(i, i + 12));
+  for (let i = 0; i < tagsToPrint.length; i += 20) {
+    chunkedTags.push(tagsToPrint.slice(i, i + 20));
   }
 
   if (loading) return <div className="min-h-screen bg-[#050505] flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin" style={{ color: themeColor }} /></div>;
@@ -442,52 +442,49 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
       </div>
 
       {/* 🖨️ THE HIDDEN PRINTABLE A4 SHEET (Only visible when printing) */}
-      <div className="hidden print:block bg-white w-full text-black">
+      <div className="hidden print:flex bg-white w-full text-black justify-center">
         
+        {/* 🔥 MINIMAL MARGINS FOR MAX SPACE CONSUMPTION */}
         <style dangerouslySetInnerHTML={{__html: `
           @media print {
-            html, body { height: auto !important; overflow: visible !important; }
+            html, body { height: auto !important; overflow: visible !important; margin: 0; padding: 0; }
+            @page { margin: 0.2in; } 
           }
         `}} />
 
-        {/* 🔥 Map through chunks (Now 15 tags per page) */}
-        {chunkedTags.map((pageTags, pageIndex) => (
-          <div key={pageIndex} className="pt-4" style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>
-            
-            <div className="text-center pb-4 mb-6 border-b-2 border-black" style={{ pageBreakInside: 'avoid' }}>
-              <h1 className="text-3xl font-black uppercase tracking-widest">{storeData?.name || 'Premium Store'} - Inventory Tags</h1>
-              <p className="text-sm font-bold text-gray-500 mt-1">
-                Page {pageIndex + 1} of {chunkedTags.length} • Distributed Binding
-              </p>
-            </div>
+        <div className="w-full max-w-[8.27in]"> {/* A4 Width Constrain */}
+          {/* Map through chunks (Now 20 tags per page - 4 columns x 5 rows) */}
+          {chunkedTags.map((pageTags, pageIndex) => (
+            <div key={pageIndex} className="pt-2 pb-2 flex flex-wrap justify-center content-start gap-2" style={{ pageBreakAfter: 'always', breakAfter: 'page', minHeight: '100vh' }}>
+              
+              {/* THE HEADING IS COMPLETELY REMOVED TO SAVE SPACE */}
 
-            {/* The 15 Tags Grid for this specific page (Size Increased) */}
-            <div className="flex flex-wrap justify-center gap-5 px-2">
+              {/* The 20 Tags Grid for this specific page */}
               {pageTags.map((item) => (
                 <div 
                   key={item.id} 
-                  className="flex flex-col items-center justify-center border-2 border-dashed border-gray-400 p-3 break-inside-avoid" 
-                  // 🔥 BOX SIZE INCREASED TO 2 INCHES
-                  style={{ width: '2in', height: '2.2in' }} 
+                  // 🔥 BORDER THINNED OUT (border instead of border-2) AND PADDING REDUCED (p-1 instead of p-3)
+                  className="flex flex-col items-center justify-center border border-dashed border-gray-400 p-1 break-inside-avoid" 
+                  // 🔥 BOX WIDTH REDUCED TO FIT 4 IN A ROW PERFECTLY ON A4
+                  style={{ width: '1.8in', height: '2.1in' }} 
                 >
                   <QRCodeCanvas 
                     value={`${window.location.origin}/${safeStoreSlug}/${item.id}`} 
-                    // 🔥 QR SIZE INCREASED TO 130
+                    // 🔥 QR SIZE KEPT SAME (130) FOR READABILITY
                     size={130} 
                     bgColor={"#ffffff"} 
                     fgColor={"#000000"} 
-                    // 🔥 LEVEL CHANGED TO M (MEDIUM) FOR CLEARER SCANNING
                     level={"M"} 
                     includeMargin={false} 
                   />
-                  <span className="mt-3 text-[12px] font-black tracking-widest uppercase text-black leading-none">
+                  <span className="mt-1.5 text-[11px] font-black tracking-widest uppercase text-black leading-none">
                     {item.id}
                   </span>
                 </div>
               ))}
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
       {/* --- MODALS --- */}
