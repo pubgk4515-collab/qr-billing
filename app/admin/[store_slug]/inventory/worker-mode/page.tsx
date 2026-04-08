@@ -28,7 +28,8 @@ export default function WorkerModePage({ params }: { params: Promise<{ store_slu
   const [tagId, setTagId] = useState('');
   const [itemName, setItemName] = useState('');
   const [itemPrice, setItemPrice] = useState('');
-  const [itemSize, setItemSize] = useState('Free Size');
+  // 🔥 FIX: Removed 'Free Size' prefill, now it's completely empty
+  const [itemSize, setItemSize] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   
@@ -153,6 +154,7 @@ export default function WorkerModePage({ params }: { params: Promise<{ store_slu
         .insert({ 
           name: itemName, 
           price: Number(itemPrice), 
+          // Size ab jo type karenge wahi jayega, warna empty jayega
           size: itemSize,
           store_id: storeData.id, 
           image_url: finalImageUrl 
@@ -176,7 +178,7 @@ export default function WorkerModePage({ params }: { params: Promise<{ store_slu
       if (!isFrozen) {
         setItemName('');
         setItemPrice('');
-        setItemSize('Free Size');
+        setItemSize(''); // 🔥 FIX: Resetting to empty instead of 'Free Size'
         setImageFile(null);
         setImagePreview(null);
       } else {
@@ -199,6 +201,11 @@ export default function WorkerModePage({ params }: { params: Promise<{ store_slu
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans pb-24 relative selection:bg-white/10">
       
+      {/* CSS hack to make the nostalgic camera look slightly better */}
+      <style dangerouslySetInnerHTML={{__html: `
+        #worker-reader video { object-fit: cover !important; border-radius: 1.5rem; }
+      `}} />
+
       {/* 👑 HEADER */}
       <header className="bg-[#0A0A0A]/90 backdrop-blur-xl border-b border-white/5 sticky top-0 z-30 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -289,7 +296,7 @@ export default function WorkerModePage({ params }: { params: Promise<{ store_slu
             </div>
             <div className="flex-1">
               <label className="text-[10px] text-zinc-500 font-black uppercase tracking-widest ml-4 mb-2 block">Size</label>
-              <input type="text" placeholder="Free Size" value={itemSize} onChange={e => setItemSize(e.target.value)} className="w-full bg-[#111] border border-white/10 rounded-2xl py-4 px-4 text-sm font-bold focus:outline-none focus:border-white/30 text-white placeholder:text-zinc-700" />
+              <input type="text" placeholder="e.g. L, XL, 32" value={itemSize} onChange={e => setItemSize(e.target.value)} className="w-full bg-[#111] border border-white/10 rounded-2xl py-4 px-4 text-sm font-bold focus:outline-none focus:border-white/30 text-white placeholder:text-zinc-700" />
             </div>
           </div>
         </div>
