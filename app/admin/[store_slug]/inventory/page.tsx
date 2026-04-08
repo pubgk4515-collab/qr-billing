@@ -253,10 +253,10 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
     return num >= printStart && num <= printEnd;
   });
 
-  // 🔥 COST OPTIMIZATION: 20 tags per page (4 columns x 5 rows)
+  // 🔥 COST OPTIMIZATION: 16 tags per page (4 columns x 4 rows)
   const chunkedTags = [];
-  for (let i = 0; i < tagsToPrint.length; i += 20) {
-    chunkedTags.push(tagsToPrint.slice(i, i + 20));
+  for (let i = 0; i < tagsToPrint.length; i += 16) {
+    chunkedTags.push(tagsToPrint.slice(i, i + 16));
   }
 
   if (loading) return <div className="min-h-screen bg-[#050505] flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin" style={{ color: themeColor }} /></div>;
@@ -268,14 +268,24 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         
         {/* 👑 TOP NAV BAR */}
         <header className="bg-[#0A0A0A]/90 backdrop-blur-md border-b border-white/5 sticky top-0 z-30 px-6 py-5">
-          <div className="max-w-5xl mx-auto flex items-center gap-4">
-            <Link href={`/admin/${safeStoreSlug}`} className="p-3 bg-white/5 rounded-full hover:bg-white/10 transition-colors">
-              <ArrowLeft className="w-5 h-5 text-zinc-300" />
-            </Link>
-            <div>
-              <h1 className="text-2xl font-black tracking-tight leading-none">Inventory</h1>
-              <p className="text-[10px] uppercase tracking-widest font-bold mt-1" style={{ color: themeColor }}>Manage Tags & Stock</p>
+          <div className="max-w-5xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link href={`/admin/${safeStoreSlug}`} className="p-3 bg-white/5 rounded-full hover:bg-white/10 transition-colors">
+                <ArrowLeft className="w-5 h-5 text-zinc-300" />
+              </Link>
+              <div>
+                <h1 className="text-2xl font-black tracking-tight leading-none">Inventory</h1>
+                <p className="text-[10px] uppercase tracking-widest font-bold mt-1" style={{ color: themeColor }}>Manage Tags & Stock</p>
+              </div>
             </div>
+            
+            {/* 🔥 NEW: BULK ADD BUTTON REDIRECTING TO WORKER MODE */}
+            <button 
+              onClick={() => router.push(`/admin/${safeStoreSlug}/inventory/worker-mode`)}
+              className="px-4 py-2.5 bg-white text-black rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all hover:bg-zinc-200 flex items-center gap-2"
+            >
+              <Package className="w-4 h-4 hidden sm:block" /> Bulk Add
+            </button>
           </div>
         </header>
 
@@ -378,7 +388,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
                   <div className="flex justify-between items-start mb-6 relative z-10">
                     <div>
                       <span className={`text-[11px] font-black tracking-widest uppercase ${
-                        item.status === 'active' ? 'text-emerald-500' : 
+                        item.status === 'active' ? 'text emerald-500' : 
                         item.status === 'in_cart' ? 'text-amber-500' :
                         'text-zinc-500'
                       }`} style={item.status === 'active' ? { color: themeColor } : {}}>
@@ -453,13 +463,13 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         `}} />
 
         <div className="w-full max-w-[8.27in]"> {/* A4 Width Constrain */}
-          {/* Map through chunks (Now 20 tags per page - 4 columns x 5 rows) */}
+          {/* Map through chunks (Now 16 tags per page - 4 columns x 4 rows) */}
           {chunkedTags.map((pageTags, pageIndex) => (
             <div key={pageIndex} className="pt-2 pb-2 flex flex-wrap justify-center content-start gap-2" style={{ pageBreakAfter: 'always', breakAfter: 'page', minHeight: '100vh' }}>
               
               {/* THE HEADING IS COMPLETELY REMOVED TO SAVE SPACE */}
 
-              {/* The 20 Tags Grid for this specific page */}
+              {/* The 16 Tags Grid for this specific page */}
               {pageTags.map((item) => (
                 <div 
                   key={item.id} 
