@@ -43,7 +43,12 @@ export default function CustomerScannerPage({ params }: { params: Promise<{ stor
       try {
         await scannerRef.current?.start(
           { facingMode: "environment" }, 
-          { fps: 20 },
+          // 🔥 THE FIX: Scanner ko sirf specific area me HD focus karne ka command
+          { 
+            fps: 15, 
+            qrbox: { width: 250, height: 250 }, 
+            disableFlip: false 
+          },
           (decodedText) => {
             if (scannerRef.current?.isScanning) {
               scannerRef.current.stop().then(() => {
@@ -105,10 +110,10 @@ export default function CustomerScannerPage({ params }: { params: Promise<{ stor
           <div className="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4 rounded-bl-[2rem]" style={{ borderColor: themeColor }} />
           <div className="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4 rounded-br-[2rem]" style={{ borderColor: themeColor }} />
 
-          {/* 🔥 FIX: Scanning Line Animation Fixed */}
+          {/* 🔥 FIX: Laser Line smooth bounce animation */}
           {isCameraReady && (
             <motion.div 
-              animate={{ y: [0, 280] }} // Ye 0 se neeche jayega aur wapas aayega
+              animate={{ y: [0, 280] }} 
               transition={{ repeat: Infinity, duration: 2.5, ease: "linear" }}
               className="w-[90%] h-[2px] absolute top-0 left-[5%]"
               style={{ backgroundColor: themeColor, boxShadow: `0 0 15px ${themeColor}` }}

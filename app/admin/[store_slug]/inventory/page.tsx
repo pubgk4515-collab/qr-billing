@@ -147,7 +147,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
     } else {
       const freeTags = inventory.filter(item => item.status === 'free');
       if (freeTags.length === 0) return alert("Koi Free Tag bacha nahi hai!");
-      targetTagToBind = freeTags; // Always grab the first element
+      targetTagToBind = freeTags; 
     }
     if (!targetTagToBind) return alert("Tag nahi mila!");
 
@@ -162,7 +162,6 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         .insert({ name: newItemName, price: Number(newItemPrice), store_id: storeData.id, size: 'Free Size', image_url: imageUrl })
         .select().single();
 
-      // 🔥 FIX 1: Add store_id to isolate the update query
       await supabase.from('qr_tags')
         .update({ product_id: newProductData.id, status: 'active' })
         .eq('id', targetTagToBind.id)
@@ -183,7 +182,6 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
       const file = fileInputRef.current?.files?.[0]; 
       if (file) imageUrl = await uploadImage(file, setUploadProgress); 
 
-      // 🔥 FIX 2: Added store_id to isolate the edit update query
       await supabase.from('products')
         .update({ name: editName, price: Number(editPrice), image_url: imageUrl })
         .eq('id', selectedTagItem.product_id)
@@ -197,9 +195,8 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
   };
 
   const handleUnbindItem = async (tagId: string) => {
-    if(!confirm("Kya aap is product ko hatana chahte hain? Tag wapas Free ho jayega.")) return;
+    if(!confirm("Are you sure you want to remove this product? The tag will become free again.")) return;
     try {
-      // 🔥 FIX 3: Add store_id to isolate the unbind query
       await supabase.from('qr_tags')
         .update({ product_id: null, status: 'free' })
         .eq('id', tagId)
@@ -256,13 +253,13 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
     return num >= printStart && num <= printEnd;
   });
 
+  // 🔥 CHANGED: 15 tags per page (3 columns x 5 rows) for perfect 2-inch fit
   const chunkedTags = [];
-  for (let i = 0; i < tagsToPrint.length; i += 20) {
-    chunkedTags.push(tagsToPrint.slice(i, i + 20));
+  for (let i = 0; i < tagsToPrint.length; i += 15) {
+    chunkedTags.push(tagsToPrint.slice(i, i + 15));
   }
 
   if (loading) return <div className="min-h-screen bg-[#050505] flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin" style={{ color: themeColor }} /></div>;
-
 
   return (
     <>
@@ -444,7 +441,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         </main>
       </div>
 
-          {/* 🖨️ THE HIDDEN PRINTABLE A4 SHEET (Only visible when printing) */}
+      {/* 🖨️ THE HIDDEN PRINTABLE A4 SHEET (Only visible when printing) */}
       <div className="hidden print:block bg-white w-full text-black">
         
         <style dangerouslySetInnerHTML={{__html: `
@@ -453,11 +450,10 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
           }
         `}} />
 
-        {/* 🔥 Map through chunks (Each chunk is a guaranteed NEW PDF PAGE) */}
+        {/* 🔥 Map through chunks (Now 15 tags per page) */}
         {chunkedTags.map((pageTags, pageIndex) => (
           <div key={pageIndex} className="pt-4" style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>
             
-            {/* Header on Every Page for Professional Look */}
             <div className="text-center pb-4 mb-6 border-b-2 border-black" style={{ pageBreakInside: 'avoid' }}>
               <h1 className="text-3xl font-black uppercase tracking-widest">{storeData?.name || 'Premium Store'} - Inventory Tags</h1>
               <p className="text-sm font-bold text-gray-500 mt-1">
@@ -465,23 +461,26 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
               </p>
             </div>
 
-            {/* The 20 Tags Grid for this specific page */}
-            <div className="flex flex-wrap justify-center gap-4 px-2">
+            {/* The 15 Tags Grid for this specific page (Size Increased) */}
+            <div className="flex flex-wrap justify-center gap-5 px-2">
               {pageTags.map((item) => (
                 <div 
                   key={item.id} 
-                  className="flex flex-col items-center justify-center border-2 border-dashed border-gray-400 p-2 break-inside-avoid" 
-                  style={{ width: '1.5in', height: '1.5in' }}
+                  className="flex flex-col items-center justify-center border-2 border-dashed border-gray-400 p-3 break-inside-avoid" 
+                  // 🔥 BOX SIZE INCREASED TO 2 INCHES
+                  style={{ width: '2in', height: '2.2in' }} 
                 >
                   <QRCodeCanvas 
                     value={`${window.location.origin}/${safeStoreSlug}/${item.id}`} 
-                    size={90} 
+                    // 🔥 QR SIZE INCREASED TO 130
+                    size={130} 
                     bgColor={"#ffffff"} 
                     fgColor={"#000000"} 
-                    level={"H"} 
+                    // 🔥 LEVEL CHANGED TO M (MEDIUM) FOR CLEARER SCANNING
+                    level={"M"} 
                     includeMargin={false} 
                   />
-                  <span className="mt-2 text-[10px] font-black tracking-widest uppercase text-black leading-none">
+                  <span className="mt-3 text-[12px] font-black tracking-widest uppercase text-black leading-none">
                     {item.id}
                   </span>
                 </div>
@@ -490,8 +489,6 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
           </div>
         ))}
       </div>
-
-      
 
       {/* --- MODALS --- */}
       {/* 1. ADD PRODUCT MODAL */}
@@ -557,7 +554,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         )}
       </AnimatePresence>
 
-      {/* 🔥 3. RANGE-BASED PRINT TAG MODAL */}
+      {/* 3. RANGE-BASED PRINT TAG MODAL */}
       <AnimatePresence>
         {isPrintModalOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm sm:p-4">
@@ -571,7 +568,6 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
               <h2 className="text-2xl font-black mb-2 tracking-tight">Print PDF Tags</h2>
               <p className="text-zinc-500 text-sm mb-6 leading-relaxed">Kaunse tags ka PDF print karna hai? Yaha range enter karein.</p>
               
-              {/* Range Inputs */}
               <div className="flex items-center gap-3 mb-8">
                  <div className="flex-1 relative">
                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold text-[10px] uppercase tracking-widest">TAG</span>
