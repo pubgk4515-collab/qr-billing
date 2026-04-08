@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect, use, useRef } from 'react';
-import { supabase } from '../../../lib/supabase'; // Path verify kar lena
+import { supabase } from '../../../lib/supabase'; // Path ek baar verify kar lena agar folder level alag ho
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Plus, Search, Hash, Package, CheckCircle, Clock, X, ArrowLeft, 
   Loader2, QrCode, Trash2, Edit2, Download, Image as ImageIcon,
-  BarChart3, Settings 
+  BarChart3, Settings, Printer 
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -61,23 +61,22 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         if (store) {
           setStoreData(store);
           setThemeColor(store.theme_color || '#10b981');
-          fetchRealInventory(store.id, false); // First load = show loader
+          fetchRealInventory(store.id, false);
         }
       } catch (err) { console.error(err); }
     }
     fetchInitialData();
   }, [safeStoreSlug]);
 
-  // 🔥 SILENT POLLING (Har 3 second me background refresh bina spinner ke)
+  // SILENT POLLING
   useEffect(() => {
     if (!storeData) return;
     const interval = setInterval(() => {
-      fetchRealInventory(storeData.id, true); // true = silent refresh
+      fetchRealInventory(storeData.id, true);
     }, 3000);
     return () => clearInterval(interval);
   }, [storeData]);
 
-  // isSilent = true se page blink nahi karega
   const fetchRealInventory = async (storeId: string, isSilent = false) => {
     if (!isSilent) setLoading(true);
     const { data, error } = await supabase
@@ -112,7 +111,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
     }
   };
 
-  // --- ACTIONS (Ab sab silent refresh marenge, page jump nahi hoga) ---
+  // --- ACTIONS ---
   const handleGenerateTags = async () => {
     if (generateCount <= 0 || !storeData) return;
     setActionLoading(true);
@@ -129,7 +128,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         newTags.push({ id: formattedTag, store_id: storeData.id, status: 'free', product_id: null });
       }
       await supabase.from('qr_tags').insert(newTags);
-      await fetchRealInventory(storeData.id, true); // Silent Update
+      await fetchRealInventory(storeData.id, true);
       setIsGenerateModalOpen(false);
       setGenerateCount(10);
     } catch (err) { alert("Error generating tags."); } 
@@ -161,7 +160,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
 
       await supabase.from('qr_tags').update({ product_id: newProductData.id, status: 'active' }).eq('id', targetTagToBind.id);
 
-      await fetchRealInventory(storeData.id, true); // Silent Update
+      await fetchRealInventory(storeData.id, true);
       setIsAddModalOpen(false);
       setNewItemName(''); setNewItemPrice(''); setAddUploadProgress(0); setBindingTagId(null); 
     } catch (err) { alert("Error adding product."); } 
@@ -178,7 +177,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
 
       await supabase.from('products').update({ name: editName, price: Number(editPrice), image_url: imageUrl }).eq('id', selectedTagItem.product_id);
       
-      await fetchRealInventory(storeData.id, true); // Silent Update
+      await fetchRealInventory(storeData.id, true);
       setIsEditModalOpen(false);
       setSelectedTagItem(null);
     } catch (error) { alert("Error editing product."); } 
@@ -189,7 +188,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
     if(!confirm("Kya aap is product ko hatana chahte hain? Tag wapas Free ho jayega.")) return;
     try {
       await supabase.from('qr_tags').update({ product_id: null, status: 'free' }).eq('id', tagId);
-      fetchRealInventory(storeData?.id, true); // Silent Update
+      fetchRealInventory(storeData?.id, true);
     } catch (error) { console.error(error); }
   };
 
@@ -226,182 +225,224 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
   if (loading) return <div className="min-h-screen bg-[#050505] flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin" style={{ color: themeColor }} /></div>;
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white pb-32 font-sans relative">
-      
-      {/* 👑 TOP NAV BAR */}
-      <header className="bg-[#0A0A0A]/90 backdrop-blur-md border-b border-white/5 sticky top-0 z-30 px-6 py-5">
-        <div className="max-w-5xl mx-auto flex items-center gap-4">
-          <Link href={`/admin/${safeStoreSlug}`} className="p-3 bg-white/5 rounded-full hover:bg-white/10 transition-colors">
-            <ArrowLeft className="w-5 h-5 text-zinc-300" />
-          </Link>
-          <div>
-            <h1 className="text-2xl font-black tracking-tight leading-none">Inventory</h1>
-            <p className="text-[10px] uppercase tracking-widest font-bold mt-1" style={{ color: themeColor }}>Manage Tags & Stock</p>
+    <>
+      {/* 💻 MAIN UI (Hides when printing) */}
+      <div className="min-h-screen bg-[#050505] text-white pb-32 font-sans relative print:hidden">
+        
+        {/* 👑 TOP NAV BAR */}
+        <header className="bg-[#0A0A0A]/90 backdrop-blur-md border-b border-white/5 sticky top-0 z-30 px-6 py-5">
+          <div className="max-w-5xl mx-auto flex items-center gap-4">
+            <Link href={`/admin/${safeStoreSlug}`} className="p-3 bg-white/5 rounded-full hover:bg-white/10 transition-colors">
+              <ArrowLeft className="w-5 h-5 text-zinc-300" />
+            </Link>
+            <div>
+              <h1 className="text-2xl font-black tracking-tight leading-none">Inventory</h1>
+              <p className="text-[10px] uppercase tracking-widest font-bold mt-1" style={{ color: themeColor }}>Manage Tags & Stock</p>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* 🚀 FLOATING ADMIN & ANALYTICS BUTTONS (BOTTOM RIGHT) */}
-      <div className="fixed bottom-6 right-6 sm:bottom-10 sm:right-10 z-50 flex flex-col items-end gap-3">
-        <button 
-          onClick={() => router.push(`/admin/${safeStoreSlug}/analytics`)} 
-          className="p-3 sm:px-5 sm:py-3.5 rounded-[1.25rem] flex items-center gap-3 shadow-[0_10px_40px_rgba(0,0,0,0.5)] transition-all hover:scale-105 active:scale-95 group" 
-          style={{ backgroundColor: themeColor, color: '#fff' }}
-        >
-          <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6" />
-          <span className="text-[11px] font-black uppercase tracking-widest hidden sm:block">Analytics</span>
-        </button>
-        <button 
-          onClick={() => router.push(`/admin/${safeStoreSlug}`)} 
-          className="p-3 sm:px-5 sm:py-3.5 bg-[#111] rounded-[1.25rem] flex items-center gap-3 border border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.5)] transition-all hover:scale-105 active:scale-95 group"
-        >
-           <Settings className="w-5 h-5 sm:w-6 sm:h-6" style={{ color: themeColor }} />
-           <span className="text-[11px] font-black uppercase tracking-widest text-zinc-300 hidden sm:block">Admin</span>
-        </button>
+        {/* 🚀 FLOATING ADMIN & ANALYTICS BUTTONS */}
+        <div className="fixed bottom-6 right-6 sm:bottom-10 sm:right-10 z-50 flex flex-col items-end gap-3">
+          <button 
+            onClick={() => router.push(`/admin/${safeStoreSlug}/analytics`)} 
+            className="p-3 sm:px-5 sm:py-3.5 rounded-[1.25rem] flex items-center gap-3 shadow-[0_10px_40px_rgba(0,0,0,0.5)] transition-all hover:scale-105 active:scale-95 group" 
+            style={{ backgroundColor: themeColor, color: '#fff' }}
+          >
+            <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6" />
+            <span className="text-[11px] font-black uppercase tracking-widest hidden sm:block">Analytics</span>
+          </button>
+          <button 
+            onClick={() => router.push(`/admin/${safeStoreSlug}`)} 
+            className="p-3 sm:px-5 sm:py-3.5 bg-[#111] rounded-[1.25rem] flex items-center gap-3 border border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.5)] transition-all hover:scale-105 active:scale-95 group"
+          >
+             <Settings className="w-5 h-5 sm:w-6 sm:h-6" style={{ color: themeColor }} />
+             <span className="text-[11px] font-black uppercase tracking-widest text-zinc-300 hidden sm:block">Admin</span>
+          </button>
+        </div>
+
+        <main className="max-w-5xl mx-auto px-6 py-8 flex flex-col gap-8 mt-4">
+          
+          {/* STATS ROW */}
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: 'Total Tags', value: totalTags, icon: Hash, color: '#ffffff' },
+              { label: 'Active', value: activeTags, icon: CheckCircle, color: themeColor },
+              { label: 'Free Tags', value: freeTagsCount, icon: Clock, color: '#f59e0b' },
+            ].map((stat, idx) => (
+              <div key={idx} className="bg-[#0A0A0A] border border-white/5 p-4 sm:p-5 rounded-[1.5rem] flex flex-col gap-1 shadow-lg">
+                <stat.icon className="w-5 h-5 mb-2" style={{ color: stat.color }} />
+                <p className="text-[8px] sm:text-[9px] text-zinc-500 uppercase font-black tracking-widest">{stat.label}</p>
+                <h2 className="text-2xl sm:text-3xl font-black tracking-tighter">{stat.value}</h2>
+              </div>
+            ))}
+          </div>
+
+          {/* QUICK ACTIONS (3 Columns now) */}
+          <div className="grid grid-cols-3 gap-4">
+            <button onClick={() => setIsGenerateModalOpen(true)} className="bg-[#111] border border-white/5 hover:border-white/20 p-6 rounded-[2rem] flex flex-col items-center justify-center gap-3 transition-all active:scale-95 group shadow-lg">
+              <div className="w-14 h-14 rounded-[1.2rem] flex items-center justify-center group-hover:scale-110 transition-transform" style={{ backgroundColor: `${themeColor}1A` }}>
+                <QrCode className="w-7 h-7" style={{ color: themeColor }} />
+              </div>
+              <div className="text-center">
+                <span className="text-sm font-black block">Generate Tags</span>
+              </div>
+            </button>
+            
+            <button onClick={() => { setBindingTagId(null); setIsAddModalOpen(true); }} className="bg-white text-black p-6 rounded-[2rem] flex flex-col items-center justify-center gap-3 transition-all hover:bg-zinc-200 active:scale-95 shadow-xl">
+              <div className="w-14 h-14 bg-black/5 rounded-[1.2rem] flex items-center justify-center"><Plus className="w-8 h-8" /></div>
+              <div className="text-center">
+                <span className="text-sm font-black block">Add Product</span>
+              </div>
+            </button>
+
+            {/* 🔥 NEW: Print All QRs Button */}
+            <button onClick={() => window.print()} className="bg-[#111] border border-white/5 hover:border-white/20 p-6 rounded-[2rem] flex flex-col items-center justify-center gap-3 transition-all active:scale-95 group shadow-lg">
+              <div className="w-14 h-14 rounded-[1.2rem] flex items-center justify-center group-hover:scale-110 transition-transform bg-zinc-800">
+                <Printer className="w-7 h-7 text-white" />
+              </div>
+              <div className="text-center">
+                <span className="text-sm font-black block text-white">Print Tags (PDF)</span>
+              </div>
+            </button>
+          </div>
+
+          {/* SEARCH & FILTERS */}
+          <div className="flex flex-col gap-4">
+            <div className="relative">
+              <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+              <input type="text" placeholder="Search by Tag or Name..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-[#0A0A0A] border border-white/10 rounded-2xl py-4 pl-14 pr-4 text-base font-bold focus:outline-none focus:border-white/20" />
+            </div>
+            
+            <div className="flex flex-wrap gap-2 bg-[#0A0A0A] p-1.5 rounded-2xl border border-white/5 overflow-x-auto">
+              {['all', 'active', 'in_cart', 'sold', 'free'].map((f) => (
+                <button key={f} onClick={() => setActiveFilter(f)} className={`flex-1 min-w-[70px] py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeFilter === f ? 'bg-white text-black shadow-md' : 'text-zinc-500 hover:text-white'}`}>
+                  {f.replace('_', ' ')}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* INVENTORY LIST */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <AnimatePresence>
+              {filteredInventory.map((item) => (
+                <motion.div key={item.id} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} 
+                  className={`relative overflow-hidden p-6 rounded-[2.5rem] border transition-all ${
+                    (item.status === 'free' || item.status === 'sold') ? 'border-dashed border-white/10 bg-transparent' : 
+                    item.status === 'in_cart' ? 'border-amber-500/30 bg-[#111] shadow-[0_0_20px_rgba(245,158,11,0.05)]' : 
+                    'border-white/10 bg-[#111] shadow-xl'
+                  }`}
+                >
+                  
+                  {/* Background Image/Icon Overlay */}
+                  {(item.status === 'active' || item.status === 'in_cart') && (
+                      item.products?.image_url ? (
+                          <img src={item.products.image_url} alt="Item" className="absolute right-[-20px] top-[-20px] w-48 h-48 rounded-full object-cover opacity-30 mix-blend-lighten" />
+                      ) : (
+                          <div className="absolute right-[-10px] top-[-10px] p-4 opacity-5"><Package className="w-32 h-32" /></div>
+                      )
+                  )}
+                  
+                  {/* 🔝 TOP HEADER SECTION */}
+                  <div className="flex justify-between items-start mb-6 relative z-10">
+                    <div>
+                      <span className={`text-[11px] font-black tracking-widest uppercase ${
+                        item.status === 'active' ? 'text-emerald-500' : 
+                        item.status === 'in_cart' ? 'text-amber-500' :
+                        'text-zinc-500'
+                      }`} style={item.status === 'active' ? { color: themeColor } : {}}>
+                        {item.id}
+                      </span>
+                      <h3 className="text-xl font-black tracking-tight mt-1">
+                        {(item.status === 'active' || item.status === 'in_cart') ? item.products?.name : 'Empty Tag'}
+                      </h3>
+                    </div>
+                    
+                    {/* Action Buttons Area */}
+                    <div className="flex gap-2">
+                      {/* 🔥 THE PREMIUM CIRCULAR QR BUTTON */}
+                      <button 
+                        onClick={() => openQrModal(item)} 
+                        className="w-12 h-12 rounded-full bg-white/5 backdrop-blur-md border border-white/10 flex items-center justify-center hover:bg-white/15 hover:border-white/30 transition-all active:scale-90 shadow-2xl group"
+                      >
+                        <QrCode className="w-5 h-5 text-zinc-300 group-hover:text-white group-hover:scale-110 transition-all" />
+                      </button>
+
+                      {(item.status === 'active' || item.status === 'in_cart') && (
+                        <>
+                          <button onClick={() => openEditModal(item)} className="w-12 h-12 bg-white/5 backdrop-blur-md border border-white/10 text-zinc-300 rounded-full flex items-center justify-center hover:bg-white/15 transition-all"><Edit2 className="w-4 h-4" /></button>
+                          <button onClick={() => handleUnbindItem(item.id)} className="w-12 h-12 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center hover:bg-red-500/20 transition-all"><Trash2 className="w-4 h-4" /></button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* BOTTOM ROW */}
+                  <div className="flex items-center justify-between relative z-10">
+                    {(item.status === 'active' || item.status === 'in_cart') ? (
+                      <div className="flex items-center justify-between w-full">
+                        <div className="text-2xl font-black">₹{item.products?.price}</div>
+                        {item.status === 'in_cart' ? (
+                           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20">
+                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                             <span className="text-[9px] font-black uppercase tracking-widest text-amber-500">In Bag</span>
+                           </div>
+                        ) : (
+                           <div className="text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest" style={{ backgroundColor: `${themeColor}1A`, color: themeColor }}>
+                             ACTIVE
+                           </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-xs text-zinc-600 font-bold tracking-tight">Ready to bind</span>
+                        </div>
+                        <button onClick={() => openAddModalForSpecificTag(item.id)} className="px-6 py-3 bg-white text-black hover:bg-zinc-200 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl active:scale-95">
+                          Link Item
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        </main>
       </div>
 
-      <main className="max-w-5xl mx-auto px-6 py-8 flex flex-col gap-8 mt-4">
-        
-        {/* STATS ROW */}
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { label: 'Total Tags', value: totalTags, icon: Hash, color: '#ffffff' },
-            { label: 'Active', value: activeTags, icon: CheckCircle, color: themeColor },
-            { label: 'Free Tags', value: freeTagsCount, icon: Clock, color: '#f59e0b' },
-          ].map((stat, idx) => (
-            <div key={idx} className="bg-[#0A0A0A] border border-white/5 p-4 sm:p-5 rounded-[1.5rem] flex flex-col gap-1 shadow-lg">
-              <stat.icon className="w-5 h-5 mb-2" style={{ color: stat.color }} />
-              <p className="text-[8px] sm:text-[9px] text-zinc-500 uppercase font-black tracking-widest">{stat.label}</p>
-              <h2 className="text-2xl sm:text-3xl font-black tracking-tighter">{stat.value}</h2>
+      {/* 🖨️ THE HIDDEN PRINTABLE A4 SHEET (Only visible when printing) */}
+      <div className="hidden print:block bg-white w-full text-black min-h-screen pb-10">
+        <div className="text-center py-6 border-b-2 border-black mb-8">
+          <h1 className="text-3xl font-black uppercase tracking-widest">{storeData?.name || 'Premium Store'} - Inventory Tags</h1>
+          <p className="text-sm font-bold text-gray-500 mt-1">Reusable QR Codes for Distributed Binding</p>
+        </div>
+
+        <div className="grid grid-cols-5 gap-6 px-4" style={{ pageBreakInside: 'auto' }}>
+          {inventory.map((item) => (
+            <div 
+              key={item.id} 
+              className="flex flex-col items-center justify-center border-2 border-dashed border-gray-400 p-2 break-inside-avoid" 
+              style={{ width: '1.5in', height: '1.5in' }}
+            >
+              <QRCodeCanvas 
+                value={`${window.location.origin}/${safeStoreSlug}/${item.id}`} 
+                size={90} 
+                bgColor={"#ffffff"} 
+                fgColor={"#000000"} 
+                level={"H"} 
+                includeMargin={false} 
+              />
+              <span className="mt-2 text-[10px] font-black tracking-widest uppercase text-black leading-none">
+                {item.id}
+              </span>
             </div>
           ))}
         </div>
+      </div>
 
-        {/* QUICK ACTIONS */}
-        <div className="grid grid-cols-2 gap-4">
-          <button onClick={() => setIsGenerateModalOpen(true)} className="bg-[#111] border border-white/5 hover:border-white/20 p-6 rounded-[2rem] flex flex-col items-center justify-center gap-3 transition-all active:scale-95 group">
-            <div className="w-14 h-14 rounded-[1.2rem] flex items-center justify-center group-hover:scale-110 transition-transform" style={{ backgroundColor: `${themeColor}1A` }}>
-              <QrCode className="w-7 h-7" style={{ color: themeColor }} />
-            </div>
-            <div className="text-center">
-              <span className="text-sm font-black block">Generate Tags</span>
-            </div>
-          </button>
-          <button onClick={() => { setBindingTagId(null); setIsAddModalOpen(true); }} className="bg-white text-black p-6 rounded-[2rem] flex flex-col items-center justify-center gap-3 transition-all hover:bg-zinc-200 active:scale-95 shadow-xl">
-            <div className="w-14 h-14 bg-black/5 rounded-[1.2rem] flex items-center justify-center"><Plus className="w-8 h-8" /></div>
-            <div className="text-center">
-              <span className="text-sm font-black block">Add Product</span>
-            </div>
-          </button>
-        </div>
-
-        {/* SEARCH & FILTERS */}
-        <div className="flex flex-col gap-4">
-          <div className="relative">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
-            <input type="text" placeholder="Search by Tag or Name..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-[#0A0A0A] border border-white/10 rounded-2xl py-4 pl-14 pr-4 text-base font-bold focus:outline-none focus:border-white/20" />
-          </div>
-          
-          <div className="flex flex-wrap gap-2 bg-[#0A0A0A] p-1.5 rounded-2xl border border-white/5 overflow-x-auto">
-            {['all', 'active', 'in_cart', 'sold', 'free'].map((f) => (
-              <button key={f} onClick={() => setActiveFilter(f)} className={`flex-1 min-w-[70px] py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeFilter === f ? 'bg-white text-black shadow-md' : 'text-zinc-500 hover:text-white'}`}>
-                {f.replace('_', ' ')}
-              </button>
-            ))}
-          </div>
-        </div>
-
-                {/* INVENTORY LIST */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <AnimatePresence>
-            {filteredInventory.map((item) => (
-              <motion.div key={item.id} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} 
-                className={`relative overflow-hidden p-6 rounded-[2.5rem] border transition-all ${
-                  (item.status === 'free' || item.status === 'sold') ? 'border-dashed border-white/10 bg-transparent' : 
-                  item.status === 'in_cart' ? 'border-amber-500/30 bg-[#111] shadow-[0_0_20px_rgba(245,158,11,0.05)]' : 
-                  'border-white/10 bg-[#111] shadow-xl'
-                }`}
-              >
-                
-                {/* Background Image/Icon Overlay */}
-                {(item.status === 'active' || item.status === 'in_cart') && (
-                    item.products?.image_url ? (
-                        <img src={item.products.image_url} alt="Item" className="absolute right-[-20px] top-[-20px] w-48 h-48 rounded-full object-cover opacity-30 mix-blend-lighten" />
-                    ) : (
-                        <div className="absolute right-[-10px] top-[-10px] p-4 opacity-5"><Package className="w-32 h-32" /></div>
-                    )
-                )}
-                
-                {/* 🔝 TOP HEADER SECTION */}
-                <div className="flex justify-between items-start mb-6 relative z-10">
-                  <div>
-                    <span className={`text-[11px] font-black tracking-widest uppercase ${
-                      item.status === 'active' ? 'text-emerald-500' : 
-                      item.status === 'in_cart' ? 'text-amber-500' :
-                      'text-zinc-500'
-                    }`} style={item.status === 'active' ? { color: themeColor } : {}}>
-                      {item.id}
-                    </span>
-                    <h3 className="text-xl font-black tracking-tight mt-1">
-                      {(item.status === 'active' || item.status === 'in_cart') ? item.products?.name : 'Empty Tag'}
-                    </h3>
-                  </div>
-                  
-                  {/* Action Buttons Area */}
-                  <div className="flex gap-2">
-                    {/* 🔥 THE PREMIUM CIRCULAR QR BUTTON (Visible on all states) */}
-                    <button 
-                      onClick={() => openQrModal(item)} 
-                      className="w-12 h-12 rounded-full bg-white/5 backdrop-blur-md border border-white/10 flex items-center justify-center hover:bg-white/15 hover:border-white/30 transition-all active:scale-90 shadow-2xl group"
-                    >
-                      <QrCode className="w-5 h-5 text-zinc-300 group-hover:text-white group-hover:scale-110 transition-all" />
-                    </button>
-
-                    {(item.status === 'active' || item.status === 'in_cart') && (
-                      <>
-                        <button onClick={() => openEditModal(item)} className="w-12 h-12 bg-white/5 backdrop-blur-md border border-white/10 text-zinc-300 rounded-full flex items-center justify-center hover:bg-white/15 transition-all"><Edit2 className="w-4 h-4" /></button>
-                        <button onClick={() => handleUnbindItem(item.id)} className="w-12 h-12 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center hover:bg-red-500/20 transition-all"><Trash2 className="w-4 h-4" /></button>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* 底部 ROW (Prices & Status) */}
-                <div className="flex items-center justify-between relative z-10">
-                  
-                  {(item.status === 'active' || item.status === 'in_cart') ? (
-                    <div className="flex items-center justify-between w-full">
-                      <div className="text-2xl font-black">₹{item.products?.price}</div>
-                      
-                      {item.status === 'in_cart' ? (
-                         <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20">
-                           <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                           <span className="text-[9px] font-black uppercase tracking-widest text-amber-500">In Bag</span>
-                         </div>
-                      ) : (
-                         <div className="text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest" style={{ backgroundColor: `${themeColor}1A`, color: themeColor }}>
-                           ACTIVE
-                         </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between w-full">
-                      <div className="flex flex-col gap-1">
-                        <span className="text-xs text-zinc-600 font-bold tracking-tight">Ready to bind</span>
-                      </div>
-                      <button onClick={() => openAddModalForSpecificTag(item.id)} className="px-6 py-3 bg-white text-black hover:bg-zinc-200 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl active:scale-95">
-                        Link Item
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
-      </main>
-
-      {/* --- MODALS (Unchanged except Add Modal uses silent refresh internally) --- */}
+      {/* --- MODALS --- */}
       {/* 1. ADD PRODUCT MODAL */}
       <AnimatePresence>
         {isAddModalOpen && (
@@ -526,6 +567,6 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         )}
       </AnimatePresence>
 
-    </div>
+    </>
   );
 }
