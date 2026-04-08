@@ -311,19 +311,19 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
           </div>
         </div>
 
-        {/* INVENTORY LIST */}
+                {/* INVENTORY LIST */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <AnimatePresence>
             {filteredInventory.map((item) => (
               <motion.div key={item.id} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} 
-                className={`relative overflow-hidden p-6 rounded-[2rem] border transition-all ${
+                className={`relative overflow-hidden p-6 rounded-[2.5rem] border transition-all ${
                   (item.status === 'free' || item.status === 'sold') ? 'border-dashed border-white/10 bg-transparent' : 
                   item.status === 'in_cart' ? 'border-amber-500/30 bg-[#111] shadow-[0_0_20px_rgba(245,158,11,0.05)]' : 
                   'border-white/10 bg-[#111] shadow-xl'
                 }`}
               >
                 
-                {/* 🔥 FIXED OPACITY: Now opacity-30 so product is clearly visible */}
+                {/* Background Image/Icon Overlay */}
                 {(item.status === 'active' || item.status === 'in_cart') && (
                     item.products?.image_url ? (
                         <img src={item.products.image_url} alt="Item" className="absolute right-[-20px] top-[-20px] w-48 h-48 rounded-full object-cover opacity-30 mix-blend-lighten" />
@@ -332,6 +332,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
                     )
                 )}
                 
+                {/* 🔝 TOP HEADER SECTION */}
                 <div className="flex justify-between items-start mb-6 relative z-10">
                   <div>
                     <span className={`text-[11px] font-black tracking-widest uppercase ${
@@ -346,24 +347,32 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
                     </h3>
                   </div>
                   
-                  {/* Action Buttons */}
-                  {(item.status === 'active' || item.status === 'in_cart') && (
-                    <div className="flex gap-1">
-                      <button onClick={() => openQrModal(item)} className="p-2 bg-black/40 backdrop-blur-md border border-white/5 text-zinc-300 rounded-xl hover:bg-white/10 transition-colors"><QrCode className="w-4 h-4" /></button>
-                      <button onClick={() => openEditModal(item)} className="p-2 bg-black/40 backdrop-blur-md border border-white/5 text-zinc-300 rounded-xl hover:bg-white/10 transition-colors"><Edit2 className="w-4 h-4" /></button>
-                      <button onClick={() => handleUnbindItem(item.id)} className="p-2 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500/20 transition-colors"><Trash2 className="w-4 h-4" /></button>
-                    </div>
-                  )}
+                  {/* Action Buttons Area */}
+                  <div className="flex gap-2">
+                    {/* 🔥 THE PREMIUM CIRCULAR QR BUTTON (Visible on all states) */}
+                    <button 
+                      onClick={() => openQrModal(item)} 
+                      className="w-12 h-12 rounded-full bg-white/5 backdrop-blur-md border border-white/10 flex items-center justify-center hover:bg-white/15 hover:border-white/30 transition-all active:scale-90 shadow-2xl group"
+                    >
+                      <QrCode className="w-5 h-5 text-zinc-300 group-hover:text-white group-hover:scale-110 transition-all" />
+                    </button>
+
+                    {(item.status === 'active' || item.status === 'in_cart') && (
+                      <>
+                        <button onClick={() => openEditModal(item)} className="w-12 h-12 bg-white/5 backdrop-blur-md border border-white/10 text-zinc-300 rounded-full flex items-center justify-center hover:bg-white/15 transition-all"><Edit2 className="w-4 h-4" /></button>
+                        <button onClick={() => handleUnbindItem(item.id)} className="w-12 h-12 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center hover:bg-red-500/20 transition-all"><Trash2 className="w-4 h-4" /></button>
+                      </>
+                    )}
+                  </div>
                 </div>
 
-                                {/* BOTTOM ROW */}
-                <div className="flex items-end justify-between relative z-10">
+                {/* 底部 ROW (Prices & Status) */}
+                <div className="flex items-center justify-between relative z-10">
                   
                   {(item.status === 'active' || item.status === 'in_cart') ? (
                     <div className="flex items-center justify-between w-full">
                       <div className="text-2xl font-black">₹{item.products?.price}</div>
                       
-                      {/* 🔥 SMALL, CLEAN "IN BAG" BADGE */}
                       {item.status === 'in_cart' ? (
                          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20">
                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
@@ -376,31 +385,16 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
                       )}
                     </div>
                   ) : (
-                    <>
-                      <div className="flex flex-col gap-1 pb-1">
-                        <span className="text-xs text-zinc-600 font-bold">Ready to bind</span>
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs text-zinc-600 font-bold tracking-tight">Ready to bind</span>
                       </div>
-                      
-                      <div className="flex flex-col items-end gap-3">
-                        {/* 🔥 NEW: Mini QR Button for Empty Tags */}
-                        <button 
-                          onClick={() => openQrModal(item)} 
-                          className="flex items-center gap-2 text-zinc-500 hover:text-white transition-colors group"
-                        >
-                          <span className="text-[9px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">View QR</span>
-                          <div className="p-1.5 bg-white/5 rounded-lg border border-white/10 group-hover:bg-white/10 transition-colors shadow-inner">
-                            <QrCode className="w-4 h-4" />
-                          </div>
-                        </button>
-
-                        <button onClick={() => openAddModalForSpecificTag(item.id)} className="px-5 py-2.5 bg-white text-black hover:bg-zinc-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg">
-                          Link Item
-                        </button>
-                      </div>
-                    </>
+                      <button onClick={() => openAddModalForSpecificTag(item.id)} className="px-6 py-3 bg-white text-black hover:bg-zinc-200 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl active:scale-95">
+                        Link Item
+                      </button>
+                    </div>
                   )}
                 </div>
-
               </motion.div>
             ))}
           </AnimatePresence>
