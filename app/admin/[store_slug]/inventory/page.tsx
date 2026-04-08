@@ -246,10 +246,10 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
     return num >= printStart && num <= printEnd;
   });
 
-  // 🔥 THE MASTERSTROKE: Break tags into arrays of 25 to force PDF pages
+  // 🔥 THE MASTERSTROKE: Break tags into arrays of 20 to force PDF pages
   const chunkedTags = [];
-  for (let i = 0; i < tagsToPrint.length; i += 25) {
-    chunkedTags.push(tagsToPrint.slice(i, i + 25));
+  for (let i = 0; i < tagsToPrint.length; i += 20) {
+    chunkedTags.push(tagsToPrint.slice(i, i + 20));
   }
 
   if (loading) return <div className="min-h-screen bg-[#050505] flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin" style={{ color: themeColor }} /></div>;
