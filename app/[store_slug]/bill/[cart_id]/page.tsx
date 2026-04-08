@@ -33,20 +33,21 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
         if (store) {
           setStoreData(store);
 
-          // Fetch Order Details
-          const { data: salesArray } = await supabase
+          // 🔥 TITANIUM FETCH: .ilike catches weird spacing, .maybeSingle() handles empty/duplicate safety
+          const { data: saleDataRecord } = await supabase
             .from('sales') 
             .select('*')
-            .eq('cart_id', safeCartId)
+            .ilike('cart_id', `%${safeCartId}%`)
             .order('created_at', { ascending: false }) 
-            .limit(1);
+            .limit(1)
+            .maybeSingle();
 
-          // 🔥 THE FIX: Extracting the Object from the Array using
-          if (salesArray && salesArray.length > 0) {
-            setSaleData(salesArray); 
+          if (saleDataRecord) {
+            setSaleData(saleDataRecord); 
+          } else {
+            setSaleData(null); // Force it to null if no record exists
           }
 
-          // Fetch Trending Items for Retention
           const { data: products } = await supabase
             .from('products')
             .select('*')
@@ -56,9 +57,9 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
             
           if (products) setTrendingProducts(products);
         }
-
       } catch (err) {
         console.error("Error fetching bill details:", err);
+        setSaleData(null);
       } finally {
         setLoading(false);
       }
@@ -85,7 +86,8 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     );
   }
 
-  if (!saleData) {
+  // 🔥 CRITICAL GUARD: Only render if saleData is actually present AND has a created_at date
+  if (!saleData || !saleData.created_at) {
     return (
       <div className="min-h-screen bg-[#fafafa] flex items-center justify-center text-zinc-400 font-bold">
         <div className="text-center">
