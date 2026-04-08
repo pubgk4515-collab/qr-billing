@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, use, useRef } from 'react';
-import { supabase } from '../../../lib/supabase'; // Path ek baar verify kar lena agar folder level alag ho
+import { supabase } from '../../../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Plus, Search, Hash, Package, CheckCircle, Clock, X, ArrowLeft, 
@@ -35,6 +35,11 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  
+  // 🔥 NEW: Print Modal States
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [printStart, setPrintStart] = useState<number | ''>('');
+  const [printEnd, setPrintEnd] = useState<number | ''>('');
 
   // Focus Binding State
   const [selectedTagItem, setSelectedTagItem] = useState<any>(null);
@@ -52,7 +57,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
   const addFileInputRef = useRef<HTMLInputElement>(null); 
   const qrRef = useRef<HTMLDivElement>(null);
 
-  // --- 1. THE RELATIONAL FETCH & SILENT REFRESHER ---
+  // --- THE RELATIONAL FETCH & SILENT REFRESHER ---
   useEffect(() => {
     if (!safeStoreSlug) return;
     async function fetchInitialData() {
@@ -68,7 +73,6 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
     fetchInitialData();
   }, [safeStoreSlug]);
 
-  // SILENT POLLING
   useEffect(() => {
     if (!storeData) return;
     const interval = setInterval(() => {
@@ -206,6 +210,19 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
     }
   };
 
+  // 🔥 NEW: Trigger Print after Modal closes
+  const triggerPrintAction = () => {
+    if (!printStart || !printEnd || printStart > printEnd) {
+      alert("Please enter a valid tag range (e.g., 1 to 100).");
+      return;
+    }
+    setIsPrintModalOpen(false);
+    // Give the modal animation time to exit before printing
+    setTimeout(() => {
+      window.print();
+    }, 500); 
+  };
+
   const openQrModal = (item: any) => { setSelectedTagItem(item); setIsQrModalOpen(true); };
   const openEditModal = (item: any) => { setSelectedTagItem(item); setEditName(item.products?.name || ''); setEditPrice(item.products?.price || ''); setIsEditModalOpen(true); };
   const openAddModalForSpecificTag = (tagId: string) => { setBindingTagId(tagId); setIsAddModalOpen(true); };
@@ -220,6 +237,13 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
     if (activeFilter === 'all') return matchesSearch;
     if (activeFilter === 'in_cart') return matchesSearch && item.status === 'in_cart';
     return matchesSearch && item.status === activeFilter;
+  });
+
+  // Calculate which tags to show on the printed PDF
+  const tagsToPrint = inventory.filter(item => {
+    if (!printStart || !printEnd) return true; // fallback
+    const num = parseInt(item.id.replace('TAG', ''), 10);
+    return num >= printStart && num <= printEnd;
   });
 
   if (loading) return <div className="min-h-screen bg-[#050505] flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin" style={{ color: themeColor }} /></div>;
@@ -278,32 +302,25 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
             ))}
           </div>
 
-          {/* QUICK ACTIONS (3 Columns now) */}
-          <div className="grid grid-cols-3 gap-4">
-            <button onClick={() => setIsGenerateModalOpen(true)} className="bg-[#111] border border-white/5 hover:border-white/20 p-6 rounded-[2rem] flex flex-col items-center justify-center gap-3 transition-all active:scale-95 group shadow-lg">
-              <div className="w-14 h-14 rounded-[1.2rem] flex items-center justify-center group-hover:scale-110 transition-transform" style={{ backgroundColor: `${themeColor}1A` }}>
-                <QrCode className="w-7 h-7" style={{ color: themeColor }} />
+          {/* 🔥 REDUCED HEIGHT QUICK ACTIONS */}
+          <div className="grid grid-cols-3 gap-3">
+            <button onClick={() => setIsGenerateModalOpen(true)} className="bg-[#111] border border-white/5 hover:border-white/20 py-4 px-2 rounded-[1.5rem] flex flex-col items-center justify-center gap-2 transition-all active:scale-95 group shadow-lg">
+              <div className="w-10 h-10 rounded-[1rem] flex items-center justify-center group-hover:scale-110 transition-transform" style={{ backgroundColor: `${themeColor}1A` }}>
+                <QrCode className="w-5 h-5" style={{ color: themeColor }} />
               </div>
-              <div className="text-center">
-                <span className="text-sm font-black block">Generate Tags</span>
-              </div>
+              <span className="text-xs font-black block text-center leading-tight">Generate</span>
             </button>
             
-            <button onClick={() => { setBindingTagId(null); setIsAddModalOpen(true); }} className="bg-white text-black p-6 rounded-[2rem] flex flex-col items-center justify-center gap-3 transition-all hover:bg-zinc-200 active:scale-95 shadow-xl">
-              <div className="w-14 h-14 bg-black/5 rounded-[1.2rem] flex items-center justify-center"><Plus className="w-8 h-8" /></div>
-              <div className="text-center">
-                <span className="text-sm font-black block">Add Product</span>
-              </div>
+            <button onClick={() => { setBindingTagId(null); setIsAddModalOpen(true); }} className="bg-white text-black py-4 px-2 rounded-[1.5rem] flex flex-col items-center justify-center gap-2 transition-all hover:bg-zinc-200 active:scale-95 shadow-xl">
+              <div className="w-10 h-10 bg-black/5 rounded-[1rem] flex items-center justify-center"><Plus className="w-5 h-5" /></div>
+              <span className="text-xs font-black block text-center leading-tight">Add Item</span>
             </button>
 
-            {/* 🔥 NEW: Print All QRs Button */}
-            <button onClick={() => window.print()} className="bg-[#111] border border-white/5 hover:border-white/20 p-6 rounded-[2rem] flex flex-col items-center justify-center gap-3 transition-all active:scale-95 group shadow-lg">
-              <div className="w-14 h-14 rounded-[1.2rem] flex items-center justify-center group-hover:scale-110 transition-transform bg-zinc-800">
-                <Printer className="w-7 h-7 text-white" />
+            <button onClick={() => setIsPrintModalOpen(true)} className="bg-[#111] border border-white/5 hover:border-white/20 py-4 px-2 rounded-[1.5rem] flex flex-col items-center justify-center gap-2 transition-all active:scale-95 group shadow-lg">
+              <div className="w-10 h-10 rounded-[1rem] flex items-center justify-center group-hover:scale-110 transition-transform bg-zinc-800">
+                <Printer className="w-5 h-5 text-white" />
               </div>
-              <div className="text-center">
-                <span className="text-sm font-black block text-white">Print Tags (PDF)</span>
-              </div>
+              <span className="text-xs font-black block text-white text-center leading-tight">Print PDF</span>
             </button>
           </div>
 
@@ -361,7 +378,6 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
                     
                     {/* Action Buttons Area */}
                     <div className="flex gap-2">
-                      {/* 🔥 THE PREMIUM CIRCULAR QR BUTTON */}
                       <button 
                         onClick={() => openQrModal(item)} 
                         className="w-12 h-12 rounded-full bg-white/5 backdrop-blur-md border border-white/10 flex items-center justify-center hover:bg-white/15 hover:border-white/30 transition-all active:scale-90 shadow-2xl group"
@@ -412,34 +428,38 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         </main>
       </div>
 
-      {/* 🖨️ THE HIDDEN PRINTABLE A4 SHEET (Only visible when printing) */}
+      {/* 🖨️ THE HIDDEN PRINTABLE A4 SHEET */}
       <div className="hidden print:block bg-white w-full text-black min-h-screen pb-10">
         <div className="text-center py-6 border-b-2 border-black mb-8">
           <h1 className="text-3xl font-black uppercase tracking-widest">{storeData?.name || 'Premium Store'} - Inventory Tags</h1>
           <p className="text-sm font-bold text-gray-500 mt-1">Reusable QR Codes for Distributed Binding</p>
         </div>
 
-        <div className="grid grid-cols-5 gap-6 px-4" style={{ pageBreakInside: 'auto' }}>
-          {inventory.map((item) => (
-            <div 
-              key={item.id} 
-              className="flex flex-col items-center justify-center border-2 border-dashed border-gray-400 p-2 break-inside-avoid" 
-              style={{ width: '1.5in', height: '1.5in' }}
-            >
-              <QRCodeCanvas 
-                value={`${window.location.origin}/${safeStoreSlug}/${item.id}`} 
-                size={90} 
-                bgColor={"#ffffff"} 
-                fgColor={"#000000"} 
-                level={"H"} 
-                includeMargin={false} 
-              />
-              <span className="mt-2 text-[10px] font-black tracking-widest uppercase text-black leading-none">
-                {item.id}
-              </span>
-            </div>
-          ))}
-        </div>
+        {tagsToPrint.length === 0 ? (
+          <p className="text-center text-gray-500 font-bold mt-10">No tags found for the selected range.</p>
+        ) : (
+          <div className="grid grid-cols-5 gap-6 px-4" style={{ pageBreakInside: 'auto' }}>
+            {tagsToPrint.map((item) => (
+              <div 
+                key={item.id} 
+                className="flex flex-col items-center justify-center border-2 border-dashed border-gray-400 p-2 break-inside-avoid" 
+                style={{ width: '1.5in', height: '1.5in' }}
+              >
+                <QRCodeCanvas 
+                  value={`${window.location.origin}/${safeStoreSlug}/${item.id}`} 
+                  size={90} 
+                  bgColor={"#ffffff"} 
+                  fgColor={"#000000"} 
+                  level={"H"} 
+                  includeMargin={false} 
+                />
+                <span className="mt-2 text-[10px] font-black tracking-widest uppercase text-black leading-none">
+                  {item.id}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* --- MODALS --- */}
@@ -506,7 +526,57 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         )}
       </AnimatePresence>
 
-      {/* 3. QR DOWNLOAD MODAL */}
+      {/* 🔥 3. NEW: RANGE-BASED PRINT TAG MODAL */}
+      <AnimatePresence>
+        {isPrintModalOpen && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm sm:p-4">
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 28 }} className="bg-[#0A0A0A] w-full sm:max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] border border-white/10 p-8 relative">
+              <button onClick={() => setIsPrintModalOpen(false)} className="absolute top-6 right-6 p-2 bg-white/5 rounded-full"><X className="w-5 h-5 text-zinc-400" /></button>
+              
+              <div className="w-16 h-16 bg-[#111] rounded-[1.2rem] flex items-center justify-center mb-6 border border-white/5 shadow-inner">
+                <Printer className="w-8 h-8 text-white" />
+              </div>
+              
+              <h2 className="text-2xl font-black mb-2 tracking-tight">Print PDF Tags</h2>
+              <p className="text-zinc-500 text-sm mb-6 leading-relaxed">Kaunse tags ka PDF print karna hai? Yaha range enter karein.</p>
+              
+              {/* Range Inputs */}
+              <div className="flex items-center gap-3 mb-8">
+                 <div className="flex-1 relative">
+                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold text-[10px] uppercase tracking-widest">TAG</span>
+                   <input 
+                     type="number" 
+                     placeholder="1" 
+                     value={printStart} 
+                     onChange={e => setPrintStart(Number(e.target.value) || '')} 
+                     className="w-full bg-[#111] border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-center font-black focus:outline-none focus:border-white/30 transition-colors" 
+                   />
+                 </div>
+                 <span className="text-zinc-600 font-black text-xs uppercase tracking-widest">TO</span>
+                 <div className="flex-1 relative">
+                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold text-[10px] uppercase tracking-widest">TAG</span>
+                   <input 
+                     type="number" 
+                     placeholder="100" 
+                     value={printEnd} 
+                     onChange={e => setPrintEnd(Number(e.target.value) || '')} 
+                     className="w-full bg-[#111] border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-center font-black focus:outline-none focus:border-white/30 transition-colors" 
+                   />
+                 </div>
+              </div>
+
+              <button 
+                onClick={triggerPrintAction} 
+                className="w-full bg-white text-black font-black py-5 rounded-2xl flex justify-center items-center gap-2 active:scale-95 transition-all shadow-[0_10px_30px_rgba(255,255,255,0.1)] hover:bg-zinc-200"
+              >
+                <Printer className="w-5 h-5" /> Generate & Print
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 4. QR DOWNLOAD MODAL */}
       <AnimatePresence>
         {isQrModalOpen && selectedTagItem && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-6">
@@ -525,7 +595,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         )}
       </AnimatePresence>
 
-      {/* 4. EDIT PRODUCT MODAL */}
+      {/* 5. EDIT PRODUCT MODAL */}
       <AnimatePresence>
         {isEditModalOpen && selectedTagItem && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm sm:p-4">
