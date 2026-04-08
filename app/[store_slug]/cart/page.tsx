@@ -107,7 +107,6 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     };
   }, [isScannerOpen, safeStoreSlug, router]);
 
-  // 🔥 FIX 1: Database sync when item is removed from cart (with Tenant Isolation)
   const handleRemoveItem = async (tagIdToRemove: string) => {
     const cartKey = `cart_${safeStoreSlug}`;
     const updatedCart = cartItems.filter(item => item.tag_id !== tagIdToRemove);
@@ -119,7 +118,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         await supabase.from('qr_tags')
           .update({ status: 'active' })
           .eq('id', tagIdToRemove)
-          .eq('store_id', storeData.id); // Security Lock!
+          .eq('store_id', storeData.id); 
       } catch (err) {
         console.error("Failed to release tag", err);
       }
@@ -174,22 +173,38 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
 
       if (error) throw error;
 
-      // 🔥 FIX 2: Mark items as 'sold' after checkout (with Tenant Isolation)
-      const purchasedTagIds = cartItems.map(item => item.tag_id);
-      if (purchasedTagIds.length > 0) {
-        await supabase.from('qr_tags')
-          .update({ status: 'sold' })
-          .in('id', purchasedTagIds)
-          .eq('store_id', storeData.id); // Security Lock!
-      }
-      
-      // Clear Local Cart
-      localStorage.removeItem(`cart_${safeStoreSlug}`);
-      
-      setTimeout(() => {
-        setIsCheckoutOpen(false); 
-        router.push(`/${safeStoreSlug}/success/${cartId}`);
-      }, 800); 
+      // 🔥 THE MASTER FIX: Real Database Polling instead of Fake Timeout
+      const checkPaymentStatus = setInterval(async () => {
+        const { data: saleData } = await supabase
+          .from('sales')
+          .select('payment_status')
+          .eq('cart_id', cartId)
+          .single();
+
+        if (saleData?.payment_status === 'completed') {
+          // 🟢 ADMIN NE ACCEPT KAR LIYA
+          clearInterval(checkPaymentStatus);
+
+          // Ab safely tags ko 'sold' mark karo
+          const purchasedTagIds = cartItems.map(item => item.tag_id);
+          if (purchasedTagIds.length > 0) {
+            await supabase.from('qr_tags')
+              .update({ status: 'sold' })
+              .in('id', purchasedTagIds)
+              .eq('store_id', storeData.id); 
+          }
+          
+          localStorage.removeItem(`cart_${safeStoreSlug}`);
+          setIsCheckoutOpen(false); 
+          router.push(`/${safeStoreSlug}/success/${cartId}`);
+
+        } else if (saleData?.payment_status === 'rejected') {
+          // 🔴 ADMIN NE REJECT KAR DIYA
+          clearInterval(checkPaymentStatus);
+          alert("Your payment request was rejected by the store counter. Please try again.");
+          setCheckoutStep('payment'); // Wapas payment screen pe bhej do
+        }
+      }, 2000); // Har 2 seconds me database check karega!
 
     } catch (error) {
       console.error("Order creation failed:", error);
@@ -527,7 +542,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                 </motion.div>
               )}
 
-              {/* STEP 3: POLLING (TRANSITION) */}
+              {/* STEP 3: REAL POLLING */}
               {checkoutStep === 'polling' && (
                 <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center text-center py-6">
                   <div className="relative w-24 h-24 flex items-center justify-center mb-6">
@@ -546,7 +561,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                     </motion.div>
                   </div>
                   <h3 className="text-2xl font-black mb-2">Processing Order</h3>
-                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest">Redirecting to checkout...</p>
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest">Waiting for counter approval...</p>
                 </motion.div>
               )}
 
