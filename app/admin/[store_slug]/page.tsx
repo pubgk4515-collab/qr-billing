@@ -27,7 +27,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
 
-  // --- Manual Checkout States ---
+  // --- POS Checkout States ---
   const [scannedItems, setScannedItems] = useState<any[]>([]); 
   const [customerPhone, setCustomerPhone] = useState('');
   const [manualTagId, setManualTagId] = useState(''); 
@@ -40,6 +40,11 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
 
   // --- Digital Bill Requests State ---
   const [billRequests, setBillRequests] = useState<any[]>([]); 
+
+  // 🔥 NEW: Manual Override States
+  const [manualApproveCartId, setManualApproveCartId] = useState('');
+  const [manualBillCartId, setManualBillCartId] = useState('');
+  const [manualBillPhone, setManualBillPhone] = useState('');
 
   const safeStoreSlug = decodeURIComponent(store_slug || '').toLowerCase().trim();
 
@@ -62,7 +67,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
           if (savedAuth === 'true') {
             setIsAuthed(true);
             fetchLiveQueue(store.id); 
-            fetchBillRequests(store.id); // 🔥 Start polling bill requests too
+            fetchBillRequests(store.id); 
           }
         }
       } catch (err) { 
@@ -88,14 +93,14 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
     if (data) setPendingOrders(data);
   };
 
-  // 🔥 3. FETCH BILL REQUESTS (POLLING)
+  // 3. FETCH BILL REQUESTS
   const fetchBillRequests = async (storeId: string) => {
     if (!isAuthed) return;
     const { data } = await supabase
       .from('bill_requests')
       .select('*')
       .eq('store_id', storeId)
-      .eq('status', 'pending') // Only fetch pending ones
+      .eq('status', 'pending') 
       .order('created_at', { ascending: true });
       
     if (data) setBillRequests(data);
@@ -105,12 +110,11 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
     if (!storeData?.id || !isAuthed) return;
     const interval = setInterval(() => {
       fetchLiveQueue(storeData.id);
-      fetchBillRequests(storeData.id); // 🔥 Poll bill requests every 3s
+      fetchBillRequests(storeData.id); 
     }, 3000); 
     return () => clearInterval(interval);
   }, [storeData?.id, isAuthed]);
 
-  // --- Utility Functions ---
   const handlePinSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (storeData && pinInput === storeData.admin_pin) {
@@ -125,7 +129,6 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
     }
   };
 
-  // --- CORE CHECKOUT ENGINE (Manual & Scanner) ---
   const processScannedTag = async (tagId: string) => {
     if (!tagId) return;
     const tagUpper = tagId.trim().toUpperCase();
@@ -180,7 +183,6 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
     setManualTagId(''); 
   };
 
-  // --- INTEGRATED CAMERA SCANNER ENGINE ---
   useEffect(() => {
     let html5QrCode: Html5Qrcode;
 
@@ -235,7 +237,6 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
     setLoading(false);
   };
 
-  // 🔥 ORDER APPROVAL LOGIC
   const handleApprovePayment = async (order: any) => {
     setPendingOrders(prev => prev.filter(o => o.id !== order.id));
     
@@ -254,7 +255,6 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
     }
   };
 
-  // 🚨 ORDER REJECTION LOGIC
   const handleRejectOrder = async (order: any) => {
     const confirmReject = confirm(`Are you sure you want to reject ${order.cart_id}?`);
     if (!confirmReject) return;
@@ -275,33 +275,82 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
     }
   };
 
-  // 🔥 DISPATCH DIGITAL BILL LOGIC
   const handleDispatchBill = async (request: any) => {
-    // 1. Optimistically remove from UI
     setBillRequests(prev => prev.filter(r => r.id !== request.id));
 
-    // 2. Generate WhatsApp Link
     const storeName = storeData?.store_name || "our store";
-    // NOTE: Change window.location.origin to your actual prod domain if testing locally, 
-    // e.g. `https://your-domain.vercel.app/${safeStoreSlug}/bill/${request.cart_id}`
     const billUrl = `${window.location.origin}/${safeStoreSlug}/bill/${request.cart_id}`; 
     const message = encodeURIComponent(`Hi! Thank you for shopping at ${storeName}. You can view and download your digital bill here: \n\n${billUrl}`);
     
-    // Add country code if not present (Assuming India +91 for now)
     let phone = request.customer_phone.replace(/\D/g, '');
     if (phone.length === 10) phone = `91${phone}`;
 
     const waLink = `https://wa.me/${phone}?text=${message}`;
 
     try {
-      // 3. Update database status to 'completed'
       await supabase.from('bill_requests').update({ status: 'completed' }).eq('id', request.id);
-      
-      // 4. Open WhatsApp in new tab
       window.open(waLink, '_blank');
     } catch (err) {
       console.error("Error dispatching bill:", err);
     }
+  };
+
+  // 🔥 NEW: MANUAL APPROVE SUBMIT
+  const handleManualApproveSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualApproveCartId.trim()) return;
+
+    const targetCartId = manualApproveCartId.trim().toUpperCase();
+    
+    try {
+      const { data: order, error } = await supabase
+        .from('sales')
+        .select('*')
+        .eq('cart_id', targetCartId)
+        .eq('store_id', storeData.id)
+        .single();
+
+      if (error || !order) {
+        alert("Order not found. Please verify the CART ID.");
+        return;
+      }
+
+      if (order.payment_status === 'completed') {
+        alert("This order is already approved.");
+        setManualApproveCartId('');
+        return;
+      }
+
+      await handleApprovePayment(order);
+      setManualApproveCartId('');
+      alert(`Successfully approved ${targetCartId}!`);
+    } catch (err) {
+      console.error(err);
+      alert("Error approving order manually.");
+    }
+  };
+
+  // 🔥 NEW: MANUAL BILL SUBMIT
+  const handleManualBillSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualBillCartId.trim() || manualBillPhone.length < 10) {
+      alert("Please enter a valid CART ID and a 10-digit Phone Number.");
+      return;
+    }
+
+    const targetCartId = manualBillCartId.trim().toUpperCase();
+    let phone = manualBillPhone.replace(/\D/g, '');
+    if (phone.length === 10) phone = `91${phone}`;
+
+    const storeName = storeData?.store_name || "our store";
+    const billUrl = `${window.location.origin}/${safeStoreSlug}/bill/${targetCartId}`; 
+    const message = encodeURIComponent(`Hi! Thank you for shopping at ${storeName}. You can view and download your digital bill here: \n\n${billUrl}`);
+    
+    const waLink = `https://wa.me/${phone}?text=${message}`;
+    window.open(waLink, '_blank');
+    
+    setManualBillCartId('');
+    setManualBillPhone('');
   };
 
   const themeColor = storeData?.theme_color || '#10b981';
@@ -357,9 +406,25 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
 
         {/* 1. REAL-TIME ACTION QUEUE */}
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-black tracking-tight">Live Queue</h2>
-            <span className="text-xs font-bold bg-white/5 border border-white/10 px-4 py-1.5 rounded-full text-zinc-400">{pendingOrders.length} Waiting</span>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl font-black tracking-tight">Live Queue</h2>
+              <span className="text-xs font-bold bg-white/5 border border-white/10 px-4 py-1.5 rounded-full text-zinc-400">{pendingOrders.length} Waiting</span>
+            </div>
+            
+            {/* 🔥 NEW: Manual Order Approval Form */}
+            <form onSubmit={handleManualApproveSubmit} className="flex w-full sm:w-auto">
+              <input 
+                type="text" 
+                placeholder="Enter CART ID..." 
+                value={manualApproveCartId}
+                onChange={(e) => setManualApproveCartId(e.target.value.toUpperCase())}
+                className="w-full sm:w-40 bg-[#111] border border-white/10 rounded-l-xl py-2 pl-4 pr-2 text-xs font-bold focus:outline-none focus:border-white/30 placeholder:normal-case placeholder:font-medium"
+              />
+              <button type="submit" disabled={!manualApproveCartId} className="px-4 bg-white/10 hover:bg-white/20 text-white rounded-r-xl font-black text-xs active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center border border-white/10 border-l-0">
+                Approve
+              </button>
+            </form>
           </div>
 
           <div className="grid grid-cols-1 gap-4">
@@ -414,10 +479,32 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
 
         {/* 2. DIGITAL BILL DISPATCHER */}
         <div>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
             <h2 className="text-xl font-black tracking-tight flex items-center gap-2">
               <MessageCircle className="w-5 h-5 text-[#25D366]" /> Bill Requests
             </h2>
+            
+            {/* 🔥 NEW: Manual Digital Bill Form */}
+            <form onSubmit={handleManualBillSubmit} className="flex w-full sm:w-auto relative">
+              <input 
+                type="text" 
+                placeholder="CART ID" 
+                value={manualBillCartId}
+                onChange={(e) => setManualBillCartId(e.target.value.toUpperCase())}
+                className="w-28 sm:w-28 bg-[#111] border border-white/10 rounded-l-xl py-2 px-3 text-xs font-bold focus:outline-none focus:border-white/30 border-r-0 placeholder:normal-case placeholder:font-medium"
+              />
+              <input 
+                type="tel" 
+                maxLength={10}
+                placeholder="Phone No." 
+                value={manualBillPhone}
+                onChange={(e) => setManualBillPhone(e.target.value.replace(/\D/g, ''))}
+                className="w-32 sm:w-36 bg-[#111] border border-white/10 py-2 px-3 text-xs font-bold focus:outline-none focus:border-white/30 placeholder:normal-case placeholder:font-medium border-x-0"
+              />
+              <button type="submit" disabled={!manualBillCartId || manualBillPhone.length < 10} className="px-3 bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366]/20 rounded-r-xl font-black disabled:opacity-50 active:scale-95 transition-all flex items-center justify-center border border-[#25D366]/20 border-l-0">
+                <Send className="w-3 h-3" />
+              </button>
+            </form>
           </div>
           
           <div className="grid grid-cols-1 gap-3">
@@ -475,7 +562,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
                   placeholder="Enter TAG ID..." 
                   className="w-full sm:w-40 bg-[#111] border border-white/10 rounded-l-xl py-3 pl-4 pr-2 text-xs font-bold uppercase focus:outline-none focus:border-white/30"
                 />
-                <button type="submit" disabled={itemFetching} className="px-3 bg-white text-black rounded-r-xl font-black active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center">
+                <button type="submit" disabled={itemFetching || !manualTagId} className="px-3 bg-white text-black rounded-r-xl font-black active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center border border-white border-l-0">
                   <Plus className="w-4 h-4" />
                 </button>
               </form>
