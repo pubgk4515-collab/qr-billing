@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
-import { ArrowLeft, Copy, CheckCircle2, Smartphone, Users, Loader2 } from 'lucide-react';
+import { ArrowLeft, Share2, CheckCircle2, Smartphone, Users, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function WorkerControlPanel({ params }: { params: Promise<{ store_slug: string }> }) {
@@ -23,14 +23,11 @@ export default function WorkerControlPanel({ params }: { params: Promise<{ store
 
     async function fetchData() {
       try {
-        // 1. Fetch Store and Set Link
         const { data: store } = await supabase.from('stores').select('*').ilike('slug', safeStoreSlug).single();
         if (store) {
           setStoreData(store);
           setWorkerLink(`${window.location.origin}/${safeStoreSlug}/worker`);
 
-          // 2. Fetch Live Device Stats
-          // NOTE: Ensure 'added_by_device' text column exists in 'products' table
           const { data: products } = await supabase
             .from('products')
             .select('added_by_device')
@@ -60,7 +57,6 @@ export default function WorkerControlPanel({ params }: { params: Promise<{ store
 
     fetchData();
 
-    // Silent Refresher for Live Tracking
     const interval = setInterval(() => {
       if (storeData) fetchData();
     }, 5000);
@@ -68,10 +64,23 @@ export default function WorkerControlPanel({ params }: { params: Promise<{ store
 
   }, [safeStoreSlug, storeData?.id]);
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(workerLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `${storeData?.store_name || 'Store'} Worker Terminal`,
+          text: 'Add items to the inventory using this secure link:',
+          url: workerLink,
+        });
+      } catch (err) {
+        console.error('Error sharing:', err);
+      }
+    } else {
+      // Fallback for PC/Desktop users
+      navigator.clipboard.writeText(workerLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   const themeColor = storeData?.theme_color || '#10b981';
@@ -96,22 +105,24 @@ export default function WorkerControlPanel({ params }: { params: Promise<{ store
 
       <main className="max-w-3xl mx-auto px-6 py-8 flex flex-col gap-8">
         
-        {/* 🔗 LINK SECTION (Simple & Clean) */}
+        {/* 🔗 LINK SECTION */}
         <div>
           <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 ml-2">Worker Invite Link</p>
           <div className="w-full bg-[#111] border border-white/10 rounded-[1.5rem] p-4 flex items-center justify-between shadow-xl">
              <div className="overflow-hidden flex-1 text-left mr-4">
                <p className="text-sm font-bold text-white truncate">{workerLink}</p>
              </div>
-             <button onClick={handleCopy} className="w-12 h-12 flex items-center justify-center bg-white/5 rounded-xl hover:bg-white/10 transition-colors active:scale-95 shrink-0">
+             
+             {/* SMART SHARE BUTTON */}
+             <button onClick={handleShare} className="w-12 h-12 flex items-center justify-center bg-white/5 rounded-xl hover:bg-white/10 transition-colors active:scale-95 shrink-0">
                <AnimatePresence mode="wait">
                  {copied ? (
                    <motion.div key="check" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
                      <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                    </motion.div>
                  ) : (
-                   <motion.div key="copy" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
-                     <Copy className="w-5 h-5 text-zinc-300" />
+                   <motion.div key="share" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
+                     <Share2 className="w-5 h-5 text-zinc-300" />
                    </motion.div>
                  )}
                </AnimatePresence>
