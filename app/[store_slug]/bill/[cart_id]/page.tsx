@@ -110,113 +110,111 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
   }
 
   return (
-    // Cleaned up outer div, removed confusing print heights
-    <div className="min-h-screen bg-[#F5F5F7] print:bg-white text-[#111] font-sans selection:bg-black selection:text-white pb-32 print:p-0 print:overflow-hidden">
+    // 🔥 FIX: print:min-h-0 ensures the container shrinks to exactly the size of the receipt content
+    <div className="min-h-screen print:min-h-0 bg-[#F5F5F7] print:bg-white text-[#111] font-sans selection:bg-black selection:text-white pb-32 print:p-0">
       
-      {/* 🔥 NUCLEAR FIX: This wrapper locks the receipt in the dead center during print */}
-      <div className="print-center-wrapper">
-        <motion.main 
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ type: "spring", damping: 25, stiffness: 200 }}
-          className="w-full max-w-md mx-auto bg-white min-h-screen sm:min-h-fit sm:mt-12 sm:rounded-[2rem] sm:shadow-[0_20px_60px_rgba(0,0,0,0.06)] print:shadow-none print:mt-0 print:rounded-[2rem] print:border print:border-zinc-200 p-8 sm:p-10 relative overflow-hidden"
-        >
-          <div className="absolute top-0 left-0 w-full h-1.5 print:hidden" style={{ backgroundColor: themeColor }} />
+      <motion.main 
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: "spring", damping: 25, stiffness: 200 }}
+        // 🔥 FIX: Removed all print height constraints, strictly standard block layout
+        className="w-full max-w-md mx-auto bg-white min-h-screen print:min-h-0 sm:min-h-fit sm:mt-12 sm:rounded-[2rem] sm:shadow-[0_20px_60px_rgba(0,0,0,0.06)] print:shadow-none print:mt-4 print:rounded-[2rem] print:border print:border-zinc-200 p-8 sm:p-10 relative overflow-hidden"
+      >
+        <div className="absolute top-0 left-0 w-full h-1.5 print:hidden" style={{ backgroundColor: themeColor }} />
 
-          {/* 1. STORE BRANDING */}
-          <div className="flex flex-col items-center text-center mb-10 mt-4 print:mt-0">
-            <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center mb-5 shadow-lg overflow-hidden border border-zinc-100 print:shadow-none print:border-black">
-              {storeData?.logo_url ? (
-                <img src={storeData.logo_url} alt="Store Logo" className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-white font-black text-2xl tracking-tighter">
-                  {displayInitials}
-                </span>
-              )}
-            </div>
-            <h1 className="text-2xl font-black tracking-tighter uppercase text-black leading-none">{displayName}</h1>
-            <p className="text-[9px] text-zinc-400 font-black uppercase tracking-[0.2em] mt-2 flex items-center justify-center gap-1">
-              <Store className="w-3 h-3" /> OFFICIAL DIGITAL RECEIPT
+        {/* 1. STORE BRANDING */}
+        <div className="flex flex-col items-center text-center mb-10 mt-4 print:mt-0">
+          <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center mb-5 shadow-lg overflow-hidden border border-zinc-100 print:shadow-none print:border-black">
+            {storeData?.logo_url ? (
+              <img src={storeData.logo_url} alt="Store Logo" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-white font-black text-2xl tracking-tighter">
+                {displayInitials}
+              </span>
+            )}
+          </div>
+          <h1 className="text-2xl font-black tracking-tighter uppercase text-black leading-none">{displayName}</h1>
+          <p className="text-[9px] text-zinc-400 font-black uppercase tracking-[0.2em] mt-2 flex items-center justify-center gap-1">
+            <Store className="w-3 h-3" /> OFFICIAL DIGITAL RECEIPT
+          </p>
+        </div>
+
+        <div className="border-t-2 border-dashed border-zinc-200 print:border-zinc-300 w-full my-6" />
+
+        {/* 2. ORDER METADATA */}
+        <div className="grid grid-cols-2 gap-y-6 text-sm mb-6">
+          <div>
+            <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Order ID</p>
+            <p className="font-black text-zinc-900 text-base">{safeCartId}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Date & Time</p>
+            <p className="font-bold text-zinc-800">{formattedDate} <br/> <span className="text-xs text-zinc-500">{formattedTime}</span></p>
+          </div>
+          <div>
+            <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Status</p>
+            <p className="font-bold flex items-center gap-1.5 text-zinc-800">
+              <CheckCircle2 className="w-4 h-4" style={{ color: themeColor }} /> 
+              {saleData.payment_status === 'completed' ? 'Paid' : 'Pending'}
             </p>
           </div>
-
-          <div className="border-t-2 border-dashed border-zinc-200 print:border-zinc-300 w-full my-6" />
-
-          {/* 2. ORDER METADATA */}
-          <div className="grid grid-cols-2 gap-y-6 text-sm mb-6">
-            <div>
-              <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Order ID</p>
-              <p className="font-black text-zinc-900 text-base">{safeCartId}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Date & Time</p>
-              <p className="font-bold text-zinc-800">{formattedDate} <br/> <span className="text-xs text-zinc-500">{formattedTime}</span></p>
-            </div>
-            <div>
-              <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Status</p>
-              <p className="font-bold flex items-center gap-1.5 text-zinc-800">
-                <CheckCircle2 className="w-4 h-4" style={{ color: themeColor }} /> 
-                {saleData.payment_status === 'completed' ? 'Paid' : 'Pending'}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Method</p>
-              <p className="font-black uppercase text-zinc-900">{saleData.payment_method || 'CASH'}</p>
-            </div>
+          <div className="text-right">
+            <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Method</p>
+            <p className="font-black uppercase text-zinc-900">{saleData.payment_method || 'CASH'}</p>
           </div>
+        </div>
 
-          <div className="border-t-2 border-dashed border-zinc-200 print:border-zinc-300 w-full my-6" />
+        <div className="border-t-2 border-dashed border-zinc-200 print:border-zinc-300 w-full my-6" />
 
-          {/* 3. ITEMIZED BILLING */}
-          <div className="mb-8">
-            <p className="text-[10px] text-zinc-400 font-black uppercase tracking-widest mb-5">Purchased Items ({saleData.items_count})</p>
-            <div className="flex flex-col gap-5">
-              {itemsList.map((item: any, idx: number) => (
-                <div key={idx} className="flex justify-between items-start group">
-                  <div className="max-w-[75%]">
-                    <p className="font-bold text-sm text-zinc-900 leading-tight">
-                      {item.products?.name || item.name || 'Premium Item'}
-                    </p>
-                    <p className="text-[9px] text-zinc-400 font-mono font-bold uppercase tracking-widest mt-1">
-                      TAG: {item.id || item.tag_id || 'N/A'}
-                    </p>
-                  </div>
-                  <p className="font-black text-sm text-zinc-900">₹{item.products?.price || item.price || 0}</p>
+        {/* 3. ITEMIZED BILLING */}
+        <div className="mb-8">
+          <p className="text-[10px] text-zinc-400 font-black uppercase tracking-widest mb-5">Purchased Items ({saleData.items_count})</p>
+          <div className="flex flex-col gap-5">
+            {itemsList.map((item: any, idx: number) => (
+              <div key={idx} className="flex justify-between items-start group">
+                <div className="max-w-[75%]">
+                  <p className="font-bold text-sm text-zinc-900 leading-tight">
+                    {item.products?.name || item.name || 'Premium Item'}
+                  </p>
+                  <p className="text-[9px] text-zinc-400 font-mono font-bold uppercase tracking-widest mt-1">
+                    TAG: {item.id || item.tag_id || 'N/A'}
+                  </p>
                 </div>
-              ))}
-            </div>
+                <p className="font-black text-sm text-zinc-900">₹{item.products?.price || item.price || 0}</p>
+              </div>
+            ))}
           </div>
+        </div>
 
-          <div className="border-t border-zinc-200 print:border-zinc-300 w-full my-4" />
+        <div className="border-t border-zinc-200 print:border-zinc-300 w-full my-4" />
 
-          {/* 4. TOTALS */}
-          <div className="flex flex-col gap-2 mb-6">
-            <div className="flex justify-between items-center text-sm">
-              <p className="text-zinc-500 font-bold">Subtotal</p>
-              <p className="font-black text-zinc-800">₹{saleData.total_amount}</p>
-            </div>
-            <div className="flex justify-between items-center text-sm">
-              <p className="text-zinc-500 font-bold">Tax & Charges</p>
-              <p className="font-black text-zinc-400">₹0.00</p>
-            </div>
+        {/* 4. TOTALS */}
+        <div className="flex flex-col gap-2 mb-6">
+          <div className="flex justify-between items-center text-sm">
+            <p className="text-zinc-500 font-bold">Subtotal</p>
+            <p className="font-black text-zinc-800">₹{saleData.total_amount}</p>
           </div>
-
-          <div className="border-t-2 border-dashed border-zinc-200 print:border-zinc-300 w-full my-6" />
-
-          {/* GRAND TOTAL */}
-          <div className="flex justify-between items-end mb-12 bg-zinc-50 p-5 rounded-2xl print:bg-transparent print:p-0">
-            <p className="text-[11px] font-black uppercase tracking-widest text-zinc-500">Grand Total</p>
-            <p className="text-4xl font-black tracking-tighter text-zinc-900">₹{saleData.total_amount}</p>
+          <div className="flex justify-between items-center text-sm">
+            <p className="text-zinc-500 font-bold">Tax & Charges</p>
+            <p className="font-black text-zinc-400">₹0.00</p>
           </div>
+        </div>
 
-          {/* FOOTER */}
-          <div className="text-center text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex flex-col gap-1 items-center">
-            <Receipt className="w-4 h-4 mb-1 text-zinc-300" />
-            <p>Thank you for shopping at {displayName}</p>
-            <p>This is a computer generated receipt.</p>
-          </div>
-        </motion.main>
-      </div>
+        <div className="border-t-2 border-dashed border-zinc-200 print:border-zinc-300 w-full my-6" />
+
+        {/* GRAND TOTAL */}
+        <div className="flex justify-between items-end mb-12 bg-zinc-50 p-5 rounded-2xl print:bg-transparent print:p-0">
+          <p className="text-[11px] font-black uppercase tracking-widest text-zinc-500">Grand Total</p>
+          <p className="text-4xl font-black tracking-tighter text-zinc-900">₹{saleData.total_amount}</p>
+        </div>
+
+        {/* FOOTER */}
+        <div className="text-center text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex flex-col gap-1 items-center">
+          <Receipt className="w-4 h-4 mb-1 text-zinc-300" />
+          <p>Thank you for shopping at {displayName}</p>
+          <p>This is a computer generated receipt.</p>
+        </div>
+      </motion.main>
 
       {/* 🚀 PSYCHOLOGICAL RETENTION: TRENDING LOOP */}
       {trendingProducts.length > 0 && (
@@ -264,28 +262,19 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
         <Download className="w-5 h-5" />
       </button>
 
-      {/* 🔥 THE MAGIC CSS: Forces zero height, fixed positioning to obliterate Page 2 */}
+      {/* 🔥 THE ULTIMATE "NO B.S." PRINT CSS */}
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
-          @page { margin: 0; }
+          @page { margin: 0.5cm; } /* Thoda sa margin taaki text ekdum border se na chipke */
           html, body {
-            height: 0 !important; /* Forces the browser to think there is no content */
-            overflow: hidden !important;
+            height: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
             margin: 0 !important;
             padding: 0 !important;
             background-color: white !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
-          }
-          .print-center-wrapper {
-            position: fixed !important;
-            top: 48% !important; /* slightly above center looks better on mobile paper */
-            left: 50% !important;
-            transform: translate(-50%, -50%) !important;
-            width: 100% !important;
-            max-width: 450px !important;
-            page-break-after: avoid !important;
-            page-break-inside: avoid !important;
           }
         }
       `}} />
