@@ -2,12 +2,12 @@
 
 import { use, useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '../../lib/supabase'; // Path adjusted for the new folder structure
+import { supabase } from '../../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  QrCode, Camera, Image as ImageIcon, Plus, 
-  Loader2, X, CheckCircle2, ArrowLeft, Package,
-  ToggleLeft, ToggleRight
+  QrCode, Camera, Image as ImageIcon, 
+  Loader2, X, CheckCircle2, Package,
+  ToggleLeft, ToggleRight, AlertTriangle
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 
@@ -41,7 +41,10 @@ export default function ActualWorkerFormPage({ params }: { params: Promise<{ sto
   const [themeColor, setThemeColor] = useState('#10b981');
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  
+  // Custom Premium Alerts
   const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState(''); // REPLACED NATIVE ALERTS
 
   // Form States
   const [tagId, setTagId] = useState('');
@@ -50,15 +53,13 @@ export default function ActualWorkerFormPage({ params }: { params: Promise<{ sto
   const [itemSize, setItemSize] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  
-  // The "Magic" Freeze Toggle
   const [isFrozen, setIsFrozen] = useState(false);
 
   // Modals
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isImageMenuOpen, setIsImageMenuOpen] = useState(false);
 
-  // Hidden Input Refs for Native Camera/Gallery
+  // Hidden Input Refs
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
@@ -89,6 +90,7 @@ export default function ActualWorkerFormPage({ params }: { params: Promise<{ sto
             const scannedTag = decodeURIComponent(decodedText.split('/').pop() || '').toUpperCase().trim();
             if (scannedTag) {
               setTagId(scannedTag);
+              setErrorMessage(''); // Clear any previous errors
               html5QrCode.stop().then(() => setIsScannerOpen(false));
             }
           },
@@ -129,37 +131,39 @@ export default function ActualWorkerFormPage({ params }: { params: Promise<{ sto
     }
   };
 
-  // --- THE MAIN ADD LOOP ---
+  // --- THE MAIN ADD LOOP (BULLETPROOF LOGIC) ---
   const handleAddItem = async () => {
-    if (!tagId) return alert("Please scan a QR Tag first!");
-    if (!itemName || !itemPrice) return alert("Please fill Item Name and Price!");
+    // Custom UI Errors instead of ugly alerts
+    if (!tagId) return setErrorMessage("Please scan a QR Tag first!");
+    if (!itemName || !itemPrice) return setErrorMessage("Item Name and Price are required!");
     
     setActionLoading(true);
     
     try {
-// Hum status ke sath 'product_id' bhi fetch kar rahe hain
+      // 1. Fetch Tag and Check Connection
       const { data: tagData, error: tagError } = await supabase
         .from('qr_tags')
-        .select('id, status, product_id') 
+        .select('id, status, product_id')
         .eq('id', tagId)
         .eq('store_id', storeData.id)
         .single();
 
       if (tagError || !tagData) {
-        alert("Invalid Tag! This tag does not exist in your database.");
+        setErrorMessage(`Tag ${tagId} does not exist in the database.`);
+        setTagId(''); // Clear wrong tag
         setActionLoading(false);
         return;
       }
 
-      // 🔥 SMART VALIDATION: Agar tag active/sold hai YA usme pehle se koi product juda hai, tabhi reject karo
-      if (tagData.product_id !== null || tagData.status === 'active' || tagData.status === 'sold') {
-        alert(`STOP! Tag ${tagId} is already used. Please use a fresh tag.`);
-        setTagId(''); 
+      // 🔥 THE BULLETPROOF CHECK: Is there a product already linked?
+      if (tagData.product_id !== null) {
+        setErrorMessage(`Tag ${tagId} is already linked to an item. Please scan a fresh empty tag.`);
+        setTagId(''); // Clear wrong tag
         setActionLoading(false);
         return;
       }
 
-
+      // 2. Upload Image if exists
       let finalImageUrl = null;
       if (imageFile) {
         finalImageUrl = await uploadImageToSupabase(imageFile);
@@ -167,7 +171,7 @@ export default function ActualWorkerFormPage({ params }: { params: Promise<{ sto
          finalImageUrl = imagePreview;
       }
 
-      // 🔥 DETECTING DEVICE & SAVING IT
+      // 3. DETECTING DEVICE & SAVING IT
       const currentDevice = getDeviceName();
 
       const { data: newProduct, error: productError } = await supabase
@@ -175,23 +179,26 @@ export default function ActualWorkerFormPage({ params }: { params: Promise<{ sto
         .insert({ 
           name: itemName, 
           price: Number(itemPrice), 
-          size: itemSize,
+          size: itemSize || 'Free Size', // Fallback if left empty
           store_id: storeData.id, 
           image_url: finalImageUrl,
-          added_by_device: currentDevice // Saving the tracking info!
+          added_by_device: currentDevice 
         })
         .select().single();
 
       if (productError) throw productError;
 
+      // 4. Update Tag Status
       await supabase.from('qr_tags')
         .update({ product_id: newProduct.id, status: 'active' })
         .eq('id', tagId)
         .eq('store_id', storeData.id);
 
+      // SUCCESS!
       setSuccessMessage(`Success! Added ${tagId}`);
       setTimeout(() => setSuccessMessage(''), 2000);
 
+      // Resetting for next loop
       setTagId(''); 
       if (!isFrozen) {
         setItemName('');
@@ -208,7 +215,7 @@ export default function ActualWorkerFormPage({ params }: { params: Promise<{ sto
 
     } catch (err) {
       console.error(err);
-      alert("Network Error! Failed to add item.");
+      setErrorMessage("Network error! Failed to add the item.");
     } finally {
       setActionLoading(false);
     }
@@ -226,7 +233,6 @@ export default function ActualWorkerFormPage({ params }: { params: Promise<{ sto
       {/* 👑 HEADER */}
       <header className="bg-[#0A0A0A]/90 backdrop-blur-xl border-b border-white/5 sticky top-0 z-30 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {/* Back button removed because this is a standalone link for workers */}
           <div>
             <h1 className="text-xl font-black tracking-tight leading-none text-white">{storeData?.store_name}</h1>
             <p className="text-[10px] uppercase tracking-widest font-bold mt-1 text-zinc-500">Inventory Gateway</p>
@@ -264,7 +270,7 @@ export default function ActualWorkerFormPage({ params }: { params: Promise<{ sto
               <QrCode className="w-8 h-8 text-white" />
             </div>
             <div>
-               <p className="text-lg font-black text-white">Scan QR Tag</p>
+               <p className="text-lg font-black text-white">Scan Empty Tag</p>
                <p className="text-xs text-zinc-500 font-bold mt-1">Tap to open camera</p>
             </div>
           </button>
@@ -289,7 +295,6 @@ export default function ActualWorkerFormPage({ params }: { params: Promise<{ sto
             </button>
           )}
 
-          {/* Hidden Native Inputs */}
           <input type="file" accept="image/*" capture="environment" ref={cameraInputRef} className="hidden" onChange={handleImageSelect} />
           <input type="file" accept="image/*" ref={galleryInputRef} className="hidden" onChange={handleImageSelect} />
         </div>
@@ -340,6 +345,25 @@ export default function ActualWorkerFormPage({ params }: { params: Promise<{ sto
         </button>
 
       </main>
+
+      {/* --- 🚨 NEW PREMIUM ERROR MODAL (No more ugly alerts) --- */}
+      <AnimatePresence>
+        {errorMessage && (
+          <motion.div key="error-modal" className="fixed inset-0 z- flex items-center justify-center p-6">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setErrorMessage('')} />
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative bg-[#111] border border-white/10 w-full max-w-sm rounded-[2rem] p-6 text-center shadow-2xl z-10">
+              <div className="w-16 h-16 bg-red-500/10 border border-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="w-8 h-8 text-red-500" />
+              </div>
+              <h3 className="text-xl font-black text-white mb-2">Operation Failed</h3>
+              <p className="text-zinc-400 text-sm font-medium mb-8 leading-relaxed">{errorMessage}</p>
+              <button onClick={() => setErrorMessage('')} className="w-full py-4 bg-white/10 hover:bg-white/20 transition-colors rounded-2xl font-black text-white active:scale-95">
+                Got it
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* --- SUCCESS TOAST OVERLAY --- */}
       <AnimatePresence>
