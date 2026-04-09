@@ -114,21 +114,23 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
   }
 
   return (
-    <div className="min-h-screen bg-[#F5F5F7] text-[#111] font-sans selection:bg-black selection:text-white pb-32">
+    // 🔥 FIX: Added print:pb-0 and print:bg-white to prevent blank pages
+    <div className="min-h-screen bg-[#F5F5F7] print:bg-white text-[#111] font-sans selection:bg-black selection:text-white pb-32 print:pb-0">
       
       {/* 🧾 THE PREMIUM RECEIPT CARD */}
       <motion.main 
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-        className="max-w-md mx-auto bg-white min-h-screen sm:min-h-0 sm:mt-12 sm:rounded-[2rem] sm:shadow-[0_20px_60px_rgba(0,0,0,0.06)] print:shadow-none print:mt-0 p-8 sm:p-10 relative overflow-hidden"
+        // 🔥 FIX: Added print:m-0 and print:min-h-0 to lock the size accurately for A4 paper
+        className="max-w-md mx-auto bg-white min-h-screen sm:min-h-0 sm:mt-12 sm:rounded-[2rem] sm:shadow-[0_20px_60px_rgba(0,0,0,0.06)] print:shadow-none print:mt-0 print:m-0 print:min-h-0 p-8 sm:p-10 relative overflow-hidden"
       >
         {/* Subtle Top Accent */}
         <div className="absolute top-0 left-0 w-full h-1.5 print:hidden" style={{ backgroundColor: themeColor }} />
 
         {/* 1. STORE BRANDING */}
-        <div className="flex flex-col items-center text-center mb-10 mt-4">
-          <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center mb-5 shadow-lg overflow-hidden border border-zinc-100">
+        <div className="flex flex-col items-center text-center mb-10 mt-4 print:mt-0">
+          <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center mb-5 shadow-lg overflow-hidden border border-zinc-100 print:shadow-none print:border-black">
             {storeData?.logo_url ? (
               <img src={storeData.logo_url} alt="Store Logo" className="w-full h-full object-cover" />
             ) : (
@@ -143,7 +145,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
           </p>
         </div>
 
-        <div className="border-t-2 border-dashed border-zinc-200 w-full my-6" />
+        <div className="border-t-2 border-dashed border-zinc-200 print:border-zinc-300 w-full my-6" />
 
         {/* 2. ORDER METADATA */}
         <div className="grid grid-cols-2 gap-y-6 text-sm mb-6">
@@ -168,7 +170,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
           </div>
         </div>
 
-        <div className="border-t-2 border-dashed border-zinc-200 w-full my-6" />
+        <div className="border-t-2 border-dashed border-zinc-200 print:border-zinc-300 w-full my-6" />
 
         {/* 3. ITEMIZED BILLING */}
         <div className="mb-8">
@@ -190,7 +192,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
           </div>
         </div>
 
-        <div className="border-t border-zinc-200 w-full my-4" />
+        <div className="border-t border-zinc-200 print:border-zinc-300 w-full my-4" />
 
         {/* 4. TOTALS */}
         <div className="flex flex-col gap-2 mb-6">
@@ -204,7 +206,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
           </div>
         </div>
 
-        <div className="border-t-2 border-dashed border-zinc-200 w-full my-6" />
+        <div className="border-t-2 border-dashed border-zinc-200 print:border-zinc-300 w-full my-6" />
 
         {/* GRAND TOTAL */}
         <div className="flex justify-between items-end mb-12 bg-zinc-50 p-5 rounded-2xl print:bg-transparent print:p-0">
@@ -265,6 +267,14 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
       >
         <Download className="w-5 h-5" />
       </button>
+
+      {/* 🔥 FIX: Inject a custom print style to completely kill page margins */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @media print {
+          @page { margin: 0; size: auto; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+      `}} />
 
     </div>
   );

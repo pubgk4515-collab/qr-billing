@@ -47,6 +47,8 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
 
   const [newItemName, setNewItemName] = useState('');
   const [newItemPrice, setNewItemPrice] = useState('');
+  const [newItemSize, setNewItemSize] = useState(''); // 🔥 NEW: Size State
+  
   const [editName, setEditName] = useState('');
   const [editPrice, setEditPrice] = useState('');
   
@@ -140,13 +142,15 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
   };
 
   const handleAddProduct = async () => {
-    if (!newItemName || !newItemPrice || !storeData) return alert("Pehle details bhariye!");
+    if (!newItemName || !newItemPrice || !storeData) return alert("Pehle Item Name aur Price bhariye!");
+    
     let targetTagToBind: any = null;
     if (bindingTagId) {
       targetTagToBind = inventory.find(i => i.id === bindingTagId);
     } else {
       const freeTags = inventory.filter(item => item.status === 'free');
       if (freeTags.length === 0) return alert("Koi Free Tag bacha nahi hai!");
+      // 🔥 THE BUG FIX: Select the FIRST free tag from the array, not the whole array!
       targetTagToBind = freeTags; 
     }
     if (!targetTagToBind) return alert("Tag nahi mila!");
@@ -159,7 +163,8 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
 
       const { data: newProductData } = await supabase
         .from('products')
-        .insert({ name: newItemName, price: Number(newItemPrice), store_id: storeData.id, size: 'Free Size', image_url: imageUrl })
+        // 🔥 SIZE FIELD ADDED IN DATABASE INSERT
+        .insert({ name: newItemName, price: Number(newItemPrice), store_id: storeData.id, size: newItemSize || 'Free Size', image_url: imageUrl })
         .select().single();
 
       await supabase.from('qr_tags')
@@ -169,7 +174,13 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
 
       await fetchRealInventory(storeData.id, true);
       setIsAddModalOpen(false);
-      setNewItemName(''); setNewItemPrice(''); setAddUploadProgress(0); setBindingTagId(null); 
+      
+      // Clear fields after success
+      setNewItemName(''); 
+      setNewItemPrice(''); 
+      setNewItemSize(''); 
+      setAddUploadProgress(0); 
+      setBindingTagId(null); 
     } catch (err) { alert("Error adding product."); } 
     finally { setActionLoading(false); }
   };
@@ -253,7 +264,6 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
     return num >= printStart && num <= printEnd;
   });
 
-  // 🔥 COST OPTIMIZATION: 16 tags per page (4 columns x 4 rows)
   const chunkedTags = [];
   for (let i = 0; i < tagsToPrint.length; i += 16) {
     chunkedTags.push(tagsToPrint.slice(i, i + 16));
@@ -279,7 +289,6 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
               </div>
             </div>
             
-            {/* 🔥 NEW: BULK ADD BUTTON REDIRECTING TO WORKER MODE */}
             <button 
               onClick={() => router.push(`/admin/${safeStoreSlug}/inventory/worker-mode`)}
               className="px-4 py-2.5 bg-white text-black rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all hover:bg-zinc-200 flex items-center gap-2"
@@ -325,7 +334,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
             ))}
           </div>
 
-          {/* 🔥 REDUCED HEIGHT QUICK ACTIONS */}
+          {/* QUICK ACTIONS */}
           <div className="grid grid-cols-3 gap-3">
             <button onClick={() => setIsGenerateModalOpen(true)} className="bg-[#111] border border-white/5 hover:border-white/20 py-4 px-2 rounded-[1.5rem] flex flex-col items-center justify-center gap-2 transition-all active:scale-95 group shadow-lg">
               <div className="w-10 h-10 rounded-[1rem] flex items-center justify-center group-hover:scale-110 transition-transform" style={{ backgroundColor: `${themeColor}1A` }}>
@@ -397,6 +406,12 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
                       <h3 className="text-xl font-black tracking-tight mt-1">
                         {(item.status === 'active' || item.status === 'in_cart') ? item.products?.name : 'Empty Tag'}
                       </h3>
+                      {/* 🔥 NEW: Showing Size in the inventory card if active */}
+                      {(item.status === 'active' || item.status === 'in_cart') && item.products?.size && (
+                         <span className="inline-block mt-2 text-[10px] bg-white/10 px-2 py-1 rounded-md text-zinc-400 font-bold uppercase tracking-widest border border-white/5">
+                           Size: {item.products.size}
+                         </span>
+                      )}
                     </div>
                     
                     {/* Action Buttons Area */}
@@ -451,45 +466,25 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         </main>
       </div>
 
-      {/* 🖨️ THE HIDDEN PRINTABLE A4 SHEET (Only visible when printing) */}
+      {/* 🖨️ THE HIDDEN PRINTABLE A4 SHEET */}
       <div className="hidden print:flex bg-white w-full text-black justify-center">
-        
-        {/* 🔥 MINIMAL MARGINS FOR MAX SPACE CONSUMPTION */}
         <style dangerouslySetInnerHTML={{__html: `
           @media print {
             html, body { height: auto !important; overflow: visible !important; margin: 0; padding: 0; }
             @page { margin: 0.2in; } 
           }
         `}} />
-
-        <div className="w-full max-w-[8.27in]"> {/* A4 Width Constrain */}
-          {/* Map through chunks (Now 16 tags per page - 4 columns x 4 rows) */}
+        <div className="w-full max-w-[8.27in]"> 
           {chunkedTags.map((pageTags, pageIndex) => (
             <div key={pageIndex} className="pt-2 pb-2 flex flex-wrap justify-center content-start gap-2" style={{ pageBreakAfter: 'always', breakAfter: 'page', minHeight: '100vh' }}>
-              
-              {/* THE HEADING IS COMPLETELY REMOVED TO SAVE SPACE */}
-
-              {/* The 16 Tags Grid for this specific page */}
               {pageTags.map((item) => (
                 <div 
                   key={item.id} 
-                  // 🔥 BORDER THINNED OUT (border instead of border-2) AND PADDING REDUCED (p-1 instead of p-3)
                   className="flex flex-col items-center justify-center border border-dashed border-gray-400 p-1 break-inside-avoid" 
-                  // 🔥 BOX WIDTH REDUCED TO FIT 4 IN A ROW PERFECTLY ON A4
                   style={{ width: '1.8in', height: '2.1in' }} 
                 >
-                  <QRCodeCanvas 
-                    value={`${window.location.origin}/${safeStoreSlug}/${item.id}`} 
-                    // 🔥 QR SIZE KEPT SAME (130) FOR READABILITY
-                    size={130} 
-                    bgColor={"#ffffff"} 
-                    fgColor={"#000000"} 
-                    level={"M"} 
-                    includeMargin={false} 
-                  />
-                  <span className="mt-1.5 text-[11px] font-black tracking-widest uppercase text-black leading-none">
-                    {item.id}
-                  </span>
+                  <QRCodeCanvas value={`${window.location.origin}/${safeStoreSlug}/${item.id}`} size={130} bgColor={"#ffffff"} fgColor={"#000000"} level={"M"} includeMargin={false} />
+                  <span className="mt-1.5 text-[11px] font-black tracking-widest uppercase text-black leading-none">{item.id}</span>
                 </div>
               ))}
             </div>
@@ -503,7 +498,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         {isAddModalOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm sm:p-4">
             <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 28 }} className="bg-[#0A0A0A] w-full sm:max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] border border-white/10 p-8 relative min-h-[400px]">
-              <button onClick={() => { setIsAddModalOpen(false); setAddUploadProgress(0); }} className="absolute top-6 right-6 p-2 bg-white/5 rounded-full z-10"><X className="w-5 h-5 text-zinc-400" /></button>
+              <button onClick={() => { setIsAddModalOpen(false); setAddUploadProgress(0); setNewItemName(''); setNewItemPrice(''); setNewItemSize(''); setBindingTagId(null); }} className="absolute top-6 right-6 p-2 bg-white/5 rounded-full z-10"><X className="w-5 h-5 text-zinc-400" /></button>
               <div className="w-16 h-16 bg-[#111] rounded-[1.2rem] flex items-center justify-center mb-6"><Plus className="w-8 h-8 text-white" /></div>
               
               <h2 className="text-2xl font-black mb-2">
@@ -513,10 +508,18 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
               
               <div className="flex flex-col gap-4 mb-8">
                  <input type="text" placeholder="Product Name (e.g. Linen Shirt)" value={newItemName} onChange={e => setNewItemName(e.target.value)} className="w-full bg-[#111] border border-white/10 rounded-xl py-4 px-5 font-bold focus:outline-none focus:border-white/30" />
-                 <div className="relative">
-                   <span className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-500 font-black">₹</span>
-                   <input type="number" placeholder="Price" value={newItemPrice} onChange={e => setNewItemPrice(e.target.value)} className="w-full bg-[#111] border border-white/10 rounded-xl py-4 pl-10 pr-5 font-bold focus:outline-none focus:border-white/30" />
+                 
+                 {/* 🔥 UI UPDATE: Price and Size Side-by-Side */}
+                 <div className="flex gap-4">
+                   <div className="relative flex-1">
+                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-black">₹</span>
+                     <input type="number" placeholder="Price" value={newItemPrice} onChange={e => setNewItemPrice(e.target.value)} className="w-full bg-[#111] border border-white/10 rounded-xl py-4 pl-8 pr-4 font-bold focus:outline-none focus:border-white/30" />
+                   </div>
+                   <div className="flex-1">
+                     <input type="text" placeholder="Size (e.g. L, XL)" value={newItemSize} onChange={e => setNewItemSize(e.target.value)} className="w-full bg-[#111] border border-white/10 rounded-xl py-4 px-4 font-bold focus:outline-none focus:border-white/30" />
+                   </div>
                  </div>
+
                  <div className="border-2 border-dashed border-white/10 rounded-2xl p-5 flex flex-col items-center justify-center text-center cursor-pointer hover:border-white/30 group transition-colors">
                    <ImageIcon className="w-8 h-8 text-zinc-600 group-hover:text-white mb-2 transition-colors" />
                    <p className="text-xs text-zinc-500 font-bold group-hover:text-white mb-3">Upload a photo</p>
@@ -578,31 +581,16 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
               <div className="flex items-center gap-3 mb-8">
                  <div className="flex-1 relative">
                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold text-[10px] uppercase tracking-widest">TAG</span>
-                   <input 
-                     type="number" 
-                     placeholder="1" 
-                     value={printStart} 
-                     onChange={e => setPrintStart(Number(e.target.value) || '')} 
-                     className="w-full bg-[#111] border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-center font-black focus:outline-none focus:border-white/30 transition-colors" 
-                   />
+                   <input type="number" placeholder="1" value={printStart} onChange={e => setPrintStart(Number(e.target.value) || '')} className="w-full bg-[#111] border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-center font-black focus:outline-none focus:border-white/30 transition-colors" />
                  </div>
                  <span className="text-zinc-600 font-black text-xs uppercase tracking-widest">TO</span>
                  <div className="flex-1 relative">
                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold text-[10px] uppercase tracking-widest">TAG</span>
-                   <input 
-                     type="number" 
-                     placeholder="100" 
-                     value={printEnd} 
-                     onChange={e => setPrintEnd(Number(e.target.value) || '')} 
-                     className="w-full bg-[#111] border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-center font-black focus:outline-none focus:border-white/30 transition-colors" 
-                   />
+                   <input type="number" placeholder="100" value={printEnd} onChange={e => setPrintEnd(Number(e.target.value) || '')} className="w-full bg-[#111] border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-center font-black focus:outline-none focus:border-white/30 transition-colors" />
                  </div>
               </div>
 
-              <button 
-                onClick={triggerPrintAction} 
-                className="w-full bg-white text-black font-black py-5 rounded-2xl flex justify-center items-center gap-2 active:scale-95 transition-all shadow-[0_10px_30px_rgba(255,255,255,0.1)] hover:bg-zinc-200"
-              >
+              <button onClick={triggerPrintAction} className="w-full bg-white text-black font-black py-5 rounded-2xl flex justify-center items-center gap-2 active:scale-95 transition-all shadow-[0_10px_30px_rgba(255,255,255,0.1)] hover:bg-zinc-200">
                 <Printer className="w-5 h-5" /> Generate & Print
               </button>
             </motion.div>
