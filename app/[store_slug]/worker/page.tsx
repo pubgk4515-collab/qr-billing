@@ -137,9 +137,10 @@ export default function ActualWorkerFormPage({ params }: { params: Promise<{ sto
     setActionLoading(true);
     
     try {
+// Hum status ke sath 'product_id' bhi fetch kar rahe hain
       const { data: tagData, error: tagError } = await supabase
         .from('qr_tags')
-        .select('id, status')
+        .select('id, status, product_id') 
         .eq('id', tagId)
         .eq('store_id', storeData.id)
         .single();
@@ -150,12 +151,14 @@ export default function ActualWorkerFormPage({ params }: { params: Promise<{ sto
         return;
       }
 
-      if (tagData.status !== 'free') {
+      // 🔥 SMART VALIDATION: Agar tag active/sold hai YA usme pehle se koi product juda hai, tabhi reject karo
+      if (tagData.product_id !== null || tagData.status === 'active' || tagData.status === 'sold') {
         alert(`STOP! Tag ${tagId} is already used. Please use a fresh tag.`);
         setTagId(''); 
         setActionLoading(false);
         return;
       }
+
 
       let finalImageUrl = null;
       if (imageFile) {
