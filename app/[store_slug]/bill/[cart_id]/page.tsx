@@ -33,7 +33,6 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
         if (store) {
           setStoreData(store);
 
-          // 🔥 TITANIUM FETCH: .ilike catches weird spacing, .maybeSingle() handles empty/duplicate safety
           const { data: saleDataRecord } = await supabase
             .from('sales') 
             .select('*')
@@ -45,7 +44,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
           if (saleDataRecord) {
             setSaleData(saleDataRecord); 
           } else {
-            setSaleData(null); // Force it to null if no record exists
+            setSaleData(null);
           }
 
           const { data: products } = await supabase
@@ -86,7 +85,6 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     );
   }
 
-  // 🔥 CRITICAL GUARD: Only render if saleData is actually present AND has a created_at date
   if (!saleData || !saleData.created_at) {
     return (
       <div className="min-h-screen bg-[#fafafa] flex items-center justify-center text-zinc-400 font-bold">
@@ -98,12 +96,10 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     );
   }
 
-  // Safe formatting for dates
   const billDate = new Date(saleData.created_at);
   const formattedDate = billDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
   const formattedTime = billDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
-  // Parsing purchased items safely
   let itemsList = [];
   try {
     itemsList = typeof saleData.purchased_items === 'string' 
@@ -114,18 +110,17 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
   }
 
   return (
-    // 🔥 FIX: Added print:pb-0 and print:bg-white to prevent blank pages
-    <div className="min-h-screen bg-[#F5F5F7] print:bg-white text-[#111] font-sans selection:bg-black selection:text-white pb-32 print:pb-0">
+    // 🔥 FIX: Added strictly locked screen height and flex-centering for print mode
+    <div className="min-h-screen bg-[#F5F5F7] print:bg-white text-[#111] font-sans selection:bg-black selection:text-white pb-32 print:pb-0 print:h-screen print:w-screen print:flex print:items-center print:justify-center print:overflow-hidden">
       
       {/* 🧾 THE PREMIUM RECEIPT CARD */}
       <motion.main 
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-        // 🔥 FIX: Added print:m-0 and print:min-h-0 to lock the size accurately for A4 paper
-        className="max-w-md mx-auto bg-white min-h-screen sm:min-h-0 sm:mt-12 sm:rounded-[2rem] sm:shadow-[0_20px_60px_rgba(0,0,0,0.06)] print:shadow-none print:mt-0 print:m-0 print:min-h-0 p-8 sm:p-10 relative overflow-hidden"
+        // 🔥 FIX: Maintained 'mx-auto' and added clear borders for the printed centered card
+        className="w-full max-w-md mx-auto bg-white min-h-screen sm:min-h-fit sm:mt-12 sm:rounded-[2rem] sm:shadow-[0_20px_60px_rgba(0,0,0,0.06)] print:shadow-none print:mt-0 print:rounded-[2rem] print:border print:border-zinc-200 p-8 sm:p-10 relative overflow-hidden"
       >
-        {/* Subtle Top Accent */}
         <div className="absolute top-0 left-0 w-full h-1.5 print:hidden" style={{ backgroundColor: themeColor }} />
 
         {/* 1. STORE BRANDING */}
@@ -224,7 +219,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
 
       {/* 🚀 PSYCHOLOGICAL RETENTION: TRENDING LOOP (Hidden in PDF Print) */}
       {trendingProducts.length > 0 && (
-        <div className="mt-16 print:hidden overflow-hidden">
+        <div className="mt-16 print:hidden overflow-hidden w-full">
           <div className="px-6 sm:max-w-md mx-auto mb-6 flex items-center justify-between">
             <h3 className="text-base font-black tracking-tight uppercase text-zinc-800">Trending Now</h3>
             <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">New Arrivals</span>
@@ -268,11 +263,19 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
         <Download className="w-5 h-5" />
       </button>
 
-      {/* 🔥 FIX: Inject a custom print style to completely kill page margins */}
+      {/* 🔥 ULTIMATE PRINT FIX: Forces exactly 1 page, locks height, hides overflow */}
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
-          @page { margin: 0; size: auto; }
-          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          @page { margin: 0; size: A4 portrait; }
+          html, body {
+            height: 100vh !important;
+            overflow: hidden !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background-color: white !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
         }
       `}} />
 
