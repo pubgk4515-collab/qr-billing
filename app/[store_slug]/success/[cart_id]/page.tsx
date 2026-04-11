@@ -20,7 +20,7 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
   // States for Order & Bill Request
   const [orderStatus, setOrderStatus] = useState<string>('pending'); 
   const [customerPhone, setCustomerPhone] = useState<string>('');
-  const [fetchedStoreId, setFetchedStoreId] = useState<string | null>(null); // 🔥 NEW: Guaranteed Store ID
+  const [fetchedStoreId, setFetchedStoreId] = useState<string | null>(null); 
   
   const [billRequested, setBillRequested] = useState(false);
   const [billRequestLoading, setBillRequestLoading] = useState(false);
@@ -35,7 +35,8 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
       try {
         const { data } = await supabase
           .from('stores')
-          .select('id, store_name, theme_color, whatsapp_number') 
+          // FIX: Added logo_url to select statement
+          .select('id, store_name, theme_color, whatsapp_number, logo_url') 
           .ilike('slug', safeStoreSlug)
           .single();
         if (data) setStoreData(data);
@@ -46,7 +47,7 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
     fetchStore();
   }, [safeStoreSlug]);
 
-  // 2. SILENT LIVE POLLING (Fetches exact store_id from sales table)
+  // 2. SILENT LIVE POLLING
   useEffect(() => {
     if (!safeCartId) return;
 
@@ -54,14 +55,14 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
       try {
         const { data, error } = await supabase
           .from('sales') 
-          .select('payment_status, customer_phone, store_id') // 🔥 Fetching store_id directly from the order
+          .select('payment_status, customer_phone, store_id') 
           .eq('cart_id', safeCartId)
           .single();
 
         if (data) {
           setOrderStatus(data.payment_status);
           if (data.customer_phone) setCustomerPhone(data.customer_phone);
-          if (data.store_id) setFetchedStoreId(data.store_id); // Save guaranteed Store ID
+          if (data.store_id) setFetchedStoreId(data.store_id); 
           
           if (data.payment_status === 'completed') {
              localStorage.removeItem(`cart_${safeStoreSlug}`);
@@ -80,9 +81,8 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
     return () => clearInterval(intervalId); 
   }, [safeCartId, safeStoreSlug]);
 
-  // 🔥 ROCK-SOLID TRIGGER BILL REQUEST
+  // Request Bill Function
   const handleRequestBill = async () => {
-    // Use storeData ID first, if missing (like in video), fallback to fetchedStoreId from sales table
     const finalStoreId = storeData?.id || fetchedStoreId;
 
     if (!finalStoreId) {
@@ -112,6 +112,16 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
   };
 
   const themeColor = storeData?.theme_color || '#10b981'; 
+  const displayName = storeData?.store_name || 'Store';
+  
+  // FIX: Dynamic Initials for logo fallback
+  const displayInitials = displayName
+    .split(' ')
+    .filter(Boolean)
+    .map((word: string) => word)
+    .join('')
+    .substring(0, 2)
+    .toUpperCase();
 
   if (loading) {
     return (
@@ -178,25 +188,40 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
               className="w-full"
             >
               <div className="bg-[#111]/80 backdrop-blur-xl border border-white/10 rounded-[3rem] p-8 text-center shadow-[0_20px_50px_rgba(0,0,0,0.5)] mb-6">
+                
+                {/* FIX: Added Store Logo / Initials above the checkmark for brand consistency */}
+                <div className="flex justify-center mb-4">
+                  <div className="w-12 h-12 bg-[#222] rounded-xl flex items-center justify-center overflow-hidden border border-white/10 shadow-lg">
+                    {storeData?.logo_url ? (
+                      <img src={storeData.logo_url} alt="Store Logo" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-white font-black text-lg tracking-tighter">
+                        {displayInitials}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
                 <motion.div 
                   initial={{ scale: 0, rotate: -180 }}
                   animate={{ scale: 1, rotate: 0 }}
                   transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.1 }}
-                  className="w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 border-2 shadow-2xl"
+                  className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 border-2 shadow-2xl"
                   style={{ backgroundColor: `${themeColor}15`, borderColor: `${themeColor}40` }}
                 >
-                  <CheckCircle2 className="w-12 h-12" style={{ color: themeColor }} />
+                  <CheckCircle2 className="w-10 h-10" style={{ color: themeColor }} />
                 </motion.div>
 
                 <h1 className="text-4xl font-black text-white mb-3 tracking-tighter leading-none">Payment Done!</h1>
-                <p className="text-zinc-400 mb-8 text-sm font-medium">Thank you for shopping at <span className="font-black text-white">{storeData?.store_name || 'our store'}</span>.</p>
+                
+                {/* FIX: Replaced hardcoded 'our store' with dynamic displayName */}
+                <p className="text-zinc-400 mb-8 text-sm font-medium">Thank you for shopping at <span className="font-black text-white">{displayName}</span>.</p>
                 
                 <div className="bg-black/50 rounded-[2rem] p-5 mb-8 border border-white/5 shadow-inner">
                   <p className="text-[10px] text-zinc-500 uppercase font-black tracking-[0.2em] mb-1">Order ID</p>
                   <p className="text-2xl font-black text-white tracking-tighter">{safeCartId}</p>
                 </div>
 
-                {/* 🔥 BUG FIX: Added 'select-none touch-manipulation' to prevent text highlighting */}
                 <button 
                   onClick={handleRequestBill}
                   disabled={billRequested || billRequestLoading}

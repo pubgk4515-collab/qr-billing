@@ -20,7 +20,11 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
   const safeCartId = decodeURIComponent(cart_id || '').toUpperCase().trim();
 
   useEffect(() => {
-    if (!safeStoreSlug || !safeCartId) return;
+    // FIX: Prevents infinite loading if URL params are missing
+    if (!safeStoreSlug || !safeCartId) {
+      setLoading(false);
+      return;
+    }
     
     async function fetchEverything() {
       try {
@@ -71,8 +75,18 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
   };
 
   const themeColor = storeData?.theme_color || '#111111'; 
-  const displayName = storeData?.store_name || storeData?.name || 'Premium Store';
-  const displayInitials = displayName.substring(0, 3).toUpperCase();
+  
+  // FIX: Removed hardcoded 'Premium Store'
+  const displayName = storeData?.store_name || storeData?.name || 'Store';
+  
+  // FIX: Smart initials logic ("Rampurhat Garments" -> "RG")
+  const displayInitials = displayName
+    .split(' ')
+    .filter(Boolean)
+    .map((word: string) => word)
+    .join('')
+    .substring(0, 2)
+    .toUpperCase();
 
   if (loading) {
     return (
@@ -120,11 +134,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
   if (hasGst && itemsList.length > 0) {
     itemsList.forEach((item: any) => {
       const itemPrice = Number(item.products?.price || item.price || 0);
-      
-      // The Ultimate Rule: 5% up to ₹2500, 18% above ₹2500
       const applicableRate = itemPrice > 2500 ? 18 : 5; 
-      
-      // Reverse calculation per item
       const itemBase = itemPrice / (1 + applicableRate / 100);
       const itemTax = itemPrice - itemBase;
 
@@ -133,7 +143,6 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
       sgst += itemTax / 2;
     });
 
-    // Formatting for clean UI
     baseAmount = Number(baseAmount.toFixed(2));
     cgst = Number(cgst.toFixed(2));
     sgst = Number(sgst.toFixed(2));
@@ -165,7 +174,6 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
           </div>
           <h1 className="text-2xl font-black tracking-tighter uppercase text-black leading-none">{displayName}</h1>
           
-          {/* 🔥 DYNAMIC GSTIN DISPLAY */}
           {hasGst && gstNumber && (
             <p className="text-[10px] font-bold text-zinc-500 mt-2 uppercase tracking-widest">
               GSTIN: {gstNumber}
@@ -211,8 +219,9 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
             {itemsList.map((item: any, idx: number) => (
               <div key={idx} className="flex justify-between items-start group">
                 <div className="max-w-[75%]">
+                  {/* FIX: Removed hardcoded 'Premium Item' fallback */}
                   <p className="font-bold text-sm text-zinc-900 leading-tight">
-                    {item.products?.name || item.name || 'Premium Item'}
+                    {item.products?.name || item.name || 'Item'}
                   </p>
                   <p className="text-[9px] text-zinc-400 font-mono font-bold uppercase tracking-widest mt-1">
                     TAG: {item.id || item.tag_id || 'N/A'}
@@ -271,7 +280,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
         </div>
       </motion.main>
 
-      {/* 🚀 PSYCHOLOGICAL RETENTION: TRENDING LOOP */}
+      {/* TRENDING LOOP */}
       {trendingProducts.length > 0 && (
         <div className="mt-16 print:hidden overflow-hidden w-full">
           <div className="px-6 sm:max-w-md mx-auto mb-6 flex items-center justify-between">
@@ -309,7 +318,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
         </div>
       )}
 
-      {/* ⬇️ FLOATING ACTION BUTTON */}
+      {/* FLOATING ACTION BUTTON */}
       <button 
         onClick={handlePrint}
         className="fixed bottom-8 right-8 z-50 w-14 h-14 bg-black text-white rounded-full flex items-center justify-center shadow-[0_15px_30px_rgba(0,0,0,0.2)] hover:scale-110 active:scale-90 transition-all print:hidden"

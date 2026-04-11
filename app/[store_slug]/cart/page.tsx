@@ -23,8 +23,6 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
   const [cartId, setCartId] = useState('');
   
   const [duplicateTag, setDuplicateTag] = useState<string | null>(null);
-  
-  // 🔥 NEW: Premium Custom Alert State
   const [customAlert, setCustomAlert] = useState<{title: string, message: string, isError: boolean} | null>(null);
 
   const safeStoreSlug = decodeURIComponent(store_slug || '').toLowerCase().trim();
@@ -178,7 +176,6 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
           .single();
 
         if (saleData?.payment_status === 'completed') {
-          // 🟢 ACCEPTED
           clearInterval(checkPaymentStatus);
 
           const purchasedTagIds = cartItems.map(item => item.tag_id);
@@ -194,14 +191,12 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
           router.push(`/${safeStoreSlug}/success/${cartId}`);
 
         } else if (saleData?.payment_status === 'rejected') {
-          // 🔴 REJECTED
           clearInterval(checkPaymentStatus);
           setCustomAlert({
             title: 'Payment Rejected',
             message: 'Your payment request was rejected by the store counter. You can try again.',
             isError: true
           });
-          // 🔥 THE BUG FIX: Generate a NEW Cart ID so the next attempt doesn't crash the database!
           setCartId(`CART${Math.floor(1000 + Math.random() * 9000)}`);
           setCheckoutStep('payment'); 
         }
@@ -219,6 +214,16 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
   };
 
   const themeColor = storeData?.theme_color || '#10b981';
+  
+  // 🔥 FIX 1: Smart Fallback Name & Initials
+  const displayName = storeData?.store_name || 'Store';
+  const displayInitials = displayName
+    .split(' ')
+    .filter(Boolean)
+    .map((word: string) => word)
+    .join('')
+    .substring(0, 2)
+    .toUpperCase();
 
   if (loading) {
     return (
@@ -244,13 +249,16 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         </button>
 
         <div className="flex items-center gap-2 absolute left-1/2 -translate-x-1/2">
+          {/* 🔥 FIX 2: Correct Logo Display with Initials Fallback */}
           {storeData?.logo_url ? (
-            <img src={storeData.logo_url} alt="logo" className="w-5 h-5 rounded-full object-cover" />
+            <img src={storeData.logo_url} alt="logo" className="w-6 h-6 rounded-full object-cover border border-white/10" />
           ) : (
-            <Store className="w-4 h-4" style={{ color: themeColor }} />
+            <div className="w-6 h-6 rounded-full flex items-center justify-center bg-zinc-800 text-[10px] font-black text-white border border-white/10">
+              {displayInitials}
+            </div>
           )}
           <span className="text-sm font-bold tracking-[0.15em] uppercase text-zinc-200">
-            {storeData?.store_name || 'Premium Store'}
+            {displayName}
           </span>
         </div>
 
@@ -259,6 +267,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         </div>
       </motion.header>
 
+      {/* Rest of the code remains exactly the same... */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -406,7 +415,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z- bg-black/70 backdrop-blur-md flex items-center justify-center p-6"
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-6"
           >
             <motion.div
               initial={{ scale: 0.9, y: 20 }}
@@ -444,7 +453,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z- bg-black/70 backdrop-blur-md flex items-center justify-center p-6"
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-6"
           >
             <motion.div
               initial={{ scale: 0.9, y: 20 }}
