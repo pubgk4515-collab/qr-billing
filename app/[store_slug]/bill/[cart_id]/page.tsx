@@ -20,7 +20,6 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
   const safeCartId = decodeURIComponent(cart_id || '').toUpperCase().trim();
 
   useEffect(() => {
-    // FIX: Prevents infinite loading if URL params are missing
     if (!safeStoreSlug || !safeCartId) {
       setLoading(false);
       return;
@@ -75,11 +74,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
   };
 
   const themeColor = storeData?.theme_color || '#111111'; 
-  
-  // FIX: Removed hardcoded 'Premium Store'
   const displayName = storeData?.store_name || storeData?.name || 'Store';
-  
-  // FIX: Smart initials logic ("Rampurhat Garments" -> "RG")
   const displayInitials = displayName
     .split(' ')
     .filter(Boolean)
@@ -123,30 +118,44 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     console.error("Failed to parse items", e);
   }
 
-  // 🔥 SMART INCLUSIVE GST MATH ENGINE (2026 Compliant)
+  // 🔥 REALISTIC GST MATH ENGINE
   const hasGst = storeData?.has_gst || false;
   const gstNumber = storeData?.gst_number || '';
 
   let baseAmount = 0;
   let cgst = 0;
   let sgst = 0;
+  let processedItems: any[] = [];
 
   if (hasGst && itemsList.length > 0) {
     itemsList.forEach((item: any) => {
       const itemPrice = Number(item.products?.price || item.price || 0);
       const applicableRate = itemPrice > 2500 ? 18 : 5; 
+      
+      // Derive the base price for realistic display
       const itemBase = itemPrice / (1 + applicableRate / 100);
       const itemTax = itemPrice - itemBase;
 
       baseAmount += itemBase;
       cgst += itemTax / 2;
       sgst += itemTax / 2;
+
+      processedItems.push({
+        ...item,
+        basePrice: itemBase.toFixed(2),
+        gstRate: applicableRate
+      });
     });
 
     baseAmount = Number(baseAmount.toFixed(2));
     cgst = Number(cgst.toFixed(2));
     sgst = Number(sgst.toFixed(2));
-  } else if (!hasGst) {
+  } else {
+    processedItems = itemsList.map((item: any) => ({
+      ...item,
+      basePrice: Number(item.products?.price || item.price || 0).toFixed(2),
+      gstRate: 0
+    }));
     baseAmount = saleData?.total_amount || 0;
   }
 
@@ -212,22 +221,25 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
 
         <div className="border-t-2 border-dashed border-zinc-200 print:border-zinc-300 w-full my-6" />
 
-        {/* 3. ITEMIZED BILLING */}
+        {/* 3. ITEMIZED BILLING (Showing Base Price) */}
         <div className="mb-8">
-          <p className="text-[10px] text-zinc-400 font-black uppercase tracking-widest mb-5">Purchased Items ({saleData.items_count})</p>
+          <div className="flex justify-between items-end mb-5">
+            <p className="text-[10px] text-zinc-400 font-black uppercase tracking-widest">Purchased Items ({saleData.items_count})</p>
+            <p className="text-[10px] text-zinc-400 font-black uppercase tracking-widest">Amount</p>
+          </div>
           <div className="flex flex-col gap-5">
-            {itemsList.map((item: any, idx: number) => (
+            {processedItems.map((item: any, idx: number) => (
               <div key={idx} className="flex justify-between items-start group">
                 <div className="max-w-[75%]">
-                  {/* FIX: Removed hardcoded 'Premium Item' fallback */}
                   <p className="font-bold text-sm text-zinc-900 leading-tight">
                     {item.products?.name || item.name || 'Item'}
                   </p>
                   <p className="text-[9px] text-zinc-400 font-mono font-bold uppercase tracking-widest mt-1">
-                    TAG: {item.id || item.tag_id || 'N/A'}
+                    TAG: {item.id || item.tag_id || 'N/A'} {hasGst && `| GST: ${item.gstRate}%`}
                   </p>
                 </div>
-                <p className="font-black text-sm text-zinc-900">₹{item.products?.price || item.price || 0}</p>
+                {/* Shows price without GST */}
+                <p className="font-black text-sm text-zinc-900">₹{item.basePrice}</p>
               </div>
             ))}
           </div>
@@ -235,20 +247,20 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
 
         <div className="border-t border-zinc-200 print:border-zinc-300 w-full my-4" />
 
-        {/* 4. DYNAMIC TOTALS (GST vs Non-GST) */}
+        {/* 4. REALISTIC TOTALS */}
         {hasGst ? (
           <div className="flex flex-col gap-2 mb-6">
             <div className="flex justify-between items-center text-sm">
-              <p className="text-zinc-500 font-bold">Base Amount</p>
+              <p className="text-zinc-500 font-bold">Subtotal (Excl. Tax)</p>
               <p className="font-black text-zinc-800">₹{baseAmount}</p>
             </div>
             <div className="flex justify-between items-center text-sm">
-              <p className="text-zinc-500 font-bold">CGST</p>
-              <p className="font-black text-zinc-600">₹{cgst}</p>
+              <p className="text-zinc-500 font-bold">Add: CGST</p>
+              <p className="font-black text-zinc-600">+ ₹{cgst}</p>
             </div>
             <div className="flex justify-between items-center text-sm">
-              <p className="text-zinc-500 font-bold">SGST</p>
-              <p className="font-black text-zinc-600">₹{sgst}</p>
+              <p className="text-zinc-500 font-bold">Add: SGST</p>
+              <p className="font-black text-zinc-600">+ ₹{sgst}</p>
             </div>
           </div>
         ) : (
