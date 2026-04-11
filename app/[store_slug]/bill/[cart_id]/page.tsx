@@ -109,21 +109,36 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     console.error("Failed to parse items", e);
   }
 
-  // 🔥 INCLUSIVE GST MATH ENGINE
+  // 🔥 SMART INCLUSIVE GST MATH ENGINE (2026 Compliant)
   const hasGst = storeData?.has_gst || false;
   const gstNumber = storeData?.gst_number || '';
-  const gstRate = storeData?.gst_rate || 5; // Default 5% for Garments
 
-  let baseAmount = saleData.total_amount;
+  let baseAmount = 0;
   let cgst = 0;
   let sgst = 0;
 
-  if (hasGst && saleData.total_amount > 0) {
-    // Reverse calculation formula: Total / (1 + (Rate/100))
-    baseAmount = Number((saleData.total_amount / (1 + gstRate / 100)).toFixed(2));
-    const totalGstAmount = saleData.total_amount - baseAmount;
-    cgst = Number((totalGstAmount / 2).toFixed(2));
-    sgst = Number((totalGstAmount / 2).toFixed(2));
+  if (hasGst && itemsList.length > 0) {
+    itemsList.forEach((item: any) => {
+      const itemPrice = Number(item.products?.price || item.price || 0);
+      
+      // The Ultimate Rule: 5% up to ₹2500, 18% above ₹2500
+      const applicableRate = itemPrice > 2500 ? 18 : 5; 
+      
+      // Reverse calculation per item
+      const itemBase = itemPrice / (1 + applicableRate / 100);
+      const itemTax = itemPrice - itemBase;
+
+      baseAmount += itemBase;
+      cgst += itemTax / 2;
+      sgst += itemTax / 2;
+    });
+
+    // Formatting for clean UI
+    baseAmount = Number(baseAmount.toFixed(2));
+    cgst = Number(cgst.toFixed(2));
+    sgst = Number(sgst.toFixed(2));
+  } else if (!hasGst) {
+    baseAmount = saleData?.total_amount || 0;
   }
 
   return (
@@ -219,11 +234,11 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
               <p className="font-black text-zinc-800">₹{baseAmount}</p>
             </div>
             <div className="flex justify-between items-center text-sm">
-              <p className="text-zinc-500 font-bold">CGST ({(gstRate/2)}%)</p>
+              <p className="text-zinc-500 font-bold">CGST</p>
               <p className="font-black text-zinc-600">₹{cgst}</p>
             </div>
             <div className="flex justify-between items-center text-sm">
-              <p className="text-zinc-500 font-bold">SGST ({(gstRate/2)}%)</p>
+              <p className="text-zinc-500 font-bold">SGST</p>
               <p className="font-black text-zinc-600">₹{sgst}</p>
             </div>
           </div>
