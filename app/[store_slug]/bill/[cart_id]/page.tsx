@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Download, CheckCircle2, Receipt, Loader2, ShoppingBag, Store } from 'lucide-react';
+import { Download, CheckCircle2, Receipt, Loader2, ShoppingBag, Store, Info } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
 
@@ -73,7 +73,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     window.print();
   };
 
-  const themeColor = storeData?.theme_color || '#111111'; 
+  const themeColor = storeData?.theme_color || '#e11d48'; // Matched a bit with the red reference theme
   const displayName = storeData?.store_name || storeData?.name || 'Store';
   const displayInitials = displayName
     .split(' ')
@@ -89,7 +89,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
         <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }}>
           <Loader2 className="w-10 h-10 text-zinc-300" style={{ color: themeColor }} />
         </motion.div>
-        <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Generating VIP Receipt</p>
+        <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Generating Receipt</p>
       </div>
     );
   }
@@ -105,10 +105,6 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     );
   }
 
-  const billDate = new Date(saleData.created_at);
-  const formattedDate = billDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-  const formattedTime = billDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-
   let itemsList = [];
   try {
     itemsList = typeof saleData.purchased_items === 'string' 
@@ -118,238 +114,209 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     console.error("Failed to parse items", e);
   }
 
-  // 🔥 ENTERPRISE LINE-ITEM GST MATH ENGINE
+  // 🔥 KARNIVAL/ENTERPRISE STYLE MATH ENGINE
   const hasGst = storeData?.has_gst || false;
-  const gstNumber = storeData?.gst_number || '';
-
-  let totalBaseAmount = 0;
-  let totalCgst = 0;
-  let totalSgst = 0;
+  
+  let totalSaleExact = 0;
   let processedItems: any[] = [];
+  let taxSummary: Record<string, { cgst: number, sgst: number }> = {};
 
   if (hasGst && itemsList.length > 0) {
     itemsList.forEach((item: any) => {
-      // Get the full selling price (inclusive)
-      const itemInclusivePrice = Math.round(Number(item.products?.price || item.price || 0));
+      const price = Number(item.products?.price || item.price || 0);
+      const qty = item.quantity || 1; // Assuming 1 if qty not tracked
+      const itemTotal = price * qty;
       
-      // Determine Tax bracket
-      const gstRate = itemInclusivePrice > 2500 ? 18 : 5; 
-      const halfRate = gstRate / 2;
+      const gstRate = itemTotal > 2500 ? 18 : 5; 
+      const halfRate = (gstRate / 2).toFixed(2); 
       
-      // Calculate Exact Base
-      const exactBase = itemInclusivePrice / (1 + gstRate / 100);
-      
-      // Round Off Per-Item values to maintain perfect ledgers
-      const itemBase = Math.round(exactBase);
-      const itemTax = itemInclusivePrice - itemBase; // Ensures Base + Tax = Total
-      
-      const itemCgstAmount = Math.round(itemTax / 2);
-      const itemSgstAmount = itemTax - itemCgstAmount; // Ensures CGST + SGST = Item Tax
+      const exactBase = itemTotal / (1 + gstRate / 100);
+      const exactTax = itemTotal - exactBase;
+      const exactHalfTax = exactTax / 2;
 
-      totalBaseAmount += itemBase;
-      totalCgst += itemCgstAmount;
-      totalSgst += itemSgstAmount;
+      totalSaleExact += itemTotal;
+
+      // Grouping taxes for the summary table
+      if (!taxSummary[halfRate]) {
+        taxSummary[halfRate] = { cgst: 0, sgst: 0 };
+      }
+      taxSummary[halfRate].cgst += exactHalfTax;
+      taxSummary[halfRate].sgst += exactHalfTax;
 
       processedItems.push({
         ...item,
-        basePrice: itemBase,
-        gstRate: gstRate,
-        halfRate: halfRate,
-        cgstAmount: itemCgstAmount,
-        sgstAmount: itemSgstAmount,
+        unitPriceStr: price.toFixed(2),
+        qty: qty,
+        gstAmountStr: exactTax.toFixed(2),
+        totalStr: itemTotal.toFixed(2)
       });
     });
   } else {
-    processedItems = itemsList.map((item: any) => ({
-      ...item,
-      basePrice: Math.round(Number(item.products?.price || item.price || 0)),
-      gstRate: 0
-    }));
-    totalBaseAmount = Math.round(saleData?.total_amount || 0);
+    itemsList.forEach((item: any) => {
+      const price = Number(item.products?.price || item.price || 0);
+      const qty = item.quantity || 1;
+      const itemTotal = price * qty;
+      totalSaleExact += itemTotal;
+
+      processedItems.push({
+        ...item,
+        unitPriceStr: price.toFixed(2),
+        qty: qty,
+        gstAmountStr: "0.00",
+        totalStr: itemTotal.toFixed(2)
+      });
+    });
   }
 
+  // Calculate final rounded amounts
+  const amountPayable = Math.round(totalSaleExact);
+  const roundOffAmount = (amountPayable - totalSaleExact).toFixed(2);
+
   return (
-    <div className="min-h-screen print:min-h-0 bg-[#F5F5F7] print:bg-white text-[#111] font-sans selection:bg-black selection:text-white pb-32 print:p-0">
+    <div className="min-h-screen bg-[#F5F5F7] print:bg-white text-[#111] font-sans selection:bg-black selection:text-white pb-32 print:p-0">
       
       <motion.main 
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-        className="w-full max-w-md mx-auto bg-white min-h-screen print:min-h-0 sm:min-h-fit sm:mt-12 sm:rounded-[2rem] sm:shadow-[0_20px_60px_rgba(0,0,0,0.06)] print:shadow-none print:mt-4 print:rounded-[2rem] print:border print:border-zinc-200 p-8 sm:p-10 relative overflow-hidden"
+        className="w-full max-w-[400px] mx-auto bg-white min-h-screen print:min-h-0 sm:min-h-fit sm:my-8 sm:rounded-[1.5rem] sm:shadow-2xl print:shadow-none print:mt-0 print:rounded-none p-6 sm:p-8"
       >
-        <div className="absolute top-0 left-0 w-full h-1.5 print:hidden" style={{ backgroundColor: themeColor }} />
-
-        {/* 1. STORE BRANDING */}
-        <div className="flex flex-col items-center text-center mb-10 mt-4 print:mt-0">
-          <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center mb-5 shadow-lg overflow-hidden border border-zinc-100 print:shadow-none print:border-black">
-            {storeData?.logo_url ? (
-              <img src={storeData.logo_url} alt="Store Logo" className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-white font-black text-2xl tracking-tighter">
-                {displayInitials}
-              </span>
-            )}
+        {/* HEADER */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+             <div className="w-12 h-12 bg-zinc-900 rounded-lg flex items-center justify-center overflow-hidden border border-zinc-200">
+              {storeData?.logo_url ? (
+                <img src={storeData.logo_url} alt="Logo" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-white font-bold text-lg">{displayInitials}</span>
+              )}
+            </div>
+            <div>
+              <h1 className="text-base font-black uppercase leading-tight">{displayName}</h1>
+              {hasGst && storeData?.gst_number && (
+                <p className="text-[10px] text-zinc-500 font-semibold uppercase">GSTIN: {storeData.gst_number}</p>
+              )}
+            </div>
           </div>
-          <h1 className="text-2xl font-black tracking-tighter uppercase text-black leading-none">{displayName}</h1>
-          
-          {hasGst && gstNumber && (
-            <p className="text-[10px] font-bold text-zinc-500 mt-2 uppercase tracking-widest">
-              GSTIN: {gstNumber}
-            </p>
-          )}
-          
-          <p className="text-[9px] text-zinc-400 font-black uppercase tracking-[0.2em] mt-2 flex items-center justify-center gap-1">
-            <Store className="w-3 h-3" /> OFFICIAL DIGITAL RECEIPT
-          </p>
-        </div>
-
-        <div className="border-t-2 border-dashed border-zinc-200 print:border-zinc-300 w-full my-6" />
-
-        {/* 2. ORDER METADATA */}
-        <div className="grid grid-cols-2 gap-y-6 text-sm mb-6">
-          <div>
-            <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Order ID</p>
-            <p className="font-black text-zinc-900 text-base">{safeCartId}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Date & Time</p>
-            <p className="font-bold text-zinc-800">{formattedDate} <br/> <span className="text-xs text-zinc-500">{formattedTime}</span></p>
-          </div>
-          <div>
-            <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Status</p>
-            <p className="font-bold flex items-center gap-1.5 text-zinc-800">
-              <CheckCircle2 className="w-4 h-4" style={{ color: themeColor }} /> 
-              {saleData.payment_status === 'completed' ? 'Paid' : 'Pending'}
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Method</p>
-            <p className="font-black uppercase text-zinc-900">{saleData.payment_method || 'CASH'}</p>
+          <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center print:hidden">
+            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
           </div>
         </div>
 
-        <div className="border-t-2 border-dashed border-zinc-200 print:border-zinc-300 w-full my-6" />
+        <div className="border-b border-zinc-200 w-full mb-4" />
 
-        {/* 3. ITEMIZED BILLING (With Per-Item Tax Breakdown) */}
-        <div className="mb-8">
-          <div className="flex justify-between items-end mb-5">
-            <p className="text-[10px] text-zinc-400 font-black uppercase tracking-widest">Purchased Items ({saleData.items_count})</p>
-            <p className="text-[10px] text-zinc-400 font-black uppercase tracking-widest">Amount</p>
+        <p className="text-sm font-bold text-zinc-800 mb-4">Order Summary <span className="text-zinc-400 font-normal">#{safeCartId}</span></p>
+
+        {/* ITEMS LIST (Karnival Style) */}
+        <div className="flex flex-col gap-4 mb-6">
+          {processedItems.map((item: any, idx: number) => (
+            <div key={idx} className="flex gap-3 bg-zinc-50/50 p-3 rounded-xl border border-zinc-100">
+               <div className="w-10 h-10 bg-white rounded flex items-center justify-center border border-zinc-200 flex-shrink-0">
+                  <span className="text-[10px] font-black text-zinc-400">{displayInitials}</span>
+               </div>
+               <div className="flex-1">
+                 <h2 className="font-bold text-xs text-zinc-900 uppercase mb-2 pr-4 relative">
+                   {item.products?.name || item.name || 'Item'} ({item.id || item.tag_id || 'N/A'})
+                   <Info className="w-3.5 h-3.5 text-zinc-400 absolute right-0 top-0" />
+                 </h2>
+                 <div className="grid grid-cols-2 gap-y-1 text-xs">
+                   <p className="text-zinc-500">Price</p>
+                   <p className="text-right font-medium">₹{item.unitPriceStr}</p>
+                   
+                   <p className="text-zinc-500">Qty.</p>
+                   <p className="text-right font-medium">{item.qty}</p>
+                   
+                   {hasGst && (
+                     <>
+                       <p className="text-zinc-500 flex items-center gap-1">GST <Info className="w-3 h-3 text-zinc-400"/></p>
+                       <p className="text-right font-medium">₹{item.gstAmountStr}</p>
+                     </>
+                   )}
+                   
+                   <p className="text-zinc-800 font-bold mt-1">Total</p>
+                   <p className="text-right font-bold text-zinc-800 mt-1">₹{item.totalStr}</p>
+                 </div>
+               </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="border-b border-zinc-200 w-full mb-4" />
+
+        {/* TOTALS */}
+        <div className="flex flex-col gap-1.5 text-sm mb-6">
+          <div className="flex justify-between items-center">
+            <p className="text-zinc-600">Total Sale</p>
+            <p className="font-medium text-zinc-900">₹{totalSaleExact.toFixed(2)}</p>
           </div>
-          <div className="flex flex-col gap-5">
-            {processedItems.map((item: any, idx: number) => (
-              <div key={idx} className="flex justify-between items-start group">
-                <div className="max-w-[75%]">
-                  <p className="font-bold text-sm text-zinc-900 leading-tight">
-                    {item.products?.name || item.name || 'Item'}
-                  </p>
-                  <div className="flex flex-col gap-0.5 mt-1">
-                    <p className="text-[9px] text-zinc-400 font-mono font-bold uppercase tracking-widest">
-                      TAG: {item.id || item.tag_id || 'N/A'}
-                    </p>
-                    {hasGst && (
-                      <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5">
-                        GST {item.gstRate}% (CGST: ₹{item.cgstAmount} | SGST: ₹{item.sgstAmount})
-                      </p>
-                    )}
+          <div className="flex justify-between items-center">
+            <p className="text-zinc-900 font-bold text-base">Amount Payable</p>
+            <p className="font-bold text-base text-zinc-900">₹{amountPayable.toFixed(2)}</p>
+          </div>
+        </div>
+
+        {/* PAYMENT TENDER INFO */}
+        <div className="mb-6">
+          <p className="font-bold text-sm text-zinc-900 mb-2">Tender</p>
+          <div className="flex justify-between items-center text-sm text-zinc-600">
+            <div>
+              <p>{saleData.payment_method || 'Cash / Offline'}</p>
+              {saleData.transaction_id && <p className="text-xs text-zinc-400">Ref. No: {saleData.transaction_id}</p>}
+            </div>
+            <p className="font-medium text-zinc-900">₹{amountPayable.toFixed(2)}</p>
+          </div>
+        </div>
+
+        {/* TAX SUMMARY TABLE */}
+        {hasGst && Object.keys(taxSummary).length > 0 && (
+          <div className="mb-8">
+            <p className="text-sm font-bold text-zinc-800 mb-3">Tax Summary</p>
+            <div className="w-full text-xs text-zinc-600">
+              <div className="grid grid-cols-3 font-bold text-zinc-800 border-b border-zinc-200 pb-2 mb-2">
+                <p>Tax</p>
+                <p className="text-center">Rate</p>
+                <p className="text-right">Tax Amount</p>
+              </div>
+              
+              {/* Loop through the grouped rates dynamically */}
+              {Object.entries(taxSummary).map(([rate, amounts], i) => (
+                <div key={i} className="flex flex-col gap-2">
+                  <div className="grid grid-cols-3">
+                    <p>CGST</p>
+                    <p className="text-center">{rate}%</p>
+                    <p className="text-right">₹{amounts.cgst.toFixed(2)}</p>
+                  </div>
+                  <div className="grid grid-cols-3 mb-2">
+                    <p>SGST</p>
+                    <p className="text-center">{rate}%</p>
+                    <p className="text-right">₹{amounts.sgst.toFixed(2)}</p>
                   </div>
                 </div>
-                {/* Right side shows Base Amount like before */}
-                <p className="font-black text-sm text-zinc-900 mt-0.5">₹{item.basePrice}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="border-t border-zinc-200 print:border-zinc-300 w-full my-4" />
-
-        {/* 4. TOTALS SUMMATION */}
-        {hasGst ? (
-          <div className="flex flex-col gap-2 mb-6">
-            <div className="flex justify-between items-center text-sm">
-              <p className="text-zinc-500 font-bold">Subtotal (Excl. Tax)</p>
-              <p className="font-black text-zinc-800">₹{totalBaseAmount}</p>
-            </div>
-            <div className="flex justify-between items-center text-sm">
-              <p className="text-zinc-500 font-bold">Total CGST</p>
-              <p className="font-black text-zinc-600">+ ₹{totalCgst}</p>
-            </div>
-            <div className="flex justify-between items-center text-sm">
-              <p className="text-zinc-500 font-bold">Total SGST</p>
-              <p className="font-black text-zinc-600">+ ₹{totalSgst}</p>
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-2 mb-6">
-            <div className="flex justify-between items-center text-sm">
-              <p className="text-zinc-500 font-bold">Subtotal</p>
-              <p className="font-black text-zinc-800">₹{saleData.total_amount}</p>
-            </div>
-            <div className="flex justify-between items-center text-sm">
-              <p className="text-zinc-500 font-bold">Tax & Charges</p>
-              <p className="font-black text-zinc-400">₹0</p>
+              ))}
             </div>
           </div>
         )}
 
-        <div className="border-t-2 border-dashed border-zinc-200 print:border-zinc-300 w-full my-6" />
+        <div className="border-b border-zinc-200 w-full mb-4" />
 
-        {/* GRAND TOTAL */}
-        <div className="flex justify-between items-end mb-12 bg-zinc-50 p-5 rounded-2xl print:bg-transparent print:p-0">
-          <p className="text-[11px] font-black uppercase tracking-widest text-zinc-500">Grand Total</p>
-          <p className="text-4xl font-black tracking-tighter text-zinc-900">₹{saleData.total_amount}</p>
+        {/* FINAL PAID AMOUNT & BARCODE */}
+        <div className="flex justify-between items-center font-bold text-sm text-zinc-900 mb-6">
+          <p>Total Amount Paid</p>
+          <p>₹{amountPayable.toFixed(2)}</p>
         </div>
 
-        {/* FOOTER */}
-        <div className="text-center text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex flex-col gap-1 items-center">
-          <Receipt className="w-4 h-4 mb-1 text-zinc-300" />
-          <p>Thank you for shopping at {displayName}</p>
-          <p>This is a computer generated receipt.</p>
+        <div className="flex flex-col items-center justify-center mb-6">
+           {/* Simulated Barcode visual */}
+           <div className="w-full h-16 bg-[repeating-linear-gradient(90deg,#000,#000_2px,transparent_2px,transparent_4px,#000_4px,#000_5px,transparent_5px,transparent_8px,#000_8px,#000_12px,transparent_12px,transparent_14px)] opacity-90 mb-2"></div>
+           <p className="text-xs text-zinc-500 font-medium tracking-widest">{safeCartId}</p>
         </div>
+
       </motion.main>
-
-      {/* TRENDING LOOP */}
-      {trendingProducts.length > 0 && (
-        <div className="mt-16 print:hidden overflow-hidden w-full">
-          <div className="px-6 sm:max-w-md mx-auto mb-6 flex items-center justify-between">
-            <h3 className="text-base font-black tracking-tight uppercase text-zinc-800">Trending Now</h3>
-            <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">New Arrivals</span>
-          </div>
-
-          <div className="relative w-full flex overflow-x-hidden">
-            <div className="absolute inset-y-0 left-0 w-12 bg-gradient-to-r from-[#F5F5F7] to-transparent z-10" />
-            <div className="absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-[#F5F5F7] to-transparent z-10" />
-
-            <motion.div 
-              className="flex gap-4 px-6 items-center whitespace-nowrap py-4"
-              animate={{ x: ["0%", "-50%"] }}
-              transition={{ ease: "linear", duration: 30, repeat: Infinity }}
-              style={{ width: "fit-content" }}
-            >
-              {[...trendingProducts, ...trendingProducts].map((product, index) => (
-                <div key={index} className="w-[150px] flex-shrink-0 bg-white rounded-3xl p-2.5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] border border-zinc-100 group cursor-pointer hover:shadow-xl transition-all">
-                  <div className="w-full h-[160px] bg-zinc-100 rounded-2xl overflow-hidden relative mb-3">
-                    {product.image_url ? (
-                      <img src={product.image_url} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center"><ShoppingBag className="text-zinc-300 w-8 h-8" /></div>
-                    )}
-                  </div>
-                  <div className="px-1 pb-1">
-                    <h4 className="font-bold text-xs text-zinc-900 truncate">{product.name}</h4>
-                    <p className="font-black text-sm mt-0.5" style={{ color: themeColor }}>₹{product.price}</p>
-                  </div>
-                </div>
-              ))}
-            </motion.div>
-          </div>
-        </div>
-      )}
 
       {/* FLOATING ACTION BUTTON */}
       <button 
         onClick={handlePrint}
-        className="fixed bottom-8 right-8 z-50 w-14 h-14 bg-black text-white rounded-full flex items-center justify-center shadow-[0_15px_30px_rgba(0,0,0,0.2)] hover:scale-110 active:scale-90 transition-all print:hidden"
+        className="fixed bottom-8 right-8 z-50 w-14 h-14 bg-red-600 text-white rounded-full flex items-center justify-center shadow-[0_15px_30px_rgba(225,29,72,0.3)] hover:scale-110 active:scale-90 transition-all print:hidden"
       >
         <Download className="w-5 h-5" />
       </button>
