@@ -109,15 +109,30 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     console.error("Failed to parse items", e);
   }
 
+  // 🔥 INCLUSIVE GST MATH ENGINE
+  const hasGst = storeData?.has_gst || false;
+  const gstNumber = storeData?.gst_number || '';
+  const gstRate = storeData?.gst_rate || 5; // Default 5% for Garments
+
+  let baseAmount = saleData.total_amount;
+  let cgst = 0;
+  let sgst = 0;
+
+  if (hasGst && saleData.total_amount > 0) {
+    // Reverse calculation formula: Total / (1 + (Rate/100))
+    baseAmount = Number((saleData.total_amount / (1 + gstRate / 100)).toFixed(2));
+    const totalGstAmount = saleData.total_amount - baseAmount;
+    cgst = Number((totalGstAmount / 2).toFixed(2));
+    sgst = Number((totalGstAmount / 2).toFixed(2));
+  }
+
   return (
-    // 🔥 FIX: print:min-h-0 ensures the container shrinks to exactly the size of the receipt content
     <div className="min-h-screen print:min-h-0 bg-[#F5F5F7] print:bg-white text-[#111] font-sans selection:bg-black selection:text-white pb-32 print:p-0">
       
       <motion.main 
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-        // 🔥 FIX: Removed all print height constraints, strictly standard block layout
         className="w-full max-w-md mx-auto bg-white min-h-screen print:min-h-0 sm:min-h-fit sm:mt-12 sm:rounded-[2rem] sm:shadow-[0_20px_60px_rgba(0,0,0,0.06)] print:shadow-none print:mt-4 print:rounded-[2rem] print:border print:border-zinc-200 p-8 sm:p-10 relative overflow-hidden"
       >
         <div className="absolute top-0 left-0 w-full h-1.5 print:hidden" style={{ backgroundColor: themeColor }} />
@@ -134,6 +149,14 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
             )}
           </div>
           <h1 className="text-2xl font-black tracking-tighter uppercase text-black leading-none">{displayName}</h1>
+          
+          {/* 🔥 DYNAMIC GSTIN DISPLAY */}
+          {hasGst && gstNumber && (
+            <p className="text-[10px] font-bold text-zinc-500 mt-2 uppercase tracking-widest">
+              GSTIN: {gstNumber}
+            </p>
+          )}
+          
           <p className="text-[9px] text-zinc-400 font-black uppercase tracking-[0.2em] mt-2 flex items-center justify-center gap-1">
             <Store className="w-3 h-3" /> OFFICIAL DIGITAL RECEIPT
           </p>
@@ -188,17 +211,34 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
 
         <div className="border-t border-zinc-200 print:border-zinc-300 w-full my-4" />
 
-        {/* 4. TOTALS */}
-        <div className="flex flex-col gap-2 mb-6">
-          <div className="flex justify-between items-center text-sm">
-            <p className="text-zinc-500 font-bold">Subtotal</p>
-            <p className="font-black text-zinc-800">₹{saleData.total_amount}</p>
+        {/* 4. DYNAMIC TOTALS (GST vs Non-GST) */}
+        {hasGst ? (
+          <div className="flex flex-col gap-2 mb-6">
+            <div className="flex justify-between items-center text-sm">
+              <p className="text-zinc-500 font-bold">Base Amount</p>
+              <p className="font-black text-zinc-800">₹{baseAmount}</p>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <p className="text-zinc-500 font-bold">CGST ({(gstRate/2)}%)</p>
+              <p className="font-black text-zinc-600">₹{cgst}</p>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <p className="text-zinc-500 font-bold">SGST ({(gstRate/2)}%)</p>
+              <p className="font-black text-zinc-600">₹{sgst}</p>
+            </div>
           </div>
-          <div className="flex justify-between items-center text-sm">
-            <p className="text-zinc-500 font-bold">Tax & Charges</p>
-            <p className="font-black text-zinc-400">₹0.00</p>
+        ) : (
+          <div className="flex flex-col gap-2 mb-6">
+            <div className="flex justify-between items-center text-sm">
+              <p className="text-zinc-500 font-bold">Subtotal</p>
+              <p className="font-black text-zinc-800">₹{saleData.total_amount}</p>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <p className="text-zinc-500 font-bold">Tax & Charges</p>
+              <p className="font-black text-zinc-400">₹0.00</p>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="border-t-2 border-dashed border-zinc-200 print:border-zinc-300 w-full my-6" />
 
@@ -262,10 +302,9 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
         <Download className="w-5 h-5" />
       </button>
 
-      {/* 🔥 THE ULTIMATE "NO B.S." PRINT CSS */}
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
-          @page { margin: 0.5cm; } /* Thoda sa margin taaki text ekdum border se na chipke */
+          @page { margin: 0.5cm; } 
           html, body {
             height: auto !important;
             min-height: 0 !important;
