@@ -118,7 +118,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     console.error("Failed to parse items", e);
   }
 
-  // 🔥 REALISTIC GST MATH ENGINE
+  // 🔥 REALISTIC & ROUNDED GST MATH ENGINE
   const hasGst = storeData?.has_gst || false;
   const gstNumber = storeData?.gst_number || '';
 
@@ -132,7 +132,6 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
       const itemPrice = Number(item.products?.price || item.price || 0);
       const applicableRate = itemPrice > 2500 ? 18 : 5; 
       
-      // Derive the base price for realistic display
       const itemBase = itemPrice / (1 + applicableRate / 100);
       const itemTax = itemPrice - itemBase;
 
@@ -142,21 +141,23 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
 
       processedItems.push({
         ...item,
-        basePrice: itemBase.toFixed(2),
+        // FIX: Rounding item base price
+        basePrice: Math.round(itemBase),
         gstRate: applicableRate
       });
     });
 
-    baseAmount = Number(baseAmount.toFixed(2));
-    cgst = Number(cgst.toFixed(2));
-    sgst = Number(sgst.toFixed(2));
+    // FIX: Rounding total amounts to remove decimals completely
+    baseAmount = Math.round(baseAmount);
+    cgst = Math.round(cgst);
+    sgst = Math.round(sgst);
   } else {
     processedItems = itemsList.map((item: any) => ({
       ...item,
-      basePrice: Number(item.products?.price || item.price || 0).toFixed(2),
+      basePrice: Math.round(Number(item.products?.price || item.price || 0)),
       gstRate: 0
     }));
-    baseAmount = saleData?.total_amount || 0;
+    baseAmount = Math.round(saleData?.total_amount || 0);
   }
 
   return (
@@ -221,7 +222,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
 
         <div className="border-t-2 border-dashed border-zinc-200 print:border-zinc-300 w-full my-6" />
 
-        {/* 3. ITEMIZED BILLING (Showing Base Price) */}
+        {/* 3. ITEMIZED BILLING */}
         <div className="mb-8">
           <div className="flex justify-between items-end mb-5">
             <p className="text-[10px] text-zinc-400 font-black uppercase tracking-widest">Purchased Items ({saleData.items_count})</p>
@@ -238,7 +239,6 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
                     TAG: {item.id || item.tag_id || 'N/A'} {hasGst && `| GST: ${item.gstRate}%`}
                   </p>
                 </div>
-                {/* Shows price without GST */}
                 <p className="font-black text-sm text-zinc-900">₹{item.basePrice}</p>
               </div>
             ))}
@@ -247,7 +247,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
 
         <div className="border-t border-zinc-200 print:border-zinc-300 w-full my-4" />
 
-        {/* 4. REALISTIC TOTALS */}
+        {/* 4. ROUNDED TOTALS */}
         {hasGst ? (
           <div className="flex flex-col gap-2 mb-6">
             <div className="flex justify-between items-center text-sm">
