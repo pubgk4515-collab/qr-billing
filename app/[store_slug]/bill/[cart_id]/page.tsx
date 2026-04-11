@@ -118,46 +118,54 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     console.error("Failed to parse items", e);
   }
 
-  // 🔥 REALISTIC & ROUNDED GST MATH ENGINE
+  // 🔥 ENTERPRISE LINE-ITEM GST MATH ENGINE
   const hasGst = storeData?.has_gst || false;
   const gstNumber = storeData?.gst_number || '';
 
-  let baseAmount = 0;
-  let cgst = 0;
-  let sgst = 0;
+  let totalBaseAmount = 0;
+  let totalCgst = 0;
+  let totalSgst = 0;
   let processedItems: any[] = [];
 
   if (hasGst && itemsList.length > 0) {
     itemsList.forEach((item: any) => {
-      const itemPrice = Number(item.products?.price || item.price || 0);
-      const applicableRate = itemPrice > 2500 ? 18 : 5; 
+      // Get the full selling price (inclusive)
+      const itemInclusivePrice = Math.round(Number(item.products?.price || item.price || 0));
       
-      const itemBase = itemPrice / (1 + applicableRate / 100);
-      const itemTax = itemPrice - itemBase;
+      // Determine Tax bracket
+      const gstRate = itemInclusivePrice > 2500 ? 18 : 5; 
+      const halfRate = gstRate / 2;
+      
+      // Calculate Exact Base
+      const exactBase = itemInclusivePrice / (1 + gstRate / 100);
+      
+      // Round Off Per-Item values to maintain perfect ledgers
+      const itemBase = Math.round(exactBase);
+      const itemTax = itemInclusivePrice - itemBase; // Ensures Base + Tax = Total
+      
+      const itemCgstAmount = Math.round(itemTax / 2);
+      const itemSgstAmount = itemTax - itemCgstAmount; // Ensures CGST + SGST = Item Tax
 
-      baseAmount += itemBase;
-      cgst += itemTax / 2;
-      sgst += itemTax / 2;
+      totalBaseAmount += itemBase;
+      totalCgst += itemCgstAmount;
+      totalSgst += itemSgstAmount;
 
       processedItems.push({
         ...item,
-        // FIX: Rounding item base price
-        basePrice: Math.round(itemBase),
-        gstRate: applicableRate
+        basePrice: itemBase,
+        gstRate: gstRate,
+        halfRate: halfRate,
+        cgstAmount: itemCgstAmount,
+        sgstAmount: itemSgstAmount,
       });
     });
-
-    // FIX: Rounding total amounts to remove decimals completely
-    baseAmount = Math.round(baseAmount);
-    cgst = Math.round(cgst);
-    sgst = Math.round(sgst);
   } else {
     processedItems = itemsList.map((item: any) => ({
       ...item,
       basePrice: Math.round(Number(item.products?.price || item.price || 0)),
       gstRate: 0
     }));
-    baseAmount = Math.round(saleData?.total_amount || 0);
+    totalBaseAmount = Math.round(saleData?.total_amount || 0);
   }
 
   return (
@@ -222,7 +230,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
 
         <div className="border-t-2 border-dashed border-zinc-200 print:border-zinc-300 w-full my-6" />
 
-        {/* 3. ITEMIZED BILLING */}
+        {/* 3. ITEMIZED BILLING (With Per-Item Tax Breakdown) */}
         <div className="mb-8">
           <div className="flex justify-between items-end mb-5">
             <p className="text-[10px] text-zinc-400 font-black uppercase tracking-widest">Purchased Items ({saleData.items_count})</p>
@@ -235,11 +243,19 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
                   <p className="font-bold text-sm text-zinc-900 leading-tight">
                     {item.products?.name || item.name || 'Item'}
                   </p>
-                  <p className="text-[9px] text-zinc-400 font-mono font-bold uppercase tracking-widest mt-1">
-                    TAG: {item.id || item.tag_id || 'N/A'} {hasGst && `| GST: ${item.gstRate}%`}
-                  </p>
+                  <div className="flex flex-col gap-0.5 mt-1">
+                    <p className="text-[9px] text-zinc-400 font-mono font-bold uppercase tracking-widest">
+                      TAG: {item.id || item.tag_id || 'N/A'}
+                    </p>
+                    {hasGst && (
+                      <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5">
+                        GST {item.gstRate}% (CGST: ₹{item.cgstAmount} | SGST: ₹{item.sgstAmount})
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <p className="font-black text-sm text-zinc-900">₹{item.basePrice}</p>
+                {/* Right side shows Base Amount like before */}
+                <p className="font-black text-sm text-zinc-900 mt-0.5">₹{item.basePrice}</p>
               </div>
             ))}
           </div>
@@ -247,20 +263,20 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
 
         <div className="border-t border-zinc-200 print:border-zinc-300 w-full my-4" />
 
-        {/* 4. ROUNDED TOTALS */}
+        {/* 4. TOTALS SUMMATION */}
         {hasGst ? (
           <div className="flex flex-col gap-2 mb-6">
             <div className="flex justify-between items-center text-sm">
               <p className="text-zinc-500 font-bold">Subtotal (Excl. Tax)</p>
-              <p className="font-black text-zinc-800">₹{baseAmount}</p>
+              <p className="font-black text-zinc-800">₹{totalBaseAmount}</p>
             </div>
             <div className="flex justify-between items-center text-sm">
-              <p className="text-zinc-500 font-bold">Add: CGST</p>
-              <p className="font-black text-zinc-600">+ ₹{cgst}</p>
+              <p className="text-zinc-500 font-bold">Total CGST</p>
+              <p className="font-black text-zinc-600">+ ₹{totalCgst}</p>
             </div>
             <div className="flex justify-between items-center text-sm">
-              <p className="text-zinc-500 font-bold">Add: SGST</p>
-              <p className="font-black text-zinc-600">+ ₹{sgst}</p>
+              <p className="text-zinc-500 font-bold">Total SGST</p>
+              <p className="font-black text-zinc-600">+ ₹{totalSgst}</p>
             </div>
           </div>
         ) : (
@@ -271,7 +287,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
             </div>
             <div className="flex justify-between items-center text-sm">
               <p className="text-zinc-500 font-bold">Tax & Charges</p>
-              <p className="font-black text-zinc-400">₹0.00</p>
+              <p className="font-black text-zinc-400">₹0</p>
             </div>
           </div>
         )}
