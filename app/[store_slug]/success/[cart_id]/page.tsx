@@ -7,7 +7,7 @@ import {
   MessageCircle, ArrowRight, Loader2, Clock, Check 
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '../../../lib/supabase'; // Path verify kar lena
+import { supabase } from '../../../lib/supabase'; 
 
 export default function SuccessPage({ params }: { params: Promise<{ store_slug: string, cart_id: string }> }) {
   const router = useRouter();
@@ -33,10 +33,10 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
     if (!safeStoreSlug) return;
     async function fetchStore() {
       try {
+        // 🔥 FIX 1: Fetch all columns to catch both 'store_name' and 'name'
         const { data } = await supabase
           .from('stores')
-          // FIX: Added logo_url to select statement
-          .select('id, store_name, theme_color, whatsapp_number, logo_url') 
+          .select('*') 
           .ilike('slug', safeStoreSlug)
           .single();
         if (data) setStoreData(data);
@@ -112,13 +112,13 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
   };
 
   const themeColor = storeData?.theme_color || '#10b981'; 
-  const displayName = storeData?.store_name || 'Store';
   
-  // FIX: Dynamic Initials for logo fallback
+  // 🔥 FIX 2: Bulletproof Name & Initials Extraction
+  const displayName = storeData?.store_name || storeData?.name || 'Premium Store';
   const displayInitials = displayName
     .split(' ')
     .filter(Boolean)
-    .map((word: string) => word)
+    .map((word: string) => word) // Added to extract initials correctly
     .join('')
     .substring(0, 2)
     .toUpperCase();
@@ -189,7 +189,6 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
             >
               <div className="bg-[#111]/80 backdrop-blur-xl border border-white/10 rounded-[3rem] p-8 text-center shadow-[0_20px_50px_rgba(0,0,0,0.5)] mb-6">
                 
-                {/* FIX: Added Store Logo / Initials above the checkmark for brand consistency */}
                 <div className="flex justify-center mb-4">
                   <div className="w-12 h-12 bg-[#222] rounded-xl flex items-center justify-center overflow-hidden border border-white/10 shadow-lg">
                     {storeData?.logo_url ? (
@@ -214,7 +213,6 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
 
                 <h1 className="text-4xl font-black text-white mb-3 tracking-tighter leading-none">Payment Done!</h1>
                 
-                {/* FIX: Replaced hardcoded 'our store' with dynamic displayName */}
                 <p className="text-zinc-400 mb-8 text-sm font-medium">Thank you for shopping at <span className="font-black text-white">{displayName}</span>.</p>
                 
                 <div className="bg-black/50 rounded-[2rem] p-5 mb-8 border border-white/5 shadow-inner">

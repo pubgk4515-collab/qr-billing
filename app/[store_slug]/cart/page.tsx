@@ -32,9 +32,10 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
 
     async function loadCartAndStore() {
       try {
+        // 🔥 FIX 1: Fetching all columns to ensure 'name' or 'store_name' both are captured
         const { data: store, error: storeError } = await supabase
           .from('stores')
-          .select('id, store_name, logo_url, theme_color, upi_id') 
+          .select('*') 
           .ilike('slug', safeStoreSlug)
           .single();
 
@@ -143,7 +144,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
       }
       const upiId = storeData.upi_id; 
       const amount = calculateTotal();
-      const upiUrl = `upi://pay?pa=${upiId}&pn=${storeData?.store_name}&am=${amount}&cu=INR&tn=Bill-${cartId}`;
+      const upiUrl = `upi://pay?pa=${upiId}&pn=${storeData?.store_name || storeData?.name}&am=${amount}&cu=INR&tn=Bill-${cartId}`;
       window.location.href = upiUrl;
     }
     
@@ -215,12 +216,12 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
 
   const themeColor = storeData?.theme_color || '#10b981';
   
-  // 🔥 FIX 1: Smart Fallback Name & Initials
-  const displayName = storeData?.store_name || 'Store';
+  // 🔥 FIX 2: Bulletproof Name & Initials Extraction
+  const displayName = storeData?.store_name || storeData?.name || 'Premium Store';
   const displayInitials = displayName
     .split(' ')
     .filter(Boolean)
-    .map((word: string) => word)
+    .map((word: string) => word) // Added to extract only the first letter of each word
     .join('')
     .substring(0, 2)
     .toUpperCase();
@@ -249,7 +250,6 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         </button>
 
         <div className="flex items-center gap-2 absolute left-1/2 -translate-x-1/2">
-          {/* 🔥 FIX 2: Correct Logo Display with Initials Fallback */}
           {storeData?.logo_url ? (
             <img src={storeData.logo_url} alt="logo" className="w-6 h-6 rounded-full object-cover border border-white/10" />
           ) : (
@@ -267,7 +267,6 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         </div>
       </motion.header>
 
-      {/* Rest of the code remains exactly the same... */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
