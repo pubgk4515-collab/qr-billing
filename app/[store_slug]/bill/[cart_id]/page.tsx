@@ -2,9 +2,10 @@
 
 import { use, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Download, CheckCircle2, Receipt, Loader2, ShoppingBag, Store, Info } from 'lucide-react';
+import { Download, Receipt, Loader2, ShoppingBag, Store } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
+import html2canvas from 'html2canvas';
 
 export default function PremiumDigitalBillPage({ params }: { params: Promise<{ store_slug: string, cart_id: string }> }) {
   const router = useRouter();
@@ -12,6 +13,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
   const { store_slug, cart_id } = resolvedParams;
 
   const [loading, setLoading] = useState(true);
+  const [isDownloading, setIsDownloading] = useState(false); // 🔥 Naya state UX ke liye
   const [storeData, setStoreData] = useState<any>(null);
   const [saleData, setSaleData] = useState<any>(null);
   const [trendingProducts, setTrendingProducts] = useState<any[]>([]);
@@ -70,8 +72,36 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     fetchEverything();
   }, [safeCartId, safeStoreSlug]);
 
-  const handlePrint = () => {
-    window.print();
+  // 🔥 THE MAGIC PNG DOWNLOADER
+  const handleDownloadReceipt = async () => {
+    const receiptElement = document.getElementById('receipt-container'); 
+    
+    if (!receiptElement) {
+      console.error("Receipt container missing!");
+      return;
+    }
+
+    setIsDownloading(true);
+
+    try {
+      // High-quality render ke liye configuration
+      const canvas = await html2canvas(receiptElement, { 
+        scale: 3, // Thermal printer pe text clear aayega
+        useCORS: true, 
+        backgroundColor: "#ffffff",
+        windowWidth: 400 // Ensures narrow formatting like a physical bill
+      });
+
+      const imageURL = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.href = imageURL;
+      link.download = `RG_Receipt_${safeCartId.substring(0,6)}.png`; 
+      link.click();
+    } catch (error) {
+      console.error("Receipt capture failed:", error);
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   const themeColor = storeData?.theme_color || '#111111'; 
@@ -113,7 +143,6 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     console.error("Failed to parse items", e);
   }
 
-  // 🔥 ADVANCED ENRICHED GST ENGINE (Per-Item Breakdown + Tax Summary Table)
   const hasGst = storeData?.has_gst || false;
   const gstNumber = storeData?.gst_number || '';
 
@@ -154,7 +183,6 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
         displayTotal: itemPrice.toFixed(2)
       });
     });
-
     baseAmount = Number(baseAmount.toFixed(2));
   } else {
     baseAmount = saleData?.total_amount || 0;
@@ -171,85 +199,87 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
   const sortedTaxRates = Object.values(taxSummary).sort((a, b) => a.rate - b.rate);
 
   return (
-    <div className="min-h-screen print:min-h-0 bg-[#F5F5F7] print:bg-white text-[#111] font-sans selection:bg-black selection:text-white pb-32 print:p-0">
+    <div className="min-h-screen bg-[#F5F5F7] text-[#111] font-sans selection:bg-black selection:text-white pb-32">
       
+      {/* 🔥 ADDED id="receipt-container" TO THIS MAIN TAG */}
       <motion.main 
+        id="receipt-container"
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-        className="w-full max-w-md mx-auto bg-white min-h-screen print:min-h-0 sm:min-h-fit sm:mt-12 sm:rounded-[2rem] sm:shadow-[0_20px_60px_rgba(0,0,0,0.06)] print:shadow-none print:mt-0 print:rounded-none print:border-none p-6 sm:p-10 print:p-4 relative overflow-hidden receipt-container"
+        className="w-full max-w-[80mm] mx-auto bg-white min-h-[fit-content] mt-12 p-6 sm:p-10 relative overflow-hidden receipt-container shadow-sm border border-zinc-100"
       >
-        <div className="absolute top-0 left-0 w-full h-1.5 print:hidden" style={{ backgroundColor: themeColor }} />
+        <div className="absolute top-0 left-0 w-full h-1.5" style={{ backgroundColor: themeColor }} />
 
         {/* 1. STORE BRANDING */}
-        <div className="flex flex-col items-center text-center mb-8 mt-4 print:mt-0 avoid-break">
-          <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center mb-4 shadow-lg overflow-hidden border border-zinc-100 print:shadow-none print:border-black print:rounded-lg print:w-12 print:h-12">
+        <div className="flex flex-col items-center text-center mb-8 mt-4 avoid-break">
+          <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center mb-4 overflow-hidden border border-zinc-100">
             {storeData?.logo_url ? (
               <img src={storeData.logo_url} alt="Store Logo" className="w-full h-full object-cover grayscale" />
             ) : (
-              <span className="text-white font-black text-2xl tracking-tighter print:text-xl">
+              <span className="text-white font-black text-2xl tracking-tighter">
                 {displayInitials}
               </span>
             )}
           </div>
-          <h1 className="text-xl font-black tracking-tighter uppercase text-black leading-none print:text-lg">{displayName}</h1>
+          <h1 className="text-xl font-black tracking-tighter uppercase text-black leading-none">{displayName}</h1>
           
           {hasGst && gstNumber && (
-            <p className="text-[10px] font-bold text-zinc-500 mt-2 uppercase tracking-widest print:text-black">
+            <p className="text-[10px] font-bold text-zinc-500 mt-2 uppercase tracking-widest">
               GSTIN: {gstNumber}
             </p>
           )}
           
-          <p className="text-[9px] text-zinc-400 font-black uppercase tracking-[0.2em] mt-2 flex items-center justify-center gap-1 print:text-black">
-            <Store className="w-3 h-3 print:hidden" /> OFFICIAL DIGITAL RECEIPT
+          <p className="text-[9px] text-zinc-400 font-black uppercase tracking-[0.2em] mt-2 flex items-center justify-center gap-1">
+            <Store className="w-3 h-3" /> DIGITAL RECEIPT
           </p>
         </div>
 
-        <div className="border-t-2 border-dashed border-zinc-200 print:border-black w-full my-6 print:my-3 avoid-break" />
+        <div className="border-t-2 border-dashed border-zinc-200 w-full my-6 avoid-break" />
 
         {/* 2. ORDER METADATA */}
-        <div className="grid grid-cols-2 gap-y-6 print:gap-y-3 text-sm mb-6 print:mb-3 px-2 avoid-break">
+        <div className="grid grid-cols-2 gap-y-6 text-sm mb-6 px-2 avoid-break">
           <div>
-            <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1 print:text-black">Order ID</p>
-            <p className="font-black text-zinc-900 text-base print:text-sm">{safeCartId}</p>
+            <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Order ID</p>
+            <p className="font-black text-zinc-900 text-base">{safeCartId.substring(0,8)}</p>
           </div>
           <div className="text-right">
-            <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1 print:text-black">Date & Time</p>
-            <p className="font-bold text-zinc-800 print:text-xs">{formattedDate} <br/> <span className="text-xs text-zinc-500 print:text-black">{formattedTime}</span></p>
+            <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Date & Time</p>
+            <p className="font-bold text-zinc-800">{formattedDate} <br/> <span className="text-xs text-zinc-500">{formattedTime}</span></p>
           </div>
         </div>
 
-        <div className="border-t border-zinc-200 print:border-black w-full my-6 print:my-3 avoid-break" />
+        <div className="border-t border-zinc-200 w-full my-6 avoid-break" />
 
         {/* 3. ITEMIZED BILLING */}
-        <div className="mb-8 print:mb-4">
-          <p className="text-[11px] text-zinc-800 font-black mb-4 print:mb-2 avoid-break">Order Summary <span className="text-zinc-400 font-medium print:text-black">#{safeCartId.substring(0,8)}</span></p>
+        <div className="mb-8">
+          <p className="text-[11px] text-zinc-800 font-black mb-4 avoid-break">Order Summary</p>
           
-          <div className="flex flex-col gap-3 print:gap-2">
+          <div className="flex flex-col gap-3">
             {enrichedItems.map((item, idx) => (
-              <div key={idx} className="bg-white border border-zinc-200 print:border-black rounded-2xl print:rounded-none p-4 print:p-2 flex gap-4 print:gap-2 shadow-sm print:shadow-none relative overflow-hidden avoid-break">
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-zinc-200 print:hidden" style={{ backgroundColor: themeColor }} />
+              <div key={idx} className="bg-white border border-zinc-200 p-4 flex gap-4 relative overflow-hidden avoid-break">
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-zinc-200" style={{ backgroundColor: themeColor }} />
                 
                 <div className="flex-1">
-                  <div className="flex justify-between items-start mb-3 print:mb-1">
+                  <div className="flex justify-between items-start mb-3">
                     <div>
-                      <h4 className="font-bold text-sm text-zinc-900 uppercase leading-tight pr-4 print:text-xs">{item.name}</h4>
-                      <p className="text-[9px] font-mono font-bold text-zinc-400 mt-0.5 print:text-black">TAG: {item.tagId}</p>
+                      <h4 className="font-bold text-sm text-zinc-900 uppercase leading-tight pr-4">{item.name}</h4>
+                      <p className="text-[9px] font-mono font-bold text-zinc-400 mt-0.5">TAG: {item.tagId.substring(0,6)}</p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-[1fr_auto] gap-y-1.5 print:gap-y-0.5 text-[13px] print:text-[10px]">
-                    <div className="text-zinc-500 print:text-black">Price</div>
-                    <div className="text-right font-medium text-zinc-800 print:text-black">₹{item.displayPrice}</div>
+                  <div className="grid grid-cols-[1fr_auto] gap-y-1.5 text-[13px]">
+                    <div className="text-zinc-500">Price</div>
+                    <div className="text-right font-medium text-zinc-800">₹{item.displayPrice}</div>
                     
-                    <div className="text-zinc-500 print:text-black">Qty.</div>
-                    <div className="text-right font-medium text-zinc-800 print:text-black">{item.displayQty}</div>
+                    <div className="text-zinc-500">Qty.</div>
+                    <div className="text-right font-medium text-zinc-800">{item.displayQty}</div>
                     
-                    <div className="text-zinc-500 flex items-center gap-1 print:text-black">GST</div>
-                    <div className="text-right font-medium text-zinc-800 print:text-black">₹{item.displayGst}</div>
+                    <div className="text-zinc-500 flex items-center gap-1">GST</div>
+                    <div className="text-right font-medium text-zinc-800">₹{item.displayGst}</div>
                     
-                    <div className="text-zinc-800 font-bold mt-1 print:mt-0 print:text-black">Total</div>
-                    <div className="text-right font-black text-zinc-900 mt-1 print:mt-0 print:text-black">₹{item.displayTotal}</div>
+                    <div className="text-zinc-800 font-bold mt-1">Total</div>
+                    <div className="text-right font-black text-zinc-900 mt-1">₹{item.displayTotal}</div>
                   </div>
                 </div>
               </div>
@@ -257,42 +287,38 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
           </div>
         </div>
 
-        <div className="border-t-2 border-dashed border-zinc-200 print:border-black w-full my-6 print:my-3 avoid-break" />
+        <div className="border-t-2 border-dashed border-zinc-200 w-full my-6 avoid-break" />
 
         {/* 4. TOTALS & PAYMENT */}
-        <div className="px-2 mb-8 print:mb-4 avoid-break">
-          <div className="flex justify-between items-center text-sm print:text-[11px] mb-2 print:mb-1">
+        <div className="px-2 mb-8 avoid-break">
+          <div className="flex justify-between items-center text-sm mb-2">
             <p className="text-zinc-800 font-medium">Total Sale</p>
             <p className="font-bold text-zinc-800">₹{saleData.total_amount?.toFixed(2)}</p>
           </div>
-          <div className="flex justify-between items-center text-sm print:text-xs font-black mb-6 print:mb-3">
+          <div className="flex justify-between items-center text-sm font-black mb-6">
             <p className="text-zinc-900">Amount Payable</p>
             <p className="text-zinc-900">₹{saleData.total_amount?.toFixed(2)}</p>
           </div>
 
-          <p className="text-[11px] font-bold text-zinc-800 mb-3 print:mb-1">Tender</p>
-          <div className="flex justify-between items-center text-sm print:text-[11px] border-b border-zinc-100 print:border-black pb-2 mb-2 print:pb-1 print:mb-1">
-            <p className="text-zinc-600 capitalize print:text-black">{saleData.payment_method || 'Cash'}</p>
+          <p className="text-[11px] font-bold text-zinc-800 mb-3">Tender</p>
+          <div className="flex justify-between items-center text-sm border-b border-zinc-100 pb-2 mb-2">
+            <p className="text-zinc-600 capitalize">{saleData.payment_method || 'Cash'}</p>
             <p className="font-medium text-zinc-800">₹{saleData.total_amount?.toFixed(2)}</p>
-          </div>
-          <div className="flex justify-between items-center text-sm print:text-[11px]">
-            <p className="text-zinc-500 print:text-black">Ref. No.</p>
-            <p className="font-mono text-xs text-zinc-500 print:text-black">{saleData.id?.substring(0,8) || 'N/A'}</p>
           </div>
         </div>
 
         {/* 5. TAX SUMMARY TABLE */}
         {hasGst && (
-          <div className="px-2 mb-8 print:mb-4 avoid-break">
-            <p className="text-[11px] font-bold text-zinc-800 mb-3 print:mb-1">Tax Summary</p>
+          <div className="px-2 mb-8 avoid-break">
+            <p className="text-[11px] font-bold text-zinc-800 mb-3">Tax Summary</p>
             
-            <div className="grid grid-cols-[1fr_1fr_auto] gap-y-2 text-sm print:text-[10px] border-b border-zinc-200 print:border-black pb-2 mb-2 print:pb-1 print:mb-1">
+            <div className="grid grid-cols-[1fr_1fr_auto] gap-y-2 text-sm border-b border-zinc-200 pb-2 mb-2">
               <div className="font-bold text-zinc-900">Tax</div>
               <div className="font-bold text-zinc-900">Rate</div>
-              <div className="font-bold text-zinc-900 text-right">Tax Amount</div>
+              <div className="font-bold text-zinc-900 text-right">Amount</div>
             </div>
 
-            <div className="flex flex-col gap-2 print:gap-1 text-[13px] print:text-[10px] text-zinc-600 print:text-black mb-4 print:mb-2">
+            <div className="flex flex-col gap-2 text-[13px] text-zinc-600 mb-4">
               {sortedTaxRates.map((tax, idx) => (
                 <div key={`cgst-${idx}`} className="grid grid-cols-[1fr_1fr_auto]">
                   <div>CGST</div>
@@ -309,23 +335,21 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
               ))}
             </div>
 
-            <div className="flex justify-between items-center text-sm print:text-xs pt-2 border-t border-zinc-200 print:border-black font-black">
+            <div className="flex justify-between items-center text-sm pt-2 border-t border-zinc-200 font-black">
               <p className="text-zinc-900">Total Amount Paid</p>
               <p className="text-zinc-900">₹{saleData.total_amount?.toFixed(2)}</p>
             </div>
           </div>
         )}
 
-        {/* FOOTER */}
-        <div className="text-center text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex flex-col gap-1 items-center mt-10 print:mt-6 print:text-black avoid-break">
+        <div className="text-center text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex flex-col gap-1 items-center mt-10 avoid-break">
           <p>Thank you for shopping at {displayName}</p>
-          <p className="print:text-[8px]">This is a computer generated receipt.</p>
         </div>
       </motion.main>
 
-      {/* TRENDING LOOP - HIDDEN IN PRINT */}
+      {/* TRENDING LOOP - HIDDEN FROM PNG CAPTURE BECAUSE IT'S OUTSIDE receipt-container */}
       {trendingProducts.length > 0 && (
-        <div className="mt-16 print:hidden overflow-hidden w-full">
+        <div className="mt-16 overflow-hidden w-full">
           <div className="px-6 sm:max-w-md mx-auto mb-6 flex items-center justify-between">
             <h3 className="text-base font-black tracking-tight uppercase text-zinc-800">Trending Now</h3>
             <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">New Arrivals</span>
@@ -361,45 +385,18 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
         </div>
       )}
 
-      {/* FLOATING ACTION BUTTON */}
+      {/* 🔥 UPGRADED FLOATING ACTION BUTTON */}
       <button 
-        onClick={handlePrint}
-        className="fixed bottom-8 right-8 z-50 w-14 h-14 bg-black text-white rounded-full flex items-center justify-center shadow-[0_15px_30px_rgba(0,0,0,0.2)] hover:scale-110 active:scale-90 transition-all print:hidden"
+        onClick={handleDownloadReceipt}
+        disabled={isDownloading}
+        className="fixed bottom-8 right-8 z-50 w-14 h-14 bg-black text-white rounded-full flex items-center justify-center shadow-[0_15px_30px_rgba(0,0,0,0.2)] hover:scale-110 active:scale-90 transition-all disabled:opacity-70 disabled:hover:scale-100"
       >
-        <Download className="w-5 h-5" />
+        {isDownloading ? (
+          <Loader2 className="w-5 h-5 animate-spin" />
+        ) : (
+          <Download className="w-5 h-5" />
+        )}
       </button>
-
-      {/* 🔥 THE THERMAL PRINT MAGIC SPELL */}
-      <style dangerouslySetInnerHTML={{__html: `
-        @media print {
-          @page { 
-            margin: 0; 
-            size: 80mm auto; 
-          } 
-          html, body {
-            width: 80mm !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            background-color: white !important;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-          .receipt-container {
-            width: 80mm !important;
-            max-width: 80mm !important;
-            box-shadow: none !important;
-            border: none !important;
-            margin: 0 auto !important;
-            color: black !important;
-          }
-          * {
-            color: black !important;
-          }
-          .avoid-break {
-            page-break-inside: avoid;
-          }
-        }
-      `}} />
 
     </div>
   );
