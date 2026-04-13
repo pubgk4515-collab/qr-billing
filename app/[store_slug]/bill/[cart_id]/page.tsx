@@ -27,8 +27,13 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     
     async function fetchEverything() {
       try {
-        const { data: rules } = await supabase.from('tax_rules').select('*');
-        if (rules) setTaxRules(rules);
+        // 🔥 ADDED RLS DEBUGGER LOGIC
+        const { data: rules, error: rulesError } = await supabase.from('tax_rules').select('*');
+        if (rulesError) {
+          console.error("⚠️ [CTO ALERT] Tax Rules Blocked by RLS! Disable RLS on tax_rules table.", rulesError.message);
+        } else if (rules) {
+          setTaxRules(rules);
+        }
 
         const { data: store } = await supabase
           .from('stores')
@@ -69,7 +74,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     fetchEverything();
   }, [safeCartId, safeStoreSlug]);
 
-  // 🔥 THE MAGIC PNG DOWNLOADER (BUG FIXED)
+  // 🔥 THE MAGIC PNG DOWNLOADER (100% BULLETPROOF UPGRADE)
   const handleDownloadReceipt = async () => {
     const receiptElement = document.getElementById('receipt-container'); 
     
@@ -82,18 +87,22 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
 
     try {
       const canvas = await html2canvas(receiptElement, { 
-        scale: 3, 
+        scale: 3, // Ultra-HD resolution for thermal printers
         useCORS: true, 
         backgroundColor: "#ffffff",
-        width: receiptElement.offsetWidth,
-        height: receiptElement.offsetHeight,
+        // 🔥 ULTIMATE FIX FOR BLACK HEADER & SCROLL GLITCHES
+        scrollX: 0,
+        scrollY: -window.scrollY, 
+        windowWidth: document.documentElement.offsetWidth,
         onclone: (doc) => {
           const el = doc.getElementById('receipt-container');
           if (el) {
-            // Remove any artifacts or borders during capture
+            // Remove any artifacts, borders, or animations during capture
+            el.style.transform = 'none'; 
             el.style.boxShadow = 'none';
             el.style.border = 'none';
             el.style.margin = '0';
+            el.style.borderRadius = '0';
           }
         }
       });
@@ -101,7 +110,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
       const imageURL = canvas.toDataURL('image/png', 1.0);
       const link = document.createElement('a');
       link.href = imageURL;
-      link.download = `RG_Receipt_${safeCartId.substring(0,6)}.png`; 
+      link.download = `RG_Receipt_${safeCartId.substring(0,8)}.png`; 
       link.click();
     } catch (error) {
       console.error("Receipt capture failed:", error);
@@ -205,18 +214,14 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
   const sortedTaxRates = Object.values(taxSummary).sort((a, b) => a.rate - b.rate);
 
   return (
-    // 🔥 FIX 1: Parent container padding instead of child margin. bg-white on mobile to avoid black areas.
     <div className="min-h-screen bg-white sm:bg-[#F5F5F7] text-[#111] font-sans selection:bg-black selection:text-white pb-32 pt-0 sm:pt-12 flex flex-col items-center">
       
-      {/* 🔥 FIX 2: Animation is on the wrapper, NOT on the receipt container! */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
         className="w-full flex justify-center"
       >
-        
-        {/* 🔥 FIX 3: Clean, un-animated container for html2canvas to capture perfectly at 80mm */}
         <div 
           id="receipt-container"
           className="bg-white relative overflow-hidden sm:shadow-2xl sm:rounded-2xl sm:border border-zinc-100 px-6 py-8 sm:p-10 w-full"
@@ -224,7 +229,6 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
         >
           <div className="absolute top-0 left-0 w-full h-1.5" style={{ backgroundColor: themeColor }} />
 
-          {/* 1. STORE BRANDING */}
           <div className="flex flex-col items-center text-center mb-8 mt-2 avoid-break">
             <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center mb-4 overflow-hidden border border-zinc-100">
               {storeData?.logo_url ? (
@@ -250,7 +254,6 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
 
           <div className="border-t-2 border-dashed border-zinc-200 w-full my-6 avoid-break" />
 
-          {/* 2. ORDER METADATA */}
           <div className="grid grid-cols-2 gap-y-6 text-sm mb-6 px-2 avoid-break">
             <div>
               <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Order ID</p>
@@ -264,7 +267,6 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
 
           <div className="border-t border-zinc-200 w-full my-6 avoid-break" />
 
-          {/* 3. ITEMIZED BILLING */}
           <div className="mb-8">
             <p className="text-[11px] text-zinc-800 font-black mb-4 avoid-break">Order Summary</p>
             
@@ -302,7 +304,6 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
 
           <div className="border-t-2 border-dashed border-zinc-200 w-full my-6 avoid-break" />
 
-          {/* 4. TOTALS & PAYMENT */}
           <div className="px-2 mb-8 avoid-break">
             <div className="flex justify-between items-center text-sm mb-2">
               <p className="text-zinc-800 font-medium">Total Sale</p>
@@ -320,7 +321,6 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
             </div>
           </div>
 
-          {/* 5. TAX SUMMARY TABLE */}
           {hasGst && (
             <div className="px-2 mb-8 avoid-break">
               <p className="text-[11px] font-bold text-zinc-800 mb-3">Tax Summary</p>
@@ -361,7 +361,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
         </div>
       </motion.div>
 
-      {/* TRENDING SECTION - Outside the capture area */}
+      {/* TRENDING SECTION */}
       {trendingProducts.length > 0 && (
         <div className="mt-16 overflow-hidden w-full">
           <div className="px-6 sm:max-w-md mx-auto mb-6 flex items-center justify-between">
