@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { Download, Receipt, Loader2, ShoppingBag, Store } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
-import html2canvas from 'html2canvas';
+import { toPng } from 'html-to-image'; // 🔥 THE MODERN REPLACEMENT
 
 export default function PremiumDigitalBillPage({ params }: { params: Promise<{ store_slug: string, cart_id: string }> }) {
   const router = useRouter();
@@ -27,13 +27,9 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     
     async function fetchEverything() {
       try {
-        // 🔥 ADDED RLS DEBUGGER LOGIC
         const { data: rules, error: rulesError } = await supabase.from('tax_rules').select('*');
-        if (rulesError) {
-          console.error("⚠️ [CTO ALERT] Tax Rules Blocked by RLS! Disable RLS on tax_rules table.", rulesError.message);
-        } else if (rules) {
-          setTaxRules(rules);
-        }
+        if (rulesError) console.error("Tax Rules RLS Error:", rulesError);
+        else if (rules) setTaxRules(rules);
 
         const { data: store } = await supabase
           .from('stores')
@@ -53,7 +49,6 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
             .maybeSingle();
 
           if (saleDataRecord) setSaleData(saleDataRecord); 
-          else setSaleData(null);
 
           const { data: products } = await supabase
             .from('products')
@@ -66,7 +61,6 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
         }
       } catch (err) {
         console.error("Error fetching bill details:", err);
-        setSaleData(null);
       } finally {
         setLoading(false);
       }
@@ -74,46 +68,33 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     fetchEverything();
   }, [safeCartId, safeStoreSlug]);
 
-  // 🔥 THE MAGIC PNG DOWNLOADER (100% BULLETPROOF UPGRADE)
+  // 🔥 UPGRADED DOWNLOADER WITH HTML-TO-IMAGE
   const handleDownloadReceipt = async () => {
     const receiptElement = document.getElementById('receipt-container'); 
-    
-    if (!receiptElement) {
-      console.error("Receipt container missing!");
-      return;
-    }
+    if (!receiptElement) return;
 
     setIsDownloading(true);
 
     try {
-      const canvas = await html2canvas(receiptElement, { 
-        scale: 3, // Ultra-HD resolution for thermal printers
-        useCORS: true, 
-        backgroundColor: "#ffffff",
-        // 🔥 ULTIMATE FIX FOR BLACK HEADER & SCROLL GLITCHES
-        scrollX: 0,
-        scrollY: -window.scrollY, 
-        windowWidth: document.documentElement.offsetWidth,
-        onclone: (doc) => {
-          const el = doc.getElementById('receipt-container');
-          if (el) {
-            // Remove any artifacts, borders, or animations during capture
-            el.style.transform = 'none'; 
-            el.style.boxShadow = 'none';
-            el.style.border = 'none';
-            el.style.margin = '0';
-            el.style.borderRadius = '0';
-          }
+      const dataUrl = await toPng(receiptElement, { 
+        quality: 1.0,
+        pixelRatio: 3, // For ultra-sharp thermal print text
+        backgroundColor: '#ffffff',
+        style: {
+          transform: 'none',
+          boxShadow: 'none',
+          margin: '0',
+          borderRadius: '0'
         }
       });
 
-      const imageURL = canvas.toDataURL('image/png', 1.0);
       const link = document.createElement('a');
-      link.href = imageURL;
-      link.download = `RG_Receipt_${safeCartId.substring(0,8)}.png`; 
+      link.href = dataUrl;
+      link.download = `RG_Receipt_${safeCartId.substring(0,6)}.png`; 
       link.click();
     } catch (error) {
       console.error("Receipt capture failed:", error);
+      alert("Download failed. Please try again.");
     } finally {
       setIsDownloading(false);
     }
@@ -126,9 +107,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
   if (loading) {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center gap-4">
-        <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }}>
-          <Loader2 className="w-10 h-10 text-zinc-300" style={{ color: themeColor }} />
-        </motion.div>
+        <Loader2 className="w-10 h-10 text-zinc-300 animate-spin" style={{ color: themeColor }} />
         <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Generating VIP Receipt</p>
       </div>
     );
@@ -139,7 +118,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
       <div className="min-h-screen bg-white flex items-center justify-center text-zinc-400 font-bold">
         <div className="text-center">
           <Receipt className="w-12 h-12 mx-auto mb-4 text-zinc-300" />
-          <p>Invoice not found or link expired.</p>
+          <p>Invoice not found.</p>
         </div>
       </div>
     );
@@ -151,9 +130,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
 
   let itemsList = [];
   try {
-    itemsList = typeof saleData.purchased_items === 'string' 
-      ? JSON.parse(saleData.purchased_items) 
-      : (saleData.purchased_items || []);
+    itemsList = typeof saleData.purchased_items === 'string' ? JSON.parse(saleData.purchased_items) : (saleData.purchased_items || []);
   } catch (e) {
     console.error("Failed to parse items", e);
   }
@@ -214,14 +191,11 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
   const sortedTaxRates = Object.values(taxSummary).sort((a, b) => a.rate - b.rate);
 
   return (
-    <div className="min-h-screen bg-white sm:bg-[#F5F5F7] text-[#111] font-sans selection:bg-black selection:text-white pb-32 pt-0 sm:pt-12 flex flex-col items-center">
+    <div className="min-h-screen bg-[#F5F5F7] text-[#111] font-sans selection:bg-black selection:text-white pb-32 flex flex-col items-center">
       
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ type: "spring", damping: 25, stiffness: 200 }}
-        className="w-full flex justify-center"
-      >
+      {/* 🚫 NO ANIMATION WRAPPER FOR CLEAN CAPTURE */}
+      <div className="w-full flex justify-center mt-0 sm:mt-12 bg-white sm:bg-transparent">
+        
         <div 
           id="receipt-container"
           className="bg-white relative overflow-hidden sm:shadow-2xl sm:rounded-2xl sm:border border-zinc-100 px-6 py-8 sm:p-10 w-full"
@@ -229,7 +203,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
         >
           <div className="absolute top-0 left-0 w-full h-1.5" style={{ backgroundColor: themeColor }} />
 
-          <div className="flex flex-col items-center text-center mb-8 mt-2 avoid-break">
+          <div className="flex flex-col items-center text-center mb-8 mt-2">
             <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center mb-4 overflow-hidden border border-zinc-100">
               {storeData?.logo_url ? (
                 <img src={storeData.logo_url} alt="Store Logo" className="w-full h-full object-cover grayscale" />
@@ -240,21 +214,13 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
               )}
             </div>
             <h1 className="text-xl font-black tracking-tighter uppercase text-black leading-none">{displayName}</h1>
-            
-            {hasGst && gstNumber && (
-              <p className="text-[10px] font-bold text-zinc-500 mt-2 uppercase tracking-widest">
-                GSTIN: {gstNumber}
-              </p>
-            )}
-            
-            <p className="text-[9px] text-zinc-400 font-black uppercase tracking-[0.2em] mt-2 flex items-center justify-center gap-1">
-              <Store className="w-3 h-3" /> DIGITAL RECEIPT
-            </p>
+            {hasGst && gstNumber && <p className="text-[10px] font-bold text-zinc-500 mt-2 uppercase tracking-widest">GSTIN: {gstNumber}</p>}
+            <p className="text-[9px] text-zinc-400 font-black uppercase tracking-[0.2em] mt-2 flex items-center justify-center gap-1"><Store className="w-3 h-3" /> DIGITAL RECEIPT</p>
           </div>
 
-          <div className="border-t-2 border-dashed border-zinc-200 w-full my-6 avoid-break" />
+          <div className="border-t-2 border-dashed border-zinc-200 w-full my-6" />
 
-          <div className="grid grid-cols-2 gap-y-6 text-sm mb-6 px-2 avoid-break">
+          <div className="grid grid-cols-2 gap-y-6 text-sm mb-6 px-2">
             <div>
               <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Order ID</p>
               <p className="font-black text-zinc-900 text-base">{safeCartId.substring(0,8)}</p>
@@ -265,16 +231,14 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
             </div>
           </div>
 
-          <div className="border-t border-zinc-200 w-full my-6 avoid-break" />
+          <div className="border-t border-zinc-200 w-full my-6" />
 
           <div className="mb-8">
-            <p className="text-[11px] text-zinc-800 font-black mb-4 avoid-break">Order Summary</p>
-            
+            <p className="text-[11px] text-zinc-800 font-black mb-4">Order Summary</p>
             <div className="flex flex-col gap-3">
               {enrichedItems.map((item, idx) => (
-                <div key={idx} className="bg-white border border-zinc-200 p-4 flex gap-4 relative overflow-hidden avoid-break">
+                <div key={idx} className="bg-white border border-zinc-200 p-4 flex gap-4 relative overflow-hidden">
                   <div className="absolute left-0 top-0 bottom-0 w-1 bg-zinc-200" style={{ backgroundColor: themeColor }} />
-                  
                   <div className="flex-1">
                     <div className="flex justify-between items-start mb-3">
                       <div>
@@ -282,17 +246,13 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
                         <p className="text-[9px] font-mono font-bold text-zinc-400 mt-0.5">TAG: {item.tagId.substring(0,6)}</p>
                       </div>
                     </div>
-
                     <div className="grid grid-cols-[1fr_auto] gap-y-1.5 text-[13px]">
                       <div className="text-zinc-500">Price</div>
                       <div className="text-right font-medium text-zinc-800">₹{item.displayPrice}</div>
-                      
                       <div className="text-zinc-500">Qty.</div>
                       <div className="text-right font-medium text-zinc-800">{item.displayQty}</div>
-                      
                       <div className="text-zinc-500 flex items-center gap-1">GST</div>
                       <div className="text-right font-medium text-zinc-800">₹{item.displayGst}</div>
-                      
                       <div className="text-zinc-800 font-bold mt-1">Total</div>
                       <div className="text-right font-black text-zinc-900 mt-1">₹{item.displayTotal}</div>
                     </div>
@@ -302,91 +262,50 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
             </div>
           </div>
 
-          <div className="border-t-2 border-dashed border-zinc-200 w-full my-6 avoid-break" />
+          <div className="border-t-2 border-dashed border-zinc-200 w-full my-6" />
 
-          <div className="px-2 mb-8 avoid-break">
-            <div className="flex justify-between items-center text-sm mb-2">
-              <p className="text-zinc-800 font-medium">Total Sale</p>
-              <p className="font-bold text-zinc-800">₹{saleData.total_amount?.toFixed(2)}</p>
-            </div>
-            <div className="flex justify-between items-center text-sm font-black mb-6">
-              <p className="text-zinc-900">Amount Payable</p>
-              <p className="text-zinc-900">₹{saleData.total_amount?.toFixed(2)}</p>
-            </div>
-
+          <div className="px-2 mb-8">
+            <div className="flex justify-between items-center text-sm mb-2"><p className="text-zinc-800 font-medium">Total Sale</p><p className="font-bold text-zinc-800">₹{saleData.total_amount?.toFixed(2)}</p></div>
+            <div className="flex justify-between items-center text-sm font-black mb-6"><p className="text-zinc-900">Amount Payable</p><p className="text-zinc-900">₹{saleData.total_amount?.toFixed(2)}</p></div>
             <p className="text-[11px] font-bold text-zinc-800 mb-3">Tender</p>
-            <div className="flex justify-between items-center text-sm border-b border-zinc-100 pb-2 mb-2">
-              <p className="text-zinc-600 capitalize">{saleData.payment_method || 'Cash'}</p>
-              <p className="font-medium text-zinc-800">₹{saleData.total_amount?.toFixed(2)}</p>
-            </div>
+            <div className="flex justify-between items-center text-sm border-b border-zinc-100 pb-2 mb-2"><p className="text-zinc-600 capitalize">{saleData.payment_method || 'Cash'}</p><p className="font-medium text-zinc-800">₹{saleData.total_amount?.toFixed(2)}</p></div>
           </div>
 
           {hasGst && (
-            <div className="px-2 mb-8 avoid-break">
+            <div className="px-2 mb-8">
               <p className="text-[11px] font-bold text-zinc-800 mb-3">Tax Summary</p>
-              
               <div className="grid grid-cols-[1fr_1fr_auto] gap-y-2 text-sm border-b border-zinc-200 pb-2 mb-2">
-                <div className="font-bold text-zinc-900">Tax</div>
-                <div className="font-bold text-zinc-900">Rate</div>
-                <div className="font-bold text-zinc-900 text-right">Amount</div>
+                <div className="font-bold text-zinc-900">Tax</div><div className="font-bold text-zinc-900">Rate</div><div className="font-bold text-zinc-900 text-right">Amount</div>
               </div>
-
               <div className="flex flex-col gap-2 text-[13px] text-zinc-600 mb-4">
-                {sortedTaxRates.map((tax, idx) => (
-                  <div key={`cgst-${idx}`} className="grid grid-cols-[1fr_1fr_auto]">
-                    <div>CGST</div>
-                    <div>{tax.rate.toFixed(2)}%</div>
-                    <div className="text-right font-medium">₹{tax.amount.toFixed(2)}</div>
-                  </div>
-                ))}
-                {sortedTaxRates.map((tax, idx) => (
-                  <div key={`sgst-${idx}`} className="grid grid-cols-[1fr_1fr_auto]">
-                    <div>SGST</div>
-                    <div>{tax.rate.toFixed(2)}%</div>
-                    <div className="text-right font-medium">₹{tax.amount.toFixed(2)}</div>
-                  </div>
-                ))}
+                {sortedTaxRates.map((tax, idx) => (<div key={`cgst-${idx}`} className="grid grid-cols-[1fr_1fr_auto]"><div>CGST</div><div>{tax.rate.toFixed(2)}%</div><div className="text-right font-medium">₹{tax.amount.toFixed(2)}</div></div>))}
+                {sortedTaxRates.map((tax, idx) => (<div key={`sgst-${idx}`} className="grid grid-cols-[1fr_1fr_auto]"><div>SGST</div><div>{tax.rate.toFixed(2)}%</div><div className="text-right font-medium">₹{tax.amount.toFixed(2)}</div></div>))}
               </div>
-
-              <div className="flex justify-between items-center text-sm pt-2 border-t border-zinc-200 font-black">
-                <p className="text-zinc-900">Total Amount Paid</p>
-                <p className="text-zinc-900">₹{saleData.total_amount?.toFixed(2)}</p>
-              </div>
+              <div className="flex justify-between items-center text-sm pt-2 border-t border-zinc-200 font-black"><p className="text-zinc-900">Total Amount Paid</p><p className="text-zinc-900">₹{saleData.total_amount?.toFixed(2)}</p></div>
             </div>
           )}
 
-          <div className="text-center text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex flex-col gap-1 items-center mt-10 avoid-break">
-            <p>Thank you for shopping at {displayName}</p>
-          </div>
+          <div className="text-center text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex flex-col gap-1 items-center mt-10"><p>Thank you for shopping at {displayName}</p></div>
         </div>
-      </motion.div>
+      </div>
 
-      {/* TRENDING SECTION */}
       {trendingProducts.length > 0 && (
-        <div className="mt-16 overflow-hidden w-full">
+        <motion.div 
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
+          className="mt-16 overflow-hidden w-full"
+        >
           <div className="px-6 sm:max-w-md mx-auto mb-6 flex items-center justify-between">
             <h3 className="text-base font-black tracking-tight uppercase text-zinc-800">Trending Now</h3>
             <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">New Arrivals</span>
           </div>
-
           <div className="relative w-full flex overflow-x-hidden">
-            <div className="absolute inset-y-0 left-0 w-12 bg-gradient-to-r from-white sm:from-[#F5F5F7] to-transparent z-10" />
-            <div className="absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-white sm:from-[#F5F5F7] to-transparent z-10" />
-
-            <motion.div 
-              className="flex gap-4 px-6 items-center whitespace-nowrap py-4"
-              animate={{ x: ["0%", "-50%"] }}
-              transition={{ ease: "linear", duration: 30, repeat: Infinity }}
-              style={{ width: "fit-content" }}
-            >
+            <div className="absolute inset-y-0 left-0 w-12 bg-gradient-to-r from-[#F5F5F7] to-transparent z-10" />
+            <div className="absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-[#F5F5F7] to-transparent z-10" />
+            <motion.div className="flex gap-4 px-6 items-center whitespace-nowrap py-4" animate={{ x: ["0%", "-50%"] }} transition={{ ease: "linear", duration: 30, repeat: Infinity }} style={{ width: "fit-content" }}>
               {[...trendingProducts, ...trendingProducts].map((product, index) => (
-                <div key={index} className="w-[150px] flex-shrink-0 bg-white rounded-3xl p-2.5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] border border-zinc-100 group cursor-pointer hover:shadow-xl transition-all">
+                <div key={index} className="w-[150px] flex-shrink-0 bg-white rounded-3xl p-2.5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] border border-zinc-100">
                   <div className="w-full h-[160px] bg-zinc-100 rounded-2xl overflow-hidden relative mb-3">
-                    {product.image_url ? (
-                      <img src={product.image_url} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center"><ShoppingBag className="text-zinc-300 w-8 h-8" /></div>
-                    )}
+                    {product.image_url ? <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><ShoppingBag className="text-zinc-300 w-8 h-8" /></div>}
                   </div>
                   <div className="px-1 pb-1">
                     <h4 className="font-bold text-xs text-zinc-900 truncate">{product.name}</h4>
@@ -396,20 +315,11 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
               ))}
             </motion.div>
           </div>
-        </div>
+        </motion.div>
       )}
 
-      {/* FLOATING ACTION BUTTON */}
-      <button 
-        onClick={handleDownloadReceipt}
-        disabled={isDownloading}
-        className="fixed bottom-8 right-8 z-50 w-14 h-14 bg-black text-white rounded-full flex items-center justify-center shadow-[0_15px_30px_rgba(0,0,0,0.2)] hover:scale-110 active:scale-90 transition-all disabled:opacity-70 disabled:hover:scale-100"
-      >
-        {isDownloading ? (
-          <Loader2 className="w-5 h-5 animate-spin" />
-        ) : (
-          <Download className="w-5 h-5" />
-        )}
+      <button onClick={handleDownloadReceipt} disabled={isDownloading} className="fixed bottom-8 right-8 z-50 w-14 h-14 bg-black text-white rounded-full flex items-center justify-center shadow-[0_15px_30px_rgba(0,0,0,0.2)] hover:scale-110 active:scale-90 transition-all disabled:opacity-70 disabled:hover:scale-100">
+        {isDownloading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
       </button>
 
     </div>
