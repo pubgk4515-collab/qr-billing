@@ -5,7 +5,8 @@ import { motion } from 'framer-motion';
 import { Download, Receipt, Loader2, ShoppingBag, Store } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
-import { toPng } from 'html-to-image'; // 🔥 THE MODERN REPLACEMENT
+import { toPng } from 'html-to-image'; 
+import jsPDF from 'jspdf'; // 🔥 THE ULTIMATE PDF ENGINE
 
 export default function PremiumDigitalBillPage({ params }: { params: Promise<{ store_slug: string, cart_id: string }> }) {
   const router = useRouter();
@@ -68,7 +69,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     fetchEverything();
   }, [safeCartId, safeStoreSlug]);
 
-  // 🔥 UPGRADED DOWNLOADER WITH HTML-TO-IMAGE
+  // 🔥 ENTERPRISE DYNAMIC PDF GENERATOR (80mm Thermal)
   const handleDownloadReceipt = async () => {
     const receiptElement = document.getElementById('receipt-container'); 
     if (!receiptElement) return;
@@ -76,9 +77,10 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     setIsDownloading(true);
 
     try {
+      // 1. Capture Ultra-HD Image first (Avoids CSS crashes)
       const dataUrl = await toPng(receiptElement, { 
         quality: 1.0,
-        pixelRatio: 3, // For ultra-sharp thermal print text
+        pixelRatio: 3, // 3x resolution for crisp thermal printing
         backgroundColor: '#ffffff',
         style: {
           transform: 'none',
@@ -88,13 +90,29 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
         }
       });
 
-      const link = document.createElement('a');
-      link.href = dataUrl;
-      link.download = `RG_Receipt_${safeCartId.substring(0,6)}.png`; 
-      link.click();
+      // 2. Load image to calculate exact dimensions
+      const img = new window.Image();
+      img.src = dataUrl;
+      await new Promise((resolve) => { img.onload = resolve; });
+
+      // 3. The Math Magic: Lock width to 80mm, calculate dynamic height
+      const pdfWidth = 80; // Standard 80mm thermal paper
+      const pdfHeight = (img.height * pdfWidth) / img.width; // Maintains perfect aspect ratio
+
+      // 4. Create custom-sized PDF
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: [pdfWidth, pdfHeight] // 🔥 DYNAMIC HEIGHT MAGIC
+      });
+
+      // 5. Add HD image to PDF and Download
+      pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`RG_Receipt_${safeCartId.substring(0,8)}.pdf`);
+
     } catch (error) {
-      console.error("Receipt capture failed:", error);
-      alert("Download failed. Please try again.");
+      console.error("PDF generation failed:", error);
+      alert("PDF Download failed. Please try again.");
     } finally {
       setIsDownloading(false);
     }
@@ -153,9 +171,17 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
         itemPrice <= Number(rule.max_price)
       );
 
-      const applicableRate = matchedRule ? Number(matchedRule.gst_rate) : (itemPrice > 2500 ? 18 : 5); 
-      const halfRate = applicableRate / 2;
+      // 🔥 CTO FALLBACK LOGIC: Ensures 18% for Leather even if DB rule is missing
+      let applicableRate = 5;
+      if (matchedRule) {
+        applicableRate = Number(matchedRule.gst_rate);
+      } else if (itemCategory.toLowerCase().includes('leather')) {
+        applicableRate = 18; 
+      } else {
+        applicableRate = itemPrice > 2500 ? 18 : 5;
+      }
       
+      const halfRate = applicableRate / 2;
       const itemBase = itemPrice / (1 + applicableRate / 100);
       const itemTax = itemPrice - itemBase;
 
