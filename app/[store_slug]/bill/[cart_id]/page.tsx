@@ -5,8 +5,7 @@ import { motion } from 'framer-motion';
 import { Download, Receipt, Loader2, ShoppingBag, Store } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
-import { toPng } from 'html-to-image'; 
-import jsPDF from 'jspdf'; // 🔥 THE ULTIMATE PDF ENGINE
+import { toPng } from 'html-to-image';
 
 export default function PremiumDigitalBillPage({ params }: { params: Promise<{ store_slug: string, cart_id: string }> }) {
   const router = useRouter();
@@ -69,7 +68,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     fetchEverything();
   }, [safeCartId, safeStoreSlug]);
 
-  // 🔥 ENTERPRISE DYNAMIC PDF GENERATOR (80mm Thermal)
+    // 🔥 ENTERPRISE DYNAMIC PDF GENERATOR (80mm Thermal)
   const handleDownloadReceipt = async () => {
     const receiptElement = document.getElementById('receipt-container'); 
     if (!receiptElement) return;
@@ -77,6 +76,10 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     setIsDownloading(true);
 
     try {
+      // 🔥 THE FIX: Dynamically import jsPDF ONLY when the button is clicked (Client-side bypass)
+      const jsPDFModule = await import('jspdf');
+      const jsPDF = jsPDFModule.default || jsPDFModule.jsPDF;
+
       // 1. Capture Ultra-HD Image first (Avoids CSS crashes)
       const dataUrl = await toPng(receiptElement, { 
         quality: 1.0,
@@ -117,6 +120,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
       setIsDownloading(false);
     }
   };
+
 
   const themeColor = storeData?.theme_color || '#111111'; 
   const displayName = storeData?.store_name || storeData?.name || 'Premium Store';
