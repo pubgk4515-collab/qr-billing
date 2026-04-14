@@ -5,7 +5,8 @@ import { motion } from 'framer-motion';
 import { Download, Receipt, Loader2, ShoppingBag, Store } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
-import { toPng } from 'html-to-image';
+import { toPng } from 'html-to-image'; 
+import Script from 'next/script'; // 🔥 THE ULTIMATE VERCEL BYPASS WEAPON
 
 export default function PremiumDigitalBillPage({ params }: { params: Promise<{ store_slug: string, cart_id: string }> }) {
   const router = useRouter();
@@ -68,7 +69,7 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     fetchEverything();
   }, [safeCartId, safeStoreSlug]);
 
-    // 🔥 ENTERPRISE DYNAMIC PDF GENERATOR (80mm Thermal)
+  // 🔥 ENTERPRISE DYNAMIC PDF GENERATOR (80mm Thermal)
   const handleDownloadReceipt = async () => {
     const receiptElement = document.getElementById('receipt-container'); 
     if (!receiptElement) return;
@@ -76,51 +77,45 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
     setIsDownloading(true);
 
     try {
-      // 🔥 THE FIX: Dynamically import jsPDF ONLY when the button is clicked (Client-side bypass)
-      const jsPDFModule = await import('jspdf');
-      const jsPDF = jsPDFModule.default || jsPDFModule.jsPDF;
-
-      // 1. Capture Ultra-HD Image first (Avoids CSS crashes)
+      // 1. Capture Ultra-HD Image first
       const dataUrl = await toPng(receiptElement, { 
         quality: 1.0,
-        pixelRatio: 3, // 3x resolution for crisp thermal printing
+        pixelRatio: 3, 
         backgroundColor: '#ffffff',
-        style: {
-          transform: 'none',
-          boxShadow: 'none',
-          margin: '0',
-          borderRadius: '0'
-        }
+        style: { transform: 'none', boxShadow: 'none', margin: '0', borderRadius: '0' }
       });
 
-      // 2. Load image to calculate exact dimensions
       const img = new window.Image();
       img.src = dataUrl;
       await new Promise((resolve) => { img.onload = resolve; });
 
-      // 3. The Math Magic: Lock width to 80mm, calculate dynamic height
-      const pdfWidth = 80; // Standard 80mm thermal paper
-      const pdfHeight = (img.height * pdfWidth) / img.width; // Maintains perfect aspect ratio
+      const pdfWidth = 80; 
+      const pdfHeight = (img.height * pdfWidth) / img.width; 
 
-      // 4. Create custom-sized PDF
+      // 🔥 THE BYPASS: Vercel ki bajaye seedha Cloud/Browser se PDF engine uthao
+      // @ts-ignore
+      const { jsPDF } = window.jspdf;
+
+      if (!jsPDF) {
+        throw new Error("PDF Engine not loaded yet.");
+      }
+
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
-        format: [pdfWidth, pdfHeight] // 🔥 DYNAMIC HEIGHT MAGIC
+        format: [pdfWidth, pdfHeight]
       });
 
-      // 5. Add HD image to PDF and Download
       pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`RG_Receipt_${safeCartId.substring(0,8)}.pdf`);
 
     } catch (error) {
       console.error("PDF generation failed:", error);
-      alert("PDF Download failed. Please try again.");
+      alert("PDF Download failed. Please try again in a few seconds.");
     } finally {
       setIsDownloading(false);
     }
   };
-
 
   const themeColor = storeData?.theme_color || '#111111'; 
   const displayName = storeData?.store_name || storeData?.name || 'Premium Store';
@@ -175,7 +170,6 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
         itemPrice <= Number(rule.max_price)
       );
 
-      // 🔥 CTO FALLBACK LOGIC: Ensures 18% for Leather even if DB rule is missing
       let applicableRate = 5;
       if (matchedRule) {
         applicableRate = Number(matchedRule.gst_rate);
@@ -223,6 +217,9 @@ export default function PremiumDigitalBillPage({ params }: { params: Promise<{ s
   return (
     <div className="min-h-screen bg-[#F5F5F7] text-[#111] font-sans selection:bg-black selection:text-white pb-32 flex flex-col items-center">
       
+      {/* 🔥 THE SILENT NINJA: Loads jsPDF from Cloud without Vercel knowing */}
+      <Script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" strategy="lazyOnload" />
+
       {/* 🚫 NO ANIMATION WRAPPER FOR CLEAN CAPTURE */}
       <div className="w-full flex justify-center mt-0 sm:mt-12 bg-white sm:bg-transparent">
         
