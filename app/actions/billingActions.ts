@@ -82,13 +82,14 @@ export async function processCheckout(
         id: tag.products?.id,
         name: tag.products?.name,
         price: tag.products?.price,
-        image_url: tag.products?.image_url
+        image_url: tag.products?.image_url,
+        size: tag.products?.size // Added size for better analytics tracking
       }
     }));
 
     // 5. Create the Sales Record with Store ID attached!
     const insertData: any = { 
-      store_id: store.id, // 🔥 BRAND NEW: Isolates sales per store
+      store_id: store.id,
       cart_id: cartDetails.cartId,
       total_amount: totalAmount, 
       items_count: tagsToSell.length,
@@ -101,10 +102,10 @@ export async function processCheckout(
     const { error: salesError } = await supabase.from('sales').insert(insertData);
     if (salesError) throw salesError;
 
-    // 6. LOCK THE TAGS
+    // 🔥 6. GHOST TAG KILLER: Fully reset the tags so they return to "Empty Tag" pool
     const { error: tagError } = await supabase
       .from('qr_tags')
-      .update({ status: 'sold' })
+      .update({ status: 'free', product_id: null }) // Fully wiped and ready to bind
       .in('id', tagIds);
 
     if (tagError) throw tagError;
@@ -145,15 +146,17 @@ export async function checkPaymentStatus(cartId: string) {
 }
 
 // ============================================================================
-// 📊 5. GET SALES DATA (Restored for Analytics Page)
+// 📊 5. GET SALES DATA (🔥 FIXED: Multi-Tenant Data Leak Blocked)
 // ============================================================================
-export async function getSalesData() {
+export async function getSalesData(storeId: string) { // <-- Added storeId requirement
+  if (!storeId) return { success: false, message: 'Store ID is required' };
+  
   try {
     const supabase = getSupabase();
-    // Fetch all sales (ordered by newest first)
     const { data, error } = await supabase
       .from('sales')
       .select('*')
+      .eq('store_id', storeId) // <-- Strict tenant isolation
       .order('created_at', { ascending: false });
       
     if (error) throw error;

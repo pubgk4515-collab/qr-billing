@@ -222,7 +222,7 @@ export default function PremiumStoreAnalytics({ params }: { params: Promise<{ st
               <h3 className="text-lg font-black tracking-tight text-white flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-red-500" /> Conversion Leakage
               </h3>
-              <p className="text-[10px] uppercase tracking-[0.1em] text-red-500/60 font-bold mt-1">High Interest • Zero Sales</p>
+              <p className="text-[10px] uppercase tracking-[0.1em] text-red-500/60 font-bold mt-1">High Interest • Low Sales</p>
             </div>
             <div className="bg-red-500/10 px-2.5 py-1 rounded-md border border-red-500/20">
               <span className="text-[10px] font-black text-red-500 tracking-widest uppercase">Action Required</span>
