@@ -25,8 +25,8 @@ export default function PremiumStoreAnalytics({ params }: { params: Promise<{ st
   const [sizeDistribution, setSizeDistribution] = useState<any[]>([]);
   const [vipCustomers, setVipCustomers] = useState<any[]>([]);
 
-  // 🔒 PREMIUM TOGGLE (Set to true to see unlocked state)
-  const isPremiumUser = false; 
+    // 🔒 PREMIUM TOGGLE (Connected to Super Admin God Mode)
+  const isPremiumUser = storeData?.is_premium === true; 
 
   useEffect(() => {
     if (!safeStoreSlug) return;
@@ -128,7 +128,7 @@ export default function PremiumStoreAnalytics({ params }: { params: Promise<{ st
             </button>
             <div>
               <h1 className="text-xl font-black tracking-tight leading-none flex items-center gap-2">
-                <BarChart3 className="w-5 h-5" style={{ color: themeColor }} /> Pulse Engine
+                <BarChart3 className="w-5 h-5" style={{ color: themeColor }} /> Analytics
               </h1>
               <p className="text-[9px] uppercase tracking-[0.2em] font-bold mt-1 text-zinc-500">Retail Intelligence</p>
             </div>
