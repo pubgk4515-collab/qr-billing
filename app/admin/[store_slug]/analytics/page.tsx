@@ -246,50 +246,54 @@ export default function PremiumStoreAnalytics({ params }: { params: Promise<{ st
           )}
         </motion.div>
 
-        {/* 🏆 5. VELOCITY MATRIX (Fully Blurred with Massive Metric Unblurred) */}
+                {/* 🏆 5. VELOCITY MATRIX (Fully Blurred Top to Bottom) */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="relative bg-[#0a0a0a] border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl mt-2">
           
-          <div className="p-6 pb-4 relative z-20 bg-[#0a0a0a] border-b border-white/5">
-            <div className="flex justify-between items-start mb-5">
-              <div>
-                <h3 className="text-base font-black tracking-tight text-white flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-amber-400" /> Velocity Matrix
-                </h3>
-                <p className="text-[9px] uppercase tracking-[0.1em] text-zinc-500 font-bold mt-0.5">Top Performing Inventory</p>
-              </div>
-              <div className="text-right">
-                <p className="text-[8px] font-black tracking-widest text-zinc-500 uppercase mb-0.5">Win Rate</p>
-                <p className="text-lg font-black leading-none text-emerald-400">{metrics.conversionRate}%</p>
-              </div>
-            </div>
-
-            {/* 🔥 MASSIVE TOP METRIC */}
-            <div>
-              <p className="text-[9px] text-zinc-400 uppercase font-black tracking-widest mb-1">Bestseller Contribution</p>
-              <h2 className="text-4xl font-black tracking-tighter text-white">₹{topSellersRevenue.toLocaleString('en-IN')}</h2>
-            </div>
-          </div>
-
-          {/* THE HEAVILY BLURRED GRID */}
-          <div className={`p-6 grid grid-cols-2 gap-3 ${!isPremiumUser ? 'filter blur-[12px] opacity-10 select-none pointer-events-none' : ''}`}>
-            {topProducts.length > 0 ? topProducts.map((product, i) => (
-              <div key={i} className="bg-[#111] p-3 rounded-[1.2rem] border border-white/5 relative group">
-                <div className="absolute top-2 right-2 text-[9px] font-black text-black bg-white px-1.5 py-0.5 rounded z-10">#{i+1}</div>
-                <div className="w-full aspect-square bg-[#050505] rounded-xl mb-3 overflow-hidden relative">
-                   <ShoppingBag className="w-6 h-6 text-zinc-800 m-auto mt-8" />
-                   <p className="absolute bottom-2 left-2 text-xs font-black text-white">₹{product.price}</p>
+          {/* 🔥 EVERYTHING WRAPPED IN BLUR DIV */}
+          <div className={`${!isPremiumUser ? 'filter blur-[8px] opacity-30 select-none pointer-events-none' : ''}`}>
+            
+            <div className="p-6 pb-4 relative z-20 bg-[#0a0a0a] border-b border-white/5">
+              <div className="flex justify-between items-start mb-5">
+                <div>
+                  <h3 className="text-base font-black tracking-tight text-white flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-amber-400" /> Velocity Matrix
+                  </h3>
+                  <p className="text-[9px] uppercase tracking-[0.1em] text-zinc-500 font-bold mt-0.5">Top Performing Inventory</p>
                 </div>
-                <h4 className="font-bold text-[11px] text-zinc-300 line-clamp-1">{product.name || 'Unnamed'}</h4>
-                <p className="text-[9px] font-bold text-zinc-500 mt-1 uppercase tracking-widest">{product.sales_count} Units Sold</p>
+                <div className="text-right">
+                  <p className="text-[8px] font-black tracking-widest text-zinc-500 uppercase mb-0.5">Win Rate</p>
+                  <p className="text-lg font-black leading-none text-emerald-400">{metrics.conversionRate}%</p>
+                </div>
               </div>
-            )) : (
-              <div className="col-span-2 text-center py-6 border border-dashed border-white/10 rounded-2xl"><p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Awaiting Data</p></div>
-            )}
+
+              {/* MASSIVE TOP METRIC (Now gets blurred too) */}
+              <div>
+                <p className="text-[9px] text-zinc-400 uppercase font-black tracking-widest mb-1">Bestseller Contribution</p>
+                <h2 className="text-4xl font-black tracking-tighter text-white">₹{topSellersRevenue.toLocaleString('en-IN')}</h2>
+              </div>
+            </div>
+
+            {/* THE GRID */}
+            <div className="p-6 grid grid-cols-2 gap-3">
+              {topProducts.length > 0 ? topProducts.map((product, i) => (
+                <div key={i} className="bg-[#111] p-3 rounded-[1.2rem] border border-white/5 relative group">
+                  <div className="absolute top-2 right-2 text-[9px] font-black text-black bg-white px-1.5 py-0.5 rounded z-10">#{i+1}</div>
+                  <div className="w-full aspect-square bg-[#050505] rounded-xl mb-3 overflow-hidden relative">
+                     <ShoppingBag className="w-6 h-6 text-zinc-800 m-auto mt-8" />
+                     <p className="absolute bottom-2 left-2 text-xs font-black text-white">₹{product.price}</p>
+                  </div>
+                  <h4 className="font-bold text-[11px] text-zinc-300 line-clamp-1">{product.name || 'Unnamed'}</h4>
+                  <p className="text-[9px] font-bold text-zinc-500 mt-1 uppercase tracking-widest">{product.sales_count} Units Sold</p>
+                </div>
+              )) : (
+                <div className="col-span-2 text-center py-6 border border-dashed border-white/10 rounded-2xl"><p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Awaiting Data</p></div>
+              )}
+            </div>
           </div>
 
-          {/* THE OVERLAY */}
+          {/* THE OVERLAY (Now covers the entire block perfectly) */}
           {!isPremiumUser && (
-            <div className="absolute inset-0 top-[140px] z-30 flex flex-col items-center justify-center bg-black/40 p-6">
+            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/40 p-6">
               <div className="w-12 h-12 rounded-full border border-white/10 flex items-center justify-center mb-4 shadow-xl">
                 <Lock className="w-5 h-5 text-zinc-300" />
               </div>
@@ -303,6 +307,7 @@ export default function PremiumStoreAnalytics({ params }: { params: Promise<{ st
             </div>
           )}
         </motion.div>
+
 
         {/* 📐 6. DEMAND GEOMETRY */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }} className="bg-[#0a0a0a] border border-white/5 rounded-[2rem] p-6 relative overflow-hidden mt-2">
