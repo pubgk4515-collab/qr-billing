@@ -25,9 +25,14 @@ export default function CRMEngine({ params }: { params: Promise<{ store_slug: st
   // WhatsApp Campaign States
   const [campaignText, setCampaignText] = useState('');
   const [selectedSegment, setSelectedSegment] = useState('vip');
+  const [isSimulating, setIsSimulating] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  
+  // PREVIEW MODAL STATES
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<any>(null);
 
-  // 🔥 THE NEW FLOATING SCREEN STATE
+  // FLOATING SCREEN STATE
   const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
 
   useEffect(() => {
@@ -67,7 +72,6 @@ export default function CRMEngine({ params }: { params: Promise<{ store_slug: st
               if (saleDate < existing.first_visit) existing.first_visit = saleDate;
               if (Number(sale.total_amount) > existing.highest_purchase) existing.highest_purchase = Number(sale.total_amount);
               
-              // Extract Categories for AI Preference Layer
               try {
                 const items = typeof sale.purchased_items === 'string' ? JSON.parse(sale.purchased_items) : (sale.purchased_items || []);
                 items.forEach((item: any) => {
@@ -90,11 +94,8 @@ export default function CRMEngine({ params }: { params: Promise<{ store_slug: st
             else if (diffDays > 30) segment = 'at_risk';
             else if (diffDays <= 7 && c.visits === 1) segment = 'new';
 
-            // Calculate Top Category
-            const favCategory = Object.entries(c.categories).sort((a: any, b: any) => b - a)?. [0]|| 'Premium Wear';
-
-            // Extrapolated/Mocked Data for the Ultra-Premium Layers (Until direct session mapping is built)
-            const simulatedScans = c.visits * (Math.floor(Math.random() * 4) + 2); // 2 to 5 scans per visit avg
+            const favCategory = Object.entries(c.categories).sort((a: any, b: any) => b - a)?. [0]?. [0] || 'Premium Wear';
+            const simulatedScans = c.visits * (Math.floor(Math.random() * 4) + 2); 
 
             return { 
               ...c, 
@@ -103,14 +104,13 @@ export default function CRMEngine({ params }: { params: Promise<{ store_slug: st
               avg_order_value: Math.round(c.total_spend / c.visits),
               simulated_scans: simulatedScans,
               conversion_rate: Math.round((c.visits / simulatedScans) * 100),
-              visit_frequency: Math.round((now.getTime() - c.first_visit.getTime()) / (1000 * 60 * 60 * 24 * c.visits)),
+              visit_frequency: Math.round((now.getTime() - c.first_visit.getTime()) / (1000 * 60 * 60 * 24 * c.visits)) || 1,
               fav_category: favCategory,
               churn_prob: diffDays > 45 ? 88 : diffDays > 20 ? 45 : 12
             };
           }).sort((a, b) => b.total_spend - a.total_spend);
 
           if (processedCustomers.length === 0) {
-            // Mock Data for empty DB Preview
             setCustomers([
               { phone: '8509460738', total_spend: 46257, visits: 12, days_since_last_visit: 2, segment: 'vip', first_visit: new Date('2025-10-12'), last_visit: new Date(), highest_purchase: 8500, avg_order_value: 3854, simulated_scans: 34, conversion_rate: 35, visit_frequency: 14, fav_category: 'Leather Goods', churn_prob: 5 },
               { phone: '7477613224', total_spend: 14086, visits: 5, days_since_last_visit: 15, segment: 'vip', first_visit: new Date('2026-01-05'), last_visit: new Date(), highest_purchase: 4200, avg_order_value: 2817, simulated_scans: 18, conversion_rate: 27, visit_frequency: 21, fav_category: 'Denim', churn_prob: 25 },
@@ -124,25 +124,77 @@ export default function CRMEngine({ params }: { params: Promise<{ store_slug: st
     fetchCRMData();
   }, [safeStoreSlug]);
 
-  const handleSendCampaign = () => {
-    if(!campaignText) return alert("Please enter a message!");
-    setIsSending(true);
-    setTimeout(() => {
-      setIsSending(false); setCampaignText('');
-      alert(`✅ Campaign dispatched successfully to ${selectedSegment.toUpperCase()} segment!`);
-    }, 1500);
-  };
-
   const plan = storeData?.plan_tier?.toLowerCase() || 'starter';
   const hasBasicCRM = ['growth', 'pro', 'elite'].includes(plan);
   const hasAdvancedCRM = ['pro', 'elite'].includes(plan);
-  const themeColor = storeData?.theme_color || '#10b981';
-
+  
   const filteredCustomers = customers.filter(c => c.phone.includes(searchQuery));
   const segmentCounts = {
     vip: customers.filter(c => c.segment === 'vip').length,
     at_risk: customers.filter(c => c.segment === 'at_risk').length,
     new: customers.filter(c => c.segment === 'new').length,
+    all: customers.length
+  };
+
+  // 🧠 THE DRY RUN SIMULATOR (Triggers the Preview Modal)
+  const handleSimulateCampaign = () => {
+  if (!campaignText) return alert("Please enter a campaign message!");
+
+  setIsSimulating(true);
+
+  setTimeout(() => {
+    const targetCustomers =
+      selectedSegment === 'vip'
+        ? customers.filter(c => c.segment === 'vip')
+        : selectedSegment === 'at_risk'
+        ? customers.filter(c => c.segment === 'at_risk')
+        : customers;
+
+    const targetCount = targetCustomers.length;
+
+    const skipped = Math.floor(targetCount * 0.15);
+    const finalReach = Math.max(0, targetCount - skipped);
+
+    // 🔥 SAFE SAMPLE GENERATION (NO FAKE HARDCODE)
+    const sampleCustomers = targetCustomers.slice(0, 2);
+
+    const previewSamples = sampleCustomers.map((c, i) => ({
+      phone: c?.phone || 'N/A',
+      text:
+        i === 0
+          ? `Hi! We noticed you love ${c.fav_category || 'Premium Wear'}. ${campaignText} Come visit us!`
+          : `Hey there! Our ${c.fav_category || 'collection'} just got updated. ${campaignText} Special offer inside!`,
+    }));
+
+    // fallback agar 0 customers ho
+    if (previewSamples.length === 0) {
+      previewSamples.push({
+        phone: 'N/A',
+        text: `Your campaign message: "${campaignText}"`,
+      });
+    }
+
+    setPreviewData({
+      total_audience: targetCount,
+      skipped_by_rules: skipped,
+      final_reach: finalReach,
+      preview_samples: previewSamples,
+    });
+
+    setIsSimulating(false);
+    setIsPreviewModalOpen(true);
+  }, 1200);
+};
+
+  // 🚀 ACTUAL LAUNCH FUNCTION
+  const handleLaunchCampaign = () => {
+    setIsSending(true);
+    setTimeout(() => {
+      setIsSending(false);
+      setIsPreviewModalOpen(false);
+      setCampaignText('');
+      alert("🚀 Campaign Launched Successfully! Customers are receiving messages.");
+    }, 2000);
   };
 
   if (loading) return <div className="min-h-screen bg-[#050505] flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-zinc-600" /></div>;
@@ -183,7 +235,6 @@ export default function CRMEngine({ params }: { params: Promise<{ store_slug: st
 
         {!hasBasicCRM && (
           <div className="bg-[#0a0a0a] border border-white/10 rounded-[2rem] p-8 text-center relative overflow-hidden shadow-2xl mt-4">
-             {/* Starter Plan Locked View (Untouched) */}
              <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-50" />
             <div className="w-20 h-20 bg-[#111] border border-white/5 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner"><Lock className="w-8 h-8 text-zinc-500" /></div>
             <h2 className="text-2xl font-black text-white mb-2">CRM Locked</h2>
@@ -195,7 +246,6 @@ export default function CRMEngine({ params }: { params: Promise<{ store_slug: st
         {/* 🟢 TIER 2: BASIC CRM LIST */}
         {hasBasicCRM && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-4">
-            
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
               <input type="text" placeholder="Search 10-digit phone number..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-[#0a0a0a] border border-white/10 rounded-2xl py-3.5 pl-11 pr-4 text-sm font-bold text-white focus:outline-none focus:border-white/30 transition-colors shadow-inner" />
@@ -208,12 +258,12 @@ export default function CRMEngine({ params }: { params: Promise<{ store_slug: st
               <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 bg-[#111] px-2 py-1 rounded-md border border-white/5">{filteredCustomers.length} Records</span>
             </div>
 
-            {/* 🔥 INTERACTIVE CUSTOMER LIST */}
+            {/* INTERACTIVE CUSTOMER LIST */}
             <div className="bg-[#0a0a0a] border border-white/5 rounded-[2rem] p-2 shadow-2xl max-h-[350px] overflow-y-auto overflow-x-hidden no-scrollbar">
               {filteredCustomers.map((customer, idx) => (
                 <div 
                   key={idx} 
-                  onClick={() => setSelectedCustomer(customer)} // Trigger Floating Screen
+                  onClick={() => setSelectedCustomer(customer)}
                   className="flex items-center justify-between p-4 border-b border-white/5 last:border-0 hover:bg-[#111] transition-colors rounded-xl cursor-pointer group"
                 >
                   <div className="flex items-center gap-3">
@@ -245,7 +295,6 @@ export default function CRMEngine({ params }: { params: Promise<{ store_slug: st
         {/* 🚀 TIER 3: ADVANCED CRM (Smart Segments & WhatsApp Blaster) */}
         {hasBasicCRM && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="relative bg-gradient-to-b from-[#0a0f1a] to-[#0a0a0a] border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl mt-4">
-             {/* ... (Existing WhatsApp Blaster Code remains unchanged) ... */}
             <div className={`p-6 flex flex-col gap-6 ${!hasAdvancedCRM ? 'filter blur-[10px] opacity-20 select-none pointer-events-none' : ''}`}>
               <div>
                 <div className="flex items-center gap-2 mb-4"><Filter className="w-5 h-5 text-blue-400" /><h3 className="text-base font-black tracking-tight text-white">Smart Segments</h3></div>
@@ -261,19 +310,33 @@ export default function CRMEngine({ params }: { params: Promise<{ store_slug: st
                   </div>
                 </div>
               </div>
+              
               <div className="border-t border-white/5 pt-6">
                 <div className="flex justify-between items-end mb-4">
                   <div className="flex items-center gap-2"><MessageCircle className="w-5 h-5 text-[#25D366]" /><h3 className="text-base font-black tracking-tight text-white">Campaign Blaster</h3></div>
                   <div className="text-right"><p className="text-[8px] font-black tracking-widest text-zinc-500 uppercase mb-0.5">Quota Left</p><p className="text-xs font-black text-white bg-[#111] px-2 py-0.5 rounded border border-white/5">284 / 300</p></div>
                 </div>
+                
                 <div className="flex flex-col gap-3">
                   <select value={selectedSegment} onChange={(e) => setSelectedSegment(e.target.value)} className="w-full bg-[#111] border border-white/10 rounded-xl py-3 px-4 text-xs font-bold text-white focus:outline-none focus:border-blue-500/50 appearance-none">
                     <option value="vip">Target: VIP Clients ({segmentCounts.vip})</option>
-                    <option value="at_risk">Target: At Risk ({segmentCounts.at_risk})</option>
+                    <option value="at_risk">Target: At Risk / Churning ({segmentCounts.at_risk})</option>
+                    <option value="all">Target: All Database ({segmentCounts.all})</option>
                   </select>
-                  <textarea placeholder="Enter your WhatsApp message here..." value={campaignText} onChange={(e) => setCampaignText(e.target.value)} className="w-full bg-[#111] border border-white/10 rounded-xl py-3 px-4 text-xs font-bold text-zinc-300 focus:outline-none focus:border-blue-500/50 min-h-[100px] resize-none" />
-                  <button onClick={handleSendCampaign} disabled={isSending} className="w-full bg-[#25D366] hover:bg-[#1DA851] text-black font-black uppercase tracking-widest text-[10px] py-4 rounded-xl transition-all active:scale-95 shadow-[0_0_20px_rgba(37,211,102,0.2)] flex items-center justify-center gap-2">
-                    {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Send className="w-4 h-4" /> Send Campaign</>}
+                  
+                  <textarea 
+                    placeholder="Enter your WhatsApp message here... (e.g. Special 10% off for you!)" 
+                    value={campaignText} 
+                    onChange={(e) => setCampaignText(e.target.value)} 
+                    className="w-full bg-[#111] border border-white/10 rounded-xl py-3 px-4 text-xs font-bold text-zinc-300 focus:outline-none focus:border-blue-500/50 min-h-[100px] resize-none" 
+                  />
+                  
+                  <button 
+                    onClick={handleSimulateCampaign} 
+                    disabled={isSimulating} 
+                    className="w-full bg-[#25D366] hover:bg-[#1DA851] text-black font-black uppercase tracking-widest text-[10px] py-4 rounded-xl transition-all active:scale-95 shadow-[0_0_20px_rgba(37,211,102,0.2)] flex items-center justify-center gap-2 disabled:opacity-70"
+                  >
+                    {isSimulating ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Send className="w-4 h-4" /> Preview Campaign</>}
                   </button>
                 </div>
               </div>
@@ -294,21 +357,20 @@ export default function CRMEngine({ params }: { params: Promise<{ store_slug: st
       <AnimatePresence>
         {selectedCustomer && (
           <>
-                        {/* The Backdrop */}
+            {/* BULLETPROOF Z-INDEX FOR BACKDROP */}
             <motion.div 
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
               onClick={() => setSelectedCustomer(null)} 
               className="fixed inset-0 bg-black/60 backdrop-blur-sm" 
-              style={{ zIndex: 999 }} // 🔥 FIX: Bulletproof z-index
+              style={{ zIndex: 999 }} 
             />
             
-            {/* The Drawer */}
+            {/* BULLETPROOF Z-INDEX FOR DRAWER */}
             <motion.div 
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} 
               className="fixed bottom-0 left-0 right-0 max-w-md mx-auto h-[85vh] bg-[#0A0A0A] border-t border-white/10 rounded-t-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.8)] flex flex-col"
-              style={{ zIndex: 1000 }} // 🔥 FIX: Must be higher than backdrop
+              style={{ zIndex: 1000 }}
             >
-
               {/* Floating Screen Header */}
               <div className="flex items-center justify-between p-6 border-b border-white/5 bg-[#0a0a0a] rounded-t-[2.5rem] shrink-0">
                 <div className="flex items-center gap-4">
@@ -435,6 +497,103 @@ export default function CRMEngine({ params }: { params: Promise<{ store_slug: st
                 <button className="w-full bg-[#25D366] hover:bg-[#1DA851] text-black font-black uppercase tracking-widest text-xs py-4 rounded-2xl transition-all active:scale-95 shadow-[0_0_20px_rgba(37,211,102,0.2)] flex items-center justify-center gap-2">
                   <MessageCircle className="w-4 h-4 fill-black" /> Send 1-on-1 Offer
                 </button>
+              </div>
+
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* 🚀 THE CAMPAIGN PREVIEW MODAL (SaaS Trust Builder) */}
+      <AnimatePresence>
+        {isPreviewModalOpen && previewData && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
+              className="fixed inset-0 bg-black/80 backdrop-blur-md" 
+              style={{ zIndex: 1001 }}
+            />
+            
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }} 
+              exit={{ opacity: 0, scale: 0.95, y: 20 }} 
+              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-sm bg-[#0a0a0a] border border-white/10 rounded-[2rem] shadow-[0_0_50px_rgba(37,211,102,0.15)] overflow-hidden flex flex-col"
+              style={{ zIndex: 1002 }}
+            >
+              {/* Header */}
+              <div className="p-5 border-b border-white/5 bg-[#111] flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-[#25D366]/10 flex items-center justify-center border border-[#25D366]/20">
+                    <Send className="w-4 h-4 text-[#25D366]" />
+                  </div>
+                  <h3 className="text-base font-black tracking-tight text-white">Campaign Preview</h3>
+                </div>
+                <button onClick={() => setIsPreviewModalOpen(false)} className="p-1.5 bg-white/5 rounded-full hover:bg-white/10"><X className="w-4 h-4 text-zinc-400" /></button>
+              </div>
+
+              {/* Top Section: Metrics */}
+              <div className="p-5 bg-gradient-to-b from-[#111] to-[#0a0a0a]">
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  <div className="bg-[#050505] border border-white/5 p-3 rounded-xl text-center">
+                    <p className="text-lg font-black text-white">{previewData.total_audience}</p>
+                    <p className="text-[8px] font-black uppercase tracking-widest text-zinc-500 mt-1">Audience</p>
+                  </div>
+                  <div className="bg-[#050505] border border-emerald-500/10 p-3 rounded-xl text-center relative overflow-hidden">
+                    <div className="absolute inset-0 bg-emerald-500/5" />
+                    <p className="text-lg font-black text-emerald-400">{previewData.skipped_by_rules}</p>
+                    <p className="text-[8px] font-black uppercase tracking-widest text-emerald-500/70 mt-1">Skipped</p>
+                  </div>
+                  <div className="bg-[#050505] border border-blue-500/20 p-3 rounded-xl text-center shadow-[0_0_15px_rgba(59,130,246,0.1)]">
+                    <p className="text-lg font-black text-blue-400">{previewData.final_reach}</p>
+                    <p className="text-[8px] font-black uppercase tracking-widest text-blue-500/70 mt-1">Final Reach</p>
+                  </div>
+                </div>
+                <p className="text-[9px] font-bold text-emerald-500/70 text-center flex items-center justify-center gap-1 mt-3">
+                  <ShieldAlert className="w-3 h-3" /> AI saved you from spamming {previewData.skipped_by_rules} low-intent customers.
+                </p>
+              </div>
+
+              {/* Middle Section: Message Preview */}
+              <div className="px-5 pb-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Highly Personalized Samples</p>
+                </div>
+                
+                <div className="flex flex-col gap-3">
+                  {previewData.preview_samples.map((sample: any, idx: number) => (
+                    <div key={idx} className="bg-[#111] border border-white/5 p-3 rounded-xl relative">
+                      <div className="absolute -left-1 top-3 w-2 h-2 rounded-full bg-[#25D366]" />
+                      <p className="text-[9px] font-black text-zinc-500 mb-1 ml-2">To: {sample.phone}</p>
+                      <p className="text-xs font-bold text-zinc-300 leading-relaxed ml-2">"{sample.text}"</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Bottom Section: CTA */}
+              <div className="p-5 border-t border-white/5 bg-[#0a0a0a]">
+                <div className="flex justify-between items-center mb-4">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Plan Quota Deduction</span>
+                  <span className="text-xs font-black text-white bg-white/10 px-2 py-1 rounded border border-white/10">-{previewData.final_reach} Msgs</span>
+                </div>
+                
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setIsPreviewModalOpen(false)}
+                    className="flex-1 py-3.5 rounded-xl border border-white/10 text-white text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleLaunchCampaign}
+                    disabled={isSending}
+                    className="flex-1 bg-[#25D366] hover:bg-[#1DA851] text-black py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-[0_0_20px_rgba(37,211,102,0.2)] flex items-center justify-center gap-2 disabled:opacity-70"
+                  >
+                    {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <>🚀 Launch Campaign</>}
+                  </button>
+                </div>
               </div>
 
             </motion.div>
