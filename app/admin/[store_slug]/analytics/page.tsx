@@ -189,7 +189,7 @@ export default function PremiumStoreAnalytics({ params }: { params: Promise<{ st
           </motion.div>
         </div>
 
-        {/* 🔒 3. THE HIGH-END VIP CUSTOMER CRM */}
+                {/* 🔒 3. THE HIGH-END VIP CUSTOMER CRM */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="relative bg-[#0a0a0a] border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl mt-2">
           
           <div className={`p-6 flex flex-col gap-4 ${!isPremiumUser ? 'filter blur-[12px] opacity-10 select-none pointer-events-none' : ''}`}>
@@ -200,8 +200,8 @@ export default function PremiumStoreAnalytics({ params }: { params: Promise<{ st
               </div>
             </div>
 
-            {/* UPGRADED VIP CARDS */}
-            {vipCustomers.slice(0, 4).map((vip, i) => (
+            {/* UPGRADED VIP CARDS (Showing Top 3 only) */}
+            {vipCustomers.slice(0, 3).map((vip, i) => (
               <div key={i} className="bg-[#111] p-4 rounded-2xl border border-white/5 flex flex-col gap-3 relative overflow-hidden group">
                 <div className="absolute -right-4 -top-4 w-16 h-16 bg-blue-500/10 rounded-full blur-xl group-hover:bg-blue-500/20 transition-colors" />
                 
@@ -235,6 +235,14 @@ export default function PremiumStoreAnalytics({ params }: { params: Promise<{ st
                 </div>
               </div>
             ))}
+
+            {/* 🔥 NEW CRM REDIRECT BUTTON */}
+            <button 
+              onClick={() => router.push(`/admin/${safeStoreSlug}/crm`)}
+              className="mt-2 w-full bg-white/5 border border-white/10 hover:bg-white/10 text-white font-black text-[10px] uppercase tracking-[0.2em] py-4 rounded-2xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
+            >
+              Open Full CRM Engine
+            </button>
           </div>
 
           {!isPremiumUser && (
@@ -249,6 +257,7 @@ export default function PremiumStoreAnalytics({ params }: { params: Promise<{ st
             </div>
           )}
         </motion.div>
+
 
         {/* ⚠️ 4. STRUCTURED CONVERSION LEAKAGE */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="relative bg-[#0a0a0a] border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl mt-2">
