@@ -33,7 +33,7 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
           .ilike('slug', safeStoreSlug)
           .single();
 
-        if (storeError || !store) throw new Error(`Dukaan '${store_slug}' nahi mili! Kripya sahi QR scan karein.`);
+        if (storeError || !store) throw new Error(`Store '${store_slug}' not found! Please scan the correct QR code.`);
         setStoreData(store);
 
         // 2. TAG & PRODUCT FETCH
@@ -44,9 +44,9 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
           .eq('store_id', store.id) 
           .single();
 
-        if (tagError || !tag) throw new Error(`QR Code ${safeTagId} is store ka nahi hai.`);
-        if (!tag.products) throw new Error(`Ye QR Code abhi kisi kapde se juda nahi hai.`);
-        if (tag.status === 'sold') throw new Error(`Ye kapda bik chuka hai ya checkout mein hai.`);
+        if (tagError || !tag) throw new Error(`QR Code ${safeTagId} is not associated with this store.`);
+        if (!tag.products) throw new Error(`This QR code is not currently attached to any piece of clothing.`);
+        if (tag.status === 'sold') throw new Error(`This item has already been sold or is in the checkout process.`);
 
         // SILENT TRACKER FOR ANALYTICS
         supabase
