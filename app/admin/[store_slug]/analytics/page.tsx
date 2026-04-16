@@ -225,9 +225,14 @@ export default function PremiumStoreAnalytics({ params }: { params: Promise<{ st
             </div>
             {dropoffProducts.length > 0 ? dropoffProducts.map((product, i) => (
               <div key={i} className="bg-[#111] p-3 rounded-2xl border border-red-500/10 flex items-center gap-4">
-                <div className="w-10 h-10 bg-[#222] rounded-xl overflow-hidden shrink-0">
-                  <ShoppingBag className="w-4 h-4 text-zinc-700 m-auto mt-3" />
+                <div className="w-10 h-10 bg-[#222] rounded-xl overflow-hidden shrink-0 flex items-center justify-center">
+                  {product.image_url ? (
+                  <img src={product.image_url} alt="" className="w-full h-full object-cover opacity-80" />
+                  ) : (
+                 <ShoppingBag className="w-4 h-4 text-zinc-700" />
+                  )}
                 </div>
+
                 <div className="flex-1">
                   <h4 className="font-bold text-sm text-zinc-200 line-clamp-1">{product.name || 'Unnamed'}</h4>
                 </div>
@@ -278,10 +283,16 @@ export default function PremiumStoreAnalytics({ params }: { params: Promise<{ st
               {topProducts.length > 0 ? topProducts.map((product, i) => (
                 <div key={i} className="bg-[#111] p-3 rounded-[1.2rem] border border-white/5 relative group">
                   <div className="absolute top-2 right-2 text-[9px] font-black text-black bg-white px-1.5 py-0.5 rounded z-10">#{i+1}</div>
-                  <div className="w-full aspect-square bg-[#050505] rounded-xl mb-3 overflow-hidden relative">
-                     <ShoppingBag className="w-6 h-6 text-zinc-800 m-auto mt-8" />
-                     <p className="absolute bottom-2 left-2 text-xs font-black text-white">₹{product.price}</p>
+                  <div className="w-full aspect-square bg-[#050505] rounded-xl mb-3 overflow-hidden relative flex items-center justify-center">
+                    {product.image_url ? (
+                   <img src={product.image_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                   <ShoppingBag className="w-6 h-6 text-zinc-800" />
+                    )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                   <p className="absolute bottom-2 left-2 text-xs font-black text-white z-10">₹{product.price}</p>
                   </div>
+
                   <h4 className="font-bold text-[11px] text-zinc-300 line-clamp-1">{product.name || 'Unnamed'}</h4>
                   <p className="text-[9px] font-bold text-zinc-500 mt-1 uppercase tracking-widest">{product.sales_count} Units Sold</p>
                 </div>
