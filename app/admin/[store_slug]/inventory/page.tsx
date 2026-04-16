@@ -521,7 +521,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
               <h2 className="text-2xl font-black mb-2">
                 {bindingTagId ? `Link to ${bindingTagId}` : 'Add New Product'}
               </h2>
-              <p className="text-zinc-500 text-sm mb-6">Ye product khali tag se jud jayega.</p>
+              <p className="text-zinc-500 text-sm mb-6">This product will attach to the empty tag.</p>
               
               <div className="flex flex-col gap-4 mb-8">
                  <input type="text" placeholder="Product Name (e.g. Linen Shirt)" value={newItemName} onChange={e => setNewItemName(e.target.value)} className="w-full bg-[#111] border border-white/10 rounded-xl py-4 px-5 font-bold focus:outline-none focus:border-white/30" />
