@@ -7,7 +7,8 @@ import { motion } from 'framer-motion';
 import { 
   ArrowLeft, BarChart3, Eye, ShoppingBag, 
   TrendingUp, AlertTriangle, Zap, Activity, 
-  Loader2, Maximize, Lock, Users, PhoneCall
+  Loader2, Maximize, Lock, Users, PhoneCall, 
+  MessageCircle, ArrowDownRight
 } from 'lucide-react';
 
 export default function PremiumStoreAnalytics({ params }: { params: Promise<{ store_slug: string }> }) {
@@ -25,7 +26,7 @@ export default function PremiumStoreAnalytics({ params }: { params: Promise<{ st
   const [sizeDistribution, setSizeDistribution] = useState<any[]>([]);
   const [vipCustomers, setVipCustomers] = useState<any[]>([]);
 
-    // 🔒 PREMIUM TOGGLE (Connected to Super Admin God Mode)
+  // 🔒 PREMIUM TOGGLE (Connected to Super Admin God Mode)
   const isPremiumUser = storeData?.is_premium === true; 
 
   useEffect(() => {
@@ -49,7 +50,9 @@ export default function PremiumStoreAnalytics({ params }: { params: Promise<{ st
         let totalRev = 0, totalSold = 0;
         let salesFrequency = new Map(); 
         let sizeTally: Record<string, number> = {};
-        let customerSpend: Record<string, number> = {}; 
+        
+        // 🔥 UPGRADED CRM LOGIC: Tracking Visits and Total Spend
+        let customerData: Record<string, { total: number; visits: number }> = {}; 
 
         if (sales) {
           sales.forEach(sale => {
@@ -57,7 +60,11 @@ export default function PremiumStoreAnalytics({ params }: { params: Promise<{ st
             totalSold += Number(sale.items_count || 0);
 
             if (sale.customer_phone && sale.customer_phone !== 'WALK-IN') {
-              customerSpend[sale.customer_phone] = (customerSpend[sale.customer_phone] || 0) + Number(sale.total_amount);
+              if (!customerData[sale.customer_phone]) {
+                customerData[sale.customer_phone] = { total: 0, visits: 0 };
+              }
+              customerData[sale.customer_phone].total += Number(sale.total_amount);
+              customerData[sale.customer_phone].visits += 1;
             }
 
             let items: any[] = [];
@@ -77,8 +84,17 @@ export default function PremiumStoreAnalytics({ params }: { params: Promise<{ st
           });
         }
 
-        const vips = Object.entries(customerSpend).sort(([, a], [, b]) => b - a).map(([phone, total]) => ({ phone, total }));
-        setVipCustomers(vips.length > 0 ? vips : [ { phone: '8509460738', total: 46257 }, { phone: '7477613224', total: 14086 }, { phone: '98****2109', total: 8400 }, { phone: '62****9981', total: 5200 } ]);
+        // Process VIPs and calculate Average Order Value (AOV)
+        const vips = Object.entries(customerData)
+          .sort(([, a], [, b]) => b.total - a.total)
+          .map(([phone, data]) => ({ phone, total: data.total, visits: data.visits }));
+          
+        setVipCustomers(vips.length > 0 ? vips : [ 
+          { phone: '8509460738', total: 46257, visits: 12 }, 
+          { phone: '7477613224', total: 14086, visits: 5 }, 
+          { phone: '98****2109', total: 8400, visits: 3 }, 
+          { phone: '62****9981', total: 5200, visits: 2 } 
+        ]);
 
         let dropoffs: any[] = [];
         if (products) {
@@ -97,7 +113,7 @@ export default function PremiumStoreAnalytics({ params }: { params: Promise<{ st
           itemsSold: totalSold, 
           totalScans: totalProductScans, 
           conversionRate: totalProductScans > 0 ? ((totalSold / totalProductScans) * 100).toFixed(1) : '0.0',
-          walkins: sales ? sales.length : 0 // 🔥 NEW WALKINS METRIC
+          walkins: sales ? sales.length : 0 
         });
         
         setTopProducts(topSellers);
@@ -152,7 +168,7 @@ export default function PremiumStoreAnalytics({ params }: { params: Promise<{ st
           <h2 className="text-5xl font-black tracking-tighter text-white">₹{metrics.revenue.toLocaleString('en-IN')}</h2>
         </motion.div>
 
-        {/* 📊 2. METRICS GRID (Scans, Sold, Walk-ins) */}
+        {/* 📊 2. METRICS GRID */}
         <div className="grid grid-cols-3 gap-3">
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-[#0a0a0a] p-4 rounded-[1.5rem] border border-white/5 flex flex-col items-center justify-center text-center">
             <Eye className="w-5 h-5 mb-3 text-blue-500" />
@@ -166,7 +182,6 @@ export default function PremiumStoreAnalytics({ params }: { params: Promise<{ st
             <p className="text-[8px] text-zinc-500 uppercase font-black tracking-[0.1em] mt-2">Items Sold</p>
           </motion.div>
 
-          {/* 🔥 NEW WALK-INS BLOCK */}
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-[#0a0a0a] p-4 rounded-[1.5rem] border border-white/5 flex flex-col items-center justify-center text-center">
             <Users className="w-5 h-5 mb-3 text-amber-500" />
             <h2 className="text-3xl font-black tracking-tighter text-white leading-none">{metrics.walkins}</h2>
@@ -174,32 +189,54 @@ export default function PremiumStoreAnalytics({ params }: { params: Promise<{ st
           </motion.div>
         </div>
 
-        {/* 🔒 3. THE HEAVY BLUR VIP VAULT */}
+        {/* 🔒 3. THE HIGH-END VIP CUSTOMER CRM */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="relative bg-[#0a0a0a] border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl mt-2">
           
-          {/* THE HEAVY BLUR CONTENT */}
-          <div className={`p-6 flex flex-col gap-3 ${!isPremiumUser ? 'filter blur-[12px] opacity-10 select-none pointer-events-none' : ''}`}>
-            {/* Title included in the blur to match reference image */}
-            <div className="flex items-center gap-3 mb-3">
+          <div className={`p-6 flex flex-col gap-4 ${!isPremiumUser ? 'filter blur-[12px] opacity-10 select-none pointer-events-none' : ''}`}>
+            <div className="flex items-center gap-3 mb-2">
               <Users className="w-5 h-5 text-blue-400" />
               <div>
                 <h3 className="text-base font-black tracking-tight text-white">VIP Customer Vault</h3>
               </div>
             </div>
+
+            {/* UPGRADED VIP CARDS */}
             {vipCustomers.slice(0, 4).map((vip, i) => (
-              <div key={i} className="bg-[#111] p-4 rounded-2xl border border-white/5 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-8 h-8 rounded-full bg-[#222] flex items-center justify-center text-xs font-black text-zinc-400">{i + 1}</div>
+              <div key={i} className="bg-[#111] p-4 rounded-2xl border border-white/5 flex flex-col gap-3 relative overflow-hidden group">
+                <div className="absolute -right-4 -top-4 w-16 h-16 bg-blue-500/10 rounded-full blur-xl group-hover:bg-blue-500/20 transition-colors" />
+                
+                <div className="flex items-center justify-between relative z-10">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-[#222] flex items-center justify-center text-[10px] font-black text-zinc-400 border border-white/5">#{i + 1}</div>
+                    <div>
+                      <h4 className="font-black text-sm tracking-widest text-zinc-100">{vip.phone}</h4>
+                      <p className="text-[8px] uppercase tracking-[0.2em] text-blue-400 font-bold mt-0.5">Top {i===0 ? '1%' : '5%'} Client</p>
+                    </div>
+                  </div>
+                  <button className="bg-white/5 hover:bg-white/10 p-2 rounded-full transition-colors border border-white/5">
+                    <MessageCircle className="w-3.5 h-3.5 text-zinc-300" />
+                  </button>
+                </div>
+
+                {/* Data Row */}
+                <div className="grid grid-cols-3 gap-2 border-t border-white/5 pt-3 relative z-10">
                   <div>
-                    <h4 className="font-bold text-sm tracking-widest text-zinc-200">{vip.phone}</h4>
+                    <p className="text-[8px] text-zinc-500 uppercase font-black tracking-widest">Revenue</p>
+                    <p className="text-xs font-black text-emerald-400 mt-0.5">₹{vip.total.toLocaleString('en-IN')}</p>
+                  </div>
+                  <div className="border-l border-white/5 pl-2">
+                    <p className="text-[8px] text-zinc-500 uppercase font-black tracking-widest">Visits</p>
+                    <p className="text-xs font-black text-white mt-0.5">{vip.visits}</p>
+                  </div>
+                  <div className="border-l border-white/5 pl-2">
+                    <p className="text-[8px] text-zinc-500 uppercase font-black tracking-widest">Avg Order</p>
+                    <p className="text-xs font-black text-white mt-0.5">₹{Math.round(vip.total / vip.visits).toLocaleString('en-IN')}</p>
                   </div>
                 </div>
-                <p className="font-black text-emerald-400">₹{vip.total}</p>
               </div>
             ))}
           </div>
 
-          {/* OVERLAY */}
           {!isPremiumUser && (
             <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/40 p-6">
               <div className="w-12 h-12 rounded-full border border-white/10 flex items-center justify-center mb-4 shadow-xl">
@@ -213,29 +250,65 @@ export default function PremiumStoreAnalytics({ params }: { params: Promise<{ st
           )}
         </motion.div>
 
-        {/* ⚠️ 4. CONVERSION LEAKAGE */}
+        {/* ⚠️ 4. STRUCTURED CONVERSION LEAKAGE */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="relative bg-[#0a0a0a] border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl mt-2">
           
-          <div className={`p-6 flex flex-col gap-3 ${!isPremiumUser ? 'filter blur-[12px] opacity-10 select-none pointer-events-none' : ''}`}>
-            <div className="flex items-center gap-3 mb-3">
+          <div className={`p-6 flex flex-col gap-4 ${!isPremiumUser ? 'filter blur-[12px] opacity-10 select-none pointer-events-none' : ''}`}>
+            <div className="flex items-center gap-3 mb-1">
               <AlertTriangle className="w-5 h-5 text-red-500" />
               <div>
                 <h3 className="text-base font-black tracking-tight text-white">Conversion Leakage</h3>
+                <p className="text-[9px] uppercase tracking-[0.1em] text-zinc-500 font-bold mt-0.5">Worst Scan-to-Buy Ratios</p>
               </div>
             </div>
+
+            {/* UPGRADED LEAKAGE CARDS */}
             {dropoffProducts.length > 0 ? dropoffProducts.map((product, i) => (
-              <div key={i} className="bg-[#111] p-3 rounded-2xl border border-red-500/10 flex items-center gap-4">
-                <div className="w-10 h-10 bg-[#222] rounded-xl overflow-hidden shrink-0 flex items-center justify-center">
-                  {product.image_url ? (
-                  <img src={product.image_url} alt="" className="w-full h-full object-cover opacity-80" />
-                  ) : (
-                 <ShoppingBag className="w-4 h-4 text-zinc-700" />
-                  )}
+              <div key={i} className="bg-[#111] p-4 rounded-2xl border border-red-500/10 flex flex-col gap-3 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/5 blur-2xl" />
+                
+                <div className="flex items-center gap-4 relative z-10">
+                  <div className="w-12 h-12 bg-[#050505] rounded-xl overflow-hidden shrink-0 flex items-center justify-center border border-white/5">
+                    {product.image_url ? (
+                      <img src={product.image_url} alt="" className="w-full h-full object-cover opacity-90" />
+                    ) : (
+                      <ShoppingBag className="w-5 h-5 text-zinc-700" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-bold text-sm text-zinc-200 line-clamp-1">{product.name || 'Unnamed'}</h4>
+                    <p className="text-[10px] font-black text-red-400 mt-1 uppercase tracking-widest flex items-center gap-1">
+                      <ArrowDownRight className="w-3 h-3" /> Critical Drop-off
+                    </p>
+                  </div>
                 </div>
 
-                <div className="flex-1">
-                  <h4 className="font-bold text-sm text-zinc-200 line-clamp-1">{product.name || 'Unnamed'}</h4>
+                {/* Analytics Comparison Bar */}
+                <div className="bg-[#050505] rounded-xl p-3 border border-white/5 flex items-center justify-between relative z-10 mt-1">
+                  <div className="flex items-center gap-2">
+                    <Eye className="w-4 h-4 text-blue-400" />
+                    <div>
+                      <p className="text-[8px] text-zinc-500 uppercase font-black tracking-widest leading-none mb-1">Scans</p>
+                      <p className="text-sm font-black text-white leading-none">{product.scan_count}</p>
+                    </div>
+                  </div>
+                  <div className="w-px h-6 bg-white/10" />
+                  <div className="flex items-center gap-2">
+                    <ShoppingBag className="w-4 h-4 text-emerald-400" />
+                    <div>
+                       <p className="text-[8px] text-zinc-500 uppercase font-black tracking-widest leading-none mb-1">Sold</p>
+                       <p className="text-sm font-black text-white leading-none">{product.sales_count}</p>
+                    </div>
+                  </div>
+                  <div className="w-px h-6 bg-white/10" />
+                  <div className="text-right">
+                     <p className="text-[8px] text-red-500 uppercase font-black tracking-widest leading-none mb-1">Lost</p>
+                     <p className="text-sm font-black text-red-500 leading-none">
+                       {product.scan_count - product.sales_count}
+                     </p>
+                  </div>
                 </div>
+
               </div>
             )) : (
               <p className="text-xs text-zinc-500 font-bold text-center">No leakage detected.</p>
@@ -251,10 +324,9 @@ export default function PremiumStoreAnalytics({ params }: { params: Promise<{ st
           )}
         </motion.div>
 
-                {/* 🏆 5. VELOCITY MATRIX (Fully Blurred Top to Bottom) */}
+        {/* 🏆 5. VELOCITY MATRIX */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="relative bg-[#0a0a0a] border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl mt-2">
           
-          {/* 🔥 EVERYTHING WRAPPED IN BLUR DIV */}
           <div className={`${!isPremiumUser ? 'filter blur-[8px] opacity-30 select-none pointer-events-none' : ''}`}>
             
             <div className="p-6 pb-4 relative z-20 bg-[#0a0a0a] border-b border-white/5">
@@ -271,14 +343,12 @@ export default function PremiumStoreAnalytics({ params }: { params: Promise<{ st
                 </div>
               </div>
 
-              {/* MASSIVE TOP METRIC (Now gets blurred too) */}
               <div>
                 <p className="text-[9px] text-zinc-400 uppercase font-black tracking-widest mb-1">Bestseller Contribution</p>
                 <h2 className="text-4xl font-black tracking-tighter text-white">₹{topSellersRevenue.toLocaleString('en-IN')}</h2>
               </div>
             </div>
 
-            {/* THE GRID */}
             <div className="p-6 grid grid-cols-2 gap-3">
               {topProducts.length > 0 ? topProducts.map((product, i) => (
                 <div key={i} className="bg-[#111] p-3 rounded-[1.2rem] border border-white/5 relative group">
@@ -302,7 +372,6 @@ export default function PremiumStoreAnalytics({ params }: { params: Promise<{ st
             </div>
           </div>
 
-          {/* THE OVERLAY (Now covers the entire block perfectly) */}
           {!isPremiumUser && (
             <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/40 p-6">
               <div className="w-12 h-12 rounded-full border border-white/10 flex items-center justify-center mb-4 shadow-xl">
@@ -318,7 +387,6 @@ export default function PremiumStoreAnalytics({ params }: { params: Promise<{ st
             </div>
           )}
         </motion.div>
-
 
         {/* 📐 6. DEMAND GEOMETRY */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }} className="bg-[#0a0a0a] border border-white/5 rounded-[2rem] p-6 relative overflow-hidden mt-2">
