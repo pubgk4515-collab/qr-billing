@@ -294,16 +294,21 @@ export default function CRMEngine({ params }: { params: Promise<{ store_slug: st
       <AnimatePresence>
         {selectedCustomer && (
           <>
+                        {/* The Backdrop */}
             <motion.div 
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
               onClick={() => setSelectedCustomer(null)} 
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50" 
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm" 
+              style={{ zIndex: 999 }} // 🔥 FIX: Bulletproof z-index
             />
             
+            {/* The Drawer */}
             <motion.div 
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} 
-              className="fixed bottom-0 left-0 right-0 max-w-md mx-auto h-[85vh] bg-[#0A0A0A] border-t border-white/10 rounded-t-[2.5rem] z- shadow-[0_0_50px_rgba(0,0,0,0.8)] flex flex-col"
+              className="fixed bottom-0 left-0 right-0 max-w-md mx-auto h-[85vh] bg-[#0A0A0A] border-t border-white/10 rounded-t-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.8)] flex flex-col"
+              style={{ zIndex: 1000 }} // 🔥 FIX: Must be higher than backdrop
             >
+
               {/* Floating Screen Header */}
               <div className="flex items-center justify-between p-6 border-b border-white/5 bg-[#0a0a0a] rounded-t-[2.5rem] shrink-0">
                 <div className="flex items-center gap-4">
