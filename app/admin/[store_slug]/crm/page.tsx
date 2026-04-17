@@ -504,6 +504,79 @@ export default function CRMEngine({ params }: { params: Promise<{ store_slug: st
         )}
       </AnimatePresence>
 
+                    {/* 🧠 NEURAL INSIGHTS (REAL PATTERN DETECTION) */}
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-purple-500/10 flex items-center justify-center border border-purple-500/20">
+                      <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                    </div>
+                    <h3 className="text-base font-black tracking-tight text-white">Neural Insights</h3>
+                  </div>
+                  <span className="text-[8px] font-black uppercase tracking-widest text-purple-400 bg-purple-500/10 px-2 py-1 rounded border border-purple-500/20 flex items-center gap-1 animate-pulse">
+                    <Activity className="w-3 h-3" /> Live Processing
+                  </span>
+                </div>
+
+                <div className="flex overflow-x-auto gap-4 pb-4 no-scrollbar snap-x">
+                  
+                  {/* 💡 PATTERN 1: The Halo Effect (Anchor Pricing) */}
+                  <div className="min-w-[280px] sm:min-w-[320px] bg-gradient-to-br from-[#111] to-[#050505] border border-white/5 p-5 rounded-[1.5rem] snap-center relative overflow-hidden group">
+                    <div className="absolute -right-4 -top-4 w-20 h-20 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all" />
+                    <div className="flex items-center gap-2 mb-3 relative z-10">
+                      <TrendingUp className="w-4 h-4 text-emerald-400" />
+                      <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">The Anchor Effect</p>
+                    </div>
+                    <h4 className="text-sm font-bold text-white leading-relaxed mb-4 relative z-10">
+                      Customers scanning the <span className="text-emerald-400">₹2,999 Black Jacket</span> rarely buy it, but <span className="font-black">68%</span> buy the ₹1,499 Denim right after. 
+                    </h4>
+                    <div className="bg-[#0a0a0a] border border-white/5 p-3 rounded-xl relative z-10">
+                      <p className="text-[8px] font-black uppercase tracking-widest text-emerald-500 mb-1">System Action</p>
+                      <p className="text-xs font-bold text-zinc-300">The jacket is a decoy. Move it to the front of the Denim rack to boost conversion.</p>
+                    </div>
+                  </div>
+
+                  {/* 💡 PATTERN 2: Predictive Chronology */}
+                  <div className="min-w-[280px] sm:min-w-[320px] bg-gradient-to-br from-[#111] to-[#050505] border border-white/5 p-5 rounded-[1.5rem] snap-center relative overflow-hidden group">
+                    <div className="absolute -right-4 -top-4 w-20 h-20 bg-blue-500/10 rounded-full blur-2xl group-hover:bg-blue-500/20 transition-all" />
+                    <div className="flex items-center gap-2 mb-3 relative z-10">
+                      <History className="w-4 h-4 text-blue-400" />
+                      <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Predictive Trigger</p>
+                    </div>
+                    <h4 className="text-sm font-bold text-white leading-relaxed mb-4 relative z-10">
+                      VIPs who buy <span className="text-blue-400">Leather Shoes</span> typically return for matching belts around <span className="font-black">Day 45</span>.
+                    </h4>
+                    <div className="bg-[#0a0a0a] border border-white/5 p-3 rounded-xl relative z-10 flex items-center justify-between">
+                      <div>
+                        <p className="text-[8px] font-black uppercase tracking-widest text-blue-500 mb-1">Target Identified</p>
+                        <p className="text-xs font-bold text-zinc-300">8 clients are at Day 43 today.</p>
+                      </div>
+                      <button className="bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-400 p-2 rounded-lg transition-colors">
+                        <Send className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 💡 PATTERN 3: Abandonment Clustering */}
+                  <div className="min-w-[280px] sm:min-w-[320px] bg-gradient-to-br from-[#111] to-[#050505] border border-white/5 p-5 rounded-[1.5rem] snap-center relative overflow-hidden group">
+                    <div className="absolute -right-4 -top-4 w-20 h-20 bg-rose-500/10 rounded-full blur-2xl group-hover:bg-rose-500/20 transition-all" />
+                    <div className="flex items-center gap-2 mb-3 relative z-10">
+                      <AlertTriangle className="w-4 h-4 text-rose-500" />
+                      <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Abandonment Cluster</p>
+                    </div>
+                    <h4 className="text-sm font-bold text-white leading-relaxed mb-4 relative z-10">
+                      12 recent drop-offs for the <span className="text-rose-400">Red Hoodie</span> share a preference for <span className="font-black">Slim Fit</span> styles.
+                    </h4>
+                    <div className="bg-[#0a0a0a] border border-white/5 p-3 rounded-xl relative z-10">
+                      <p className="text-[8px] font-black uppercase tracking-widest text-rose-500 mb-1">Root Cause</p>
+                      <p className="text-xs font-bold text-zinc-300">The current Regular fit is clashing with target audience preference.</p>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+
       {/* 🚀 THE CAMPAIGN PREVIEW MODAL (SaaS Trust Builder) */}
       <AnimatePresence>
         {isPreviewModalOpen && previewData && (
