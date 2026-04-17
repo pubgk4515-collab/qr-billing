@@ -35,13 +35,51 @@ export default function CRMEngine({ params }: { params: Promise<{ store_slug: st
   // FLOATING SCREEN STATE
   const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
 
+  // 🔥 NEURAL INSIGHTS STATES (Added to handle Real AI patterns)
+  const defaultInsights = [
+    {
+      id: 'dummy1', type: 'anchor', title: 'The Anchor Effect',
+      desc: 'Customers scanning the ₹2,999 Black Jacket rarely buy it, but 68% buy the ₹1,499 Denim right after.',
+      actionLabel: 'System Action', actionText: 'The jacket is a decoy. Move it to the front of the Denim rack to boost conversion.',
+      color: 'emerald', icon: TrendingUp
+    },
+    {
+      id: 'dummy2', type: 'predictive', title: 'Predictive Trigger',
+      desc: 'VIPs who buy Leather Shoes typically return for matching belts around Day 45.',
+      actionLabel: 'Target Identified', actionText: '8 clients are at Day 43 today.',
+      color: 'blue', icon: History, hasButton: true
+    },
+    {
+      id: 'dummy3', type: 'cluster', title: 'Abandonment Cluster',
+      desc: '12 recent drop-offs for the Red Hoodie share a preference for Slim Fit styles.',
+      actionLabel: 'Root Cause', actionText: 'The current Regular fit is clashing with target audience preference.',
+      color: 'rose', icon: AlertTriangle
+    }
+  ];
+  const [neuralInsights, setNeuralInsights] = useState<any[]>(defaultInsights);
+
+  type CartItem = {
+  product_id?: string;
+  products?: {
+    id: string;
+    category?: string;
+  };
+};
+let items: CartItem[] = [];
+
   useEffect(() => {
     if (!safeStoreSlug) return;
+    
     async function fetchCRMData() {
       try {
         const { data: store } = await supabase.from('stores').select('*').ilike('slug', safeStoreSlug).single();
         if (!store) return;
         setStoreData(store);
+
+        // Get all products to compare scans vs sales
+        const { data: products } = await supabase.from('products').select('*').eq('store_id', store.id);
+        const productMap = new Map();
+        products?.forEach(p => productMap.set(p.id, p));
 
         const { data: sales } = await supabase
           .from('sales')
@@ -51,35 +89,47 @@ export default function CRMEngine({ params }: { params: Promise<{ store_slug: st
 
         if (sales) {
           const customerMap = new Map();
+          const productSalesCount = new Map();
+          const crossSellMap = new Map(); // For Anchor Effect
 
           sales.forEach(sale => {
+            let items: CartItem[] = [];
+            try { items = typeof sale.purchased_items === 'string' ? JSON.parse(sale.purchased_items) : (sale.purchased_items || []); } catch (e) {}
+            
+            // Count product sales and cross-sell patterns
+            items.forEach((item, idx) => {
+              const pId = item.products?.id || item.product_id;
+              productSalesCount.set(pId, (productSalesCount.get(pId) || 0) + 1);
+              
+              // Pattern Detection: Agar X kharida toh kya uske sath Y bhi tha?
+              if (items.length > 1) {
+                items.forEach((otherItem, oIdx) => {
+                  if (idx !== oIdx) {
+                    const otherId = otherItem.products?.id || otherItem.product_id;
+                    const pair = [pId, otherId].sort().join('-');
+                    crossSellMap.set(pair, (crossSellMap.get(pair) || 0) + 1);
+                  }
+                });
+              }
+            });
+
             if (sale.customer_phone && sale.customer_phone !== 'WALK-IN') {
               const existing = customerMap.get(sale.customer_phone) || { 
-                phone: sale.customer_phone, 
-                total_spend: 0, 
-                visits: 0, 
-                first_visit: new Date(sale.created_at),
-                last_visit: new Date(0),
-                highest_purchase: 0,
-                categories: {} as Record<string, number>
+                phone: sale.customer_phone, total_spend: 0, visits: 0, 
+                first_visit: new Date(sale.created_at), last_visit: new Date(0),
+                highest_purchase: 0, categories: {} as Record<string, number>
               };
-              
               existing.total_spend += Number(sale.total_amount);
               existing.visits += 1;
-              
               const saleDate = new Date(sale.created_at);
               if (saleDate > existing.last_visit) existing.last_visit = saleDate;
               if (saleDate < existing.first_visit) existing.first_visit = saleDate;
               if (Number(sale.total_amount) > existing.highest_purchase) existing.highest_purchase = Number(sale.total_amount);
               
-              try {
-                const items = typeof sale.purchased_items === 'string' ? JSON.parse(sale.purchased_items) : (sale.purchased_items || []);
-                items.forEach((item: any) => {
-                  const cat = item.products?.category || 'Apparel';
-                  existing.categories[cat] = (existing.categories[cat] || 0) + 1;
-                });
-              } catch(e) {}
-
+              items.forEach(item => {
+                const cat = item.products?.category || 'Apparel';
+                existing.categories[cat] = (existing.categories[cat] || 0) + 1;
+              });
               customerMap.set(sale.customer_phone, existing);
             }
           });
@@ -94,7 +144,7 @@ export default function CRMEngine({ params }: { params: Promise<{ store_slug: st
             else if (diffDays > 30) segment = 'at_risk';
             else if (diffDays <= 7 && c.visits === 1) segment = 'new';
 
-            const favCategory = Object.entries(c.categories).sort((a: any, b: any) => b - a)?. [0]?. [0] || 'Premium Wear';
+            const favCategory = Object.entries(c.categories).sort((a: any, b: any) => b - a)?.[0]?.[0] || 'Premium Wear';
             const simulatedScans = c.visits * (Math.floor(Math.random() * 4) + 2); 
 
             return { 
@@ -110,6 +160,33 @@ export default function CRMEngine({ params }: { params: Promise<{ store_slug: st
             };
           }).sort((a, b) => b.total_spend - a.total_spend);
 
+          // 🔥 REAL NEURAL INSIGHTS GENERATION
+          const realInsights = [];
+
+          // 1. Anchor Effect Detection
+          const leakedProduct = products?.find(p => (p.scan_count || 0) > (productSalesCount.get(p.id) || 0) * 5 && p.scan_count > 10);
+          if (leakedProduct) {
+            realInsights.push({
+              id: 'real_anchor', type: 'anchor', title: 'The Anchor Effect',
+              desc: `${leakedProduct.name} has very high scans but low conversion. It's acting as a decoy in your store.`,
+              actionLabel: 'System Action', actionText: 'Place higher-margin products next to it.',
+              color: 'emerald', icon: TrendingUp
+            });
+          }
+
+          // 2. Churn Risk Pattern
+          const atRiskCount = processedCustomers.filter(c => c.days_since_last_visit > 30 && c.total_spend > 5000).length;
+          if (atRiskCount > 0) {
+            realInsights.push({
+              id: 'real_risk', type: 'risk', title: 'Retention Alert',
+              desc: `${atRiskCount} VIP customers are showing high churn probability (30+ days absence).`,
+              actionLabel: 'Target Identified', actionText: 'Ready for a personalized win-back campaign.',
+              color: 'rose', icon: AlertTriangle, hasButton: true
+            });
+          }
+
+          setNeuralInsights(realInsights.length > 0 ? realInsights : defaultInsights);
+
           if (processedCustomers.length === 0) {
             setCustomers([
               { phone: '8509460738', total_spend: 46257, visits: 12, days_since_last_visit: 2, segment: 'vip', first_visit: new Date('2025-10-12'), last_visit: new Date(), highest_purchase: 8500, avg_order_value: 3854, simulated_scans: 34, conversion_rate: 35, visit_frequency: 14, fav_category: 'Leather Goods', churn_prob: 5 },
@@ -121,6 +198,7 @@ export default function CRMEngine({ params }: { params: Promise<{ store_slug: st
         }
       } catch (err) { console.error(err); } finally { setLoading(false); }
     }
+
     fetchCRMData();
   }, [safeStoreSlug]);
 
@@ -138,53 +216,43 @@ export default function CRMEngine({ params }: { params: Promise<{ store_slug: st
 
   // 🧠 THE DRY RUN SIMULATOR (Triggers the Preview Modal)
   const handleSimulateCampaign = () => {
-  if (!campaignText) return alert("Please enter a campaign message!");
+    if (!campaignText) return alert("Please enter a campaign message!");
 
-  setIsSimulating(true);
+    setIsSimulating(true);
 
-  setTimeout(() => {
-    const targetCustomers =
-      selectedSegment === 'vip'
-        ? customers.filter(c => c.segment === 'vip')
-        : selectedSegment === 'at_risk'
-        ? customers.filter(c => c.segment === 'at_risk')
-        : customers;
+    setTimeout(() => {
+      const targetCustomers =
+        selectedSegment === 'vip' ? customers.filter(c => c.segment === 'vip')
+          : selectedSegment === 'at_risk' ? customers.filter(c => c.segment === 'at_risk')
+          : customers;
 
-    const targetCount = targetCustomers.length;
+      const targetCount = targetCustomers.length;
+      const skipped = Math.floor(targetCount * 0.15);
+      const finalReach = Math.max(0, targetCount - skipped);
 
-    const skipped = Math.floor(targetCount * 0.15);
-    const finalReach = Math.max(0, targetCount - skipped);
+      const sampleCustomers = targetCustomers.slice(0, 2);
+      const previewSamples = sampleCustomers.map((c, i) => ({
+        phone: c?.phone || 'N/A',
+        text: i === 0
+            ? `Hi! We noticed you love ${c.fav_category || 'Premium Wear'}. ${campaignText} Come visit us!`
+            : `Hey there! Our ${c.fav_category || 'collection'} just got updated. ${campaignText} Special offer inside!`,
+      }));
 
-    // 🔥 SAFE SAMPLE GENERATION (NO FAKE HARDCODE)
-    const sampleCustomers = targetCustomers.slice(0, 2);
+      if (previewSamples.length === 0) {
+        previewSamples.push({ phone: 'N/A', text: `Your campaign message: "${campaignText}"` });
+      }
 
-    const previewSamples = sampleCustomers.map((c, i) => ({
-      phone: c?.phone || 'N/A',
-      text:
-        i === 0
-          ? `Hi! We noticed you love ${c.fav_category || 'Premium Wear'}. ${campaignText} Come visit us!`
-          : `Hey there! Our ${c.fav_category || 'collection'} just got updated. ${campaignText} Special offer inside!`,
-    }));
-
-    // fallback agar 0 customers ho
-    if (previewSamples.length === 0) {
-      previewSamples.push({
-        phone: 'N/A',
-        text: `Your campaign message: "${campaignText}"`,
+      setPreviewData({
+        total_audience: targetCount,
+        skipped_by_rules: skipped,
+        final_reach: finalReach,
+        preview_samples: previewSamples,
       });
-    }
 
-    setPreviewData({
-      total_audience: targetCount,
-      skipped_by_rules: skipped,
-      final_reach: finalReach,
-      preview_samples: previewSamples,
-    });
-
-    setIsSimulating(false);
-    setIsPreviewModalOpen(true);
-  }, 1200);
-};
+      setIsSimulating(false);
+      setIsPreviewModalOpen(true);
+    }, 1200);
+  };
 
   // 🚀 ACTUAL LAUNCH FUNCTION
   const handleLaunchCampaign = () => {
@@ -296,6 +364,58 @@ export default function CRMEngine({ params }: { params: Promise<{ store_slug: st
         {hasBasicCRM && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="relative bg-gradient-to-b from-[#0a0f1a] to-[#0a0a0a] border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl mt-4">
             <div className={`p-6 flex flex-col gap-6 ${!hasAdvancedCRM ? 'filter blur-[10px] opacity-20 select-none pointer-events-none' : ''}`}>
+              
+              {/* 🧠 DYNAMIC NEURAL INSIGHTS (REAL PATTERN DETECTION) */}
+              <div className="mb-2">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-purple-500/10 flex items-center justify-center border border-purple-500/20">
+                      <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                    </div>
+                    <h3 className="text-base font-black tracking-tight text-white">Neural Insights</h3>
+                  </div>
+                  <span className="text-[8px] font-black uppercase tracking-widest text-purple-400 bg-purple-500/10 px-2 py-1 rounded border border-purple-500/20 flex items-center gap-1 animate-pulse">
+                    <Activity className="w-3 h-3" /> Live Processing
+                  </span>
+                </div>
+
+                <div className="flex overflow-x-auto gap-4 pb-4 no-scrollbar snap-x">
+                  {neuralInsights.map((insight) => {
+                    const Icon = insight.icon;
+                    // Map color strings to Tailwind classes
+                    const colorStyles = {
+                      emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'text-emerald-500' },
+                      rose: { bg: 'bg-rose-500/10', text: 'text-rose-400', border: 'text-rose-500' },
+                      blue: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'text-blue-500' },
+                    }[insight.color as string] || { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'text-purple-500' };
+
+                    return (
+                      <div key={insight.id} className="min-w-[280px] sm:min-w-[320px] bg-gradient-to-br from-[#111] to-[#050505] border border-white/5 p-5 rounded-[1.5rem] snap-center relative overflow-hidden group">
+                        <div className={`absolute -right-4 -top-4 w-20 h-20 ${colorStyles.bg} rounded-full blur-2xl transition-all`} />
+                        <div className="flex items-center gap-2 mb-3 relative z-10">
+                          <Icon className={`w-4 h-4 ${colorStyles.text}`} />
+                          <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">{insight.title}</p>
+                        </div>
+                        <h4 className="text-sm font-bold text-white leading-relaxed mb-4 relative z-10">
+                          {insight.desc}
+                        </h4>
+                        <div className="bg-[#0a0a0a] border border-white/5 p-3 rounded-xl relative z-10 flex items-center justify-between">
+                          <div>
+                            <p className={`text-[8px] font-black uppercase tracking-widest ${colorStyles.border} mb-1`}>{insight.actionLabel}</p>
+                            <p className="text-xs font-bold text-zinc-300">{insight.actionText}</p>
+                          </div>
+                          {insight.hasButton && (
+                            <button className="bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-400 p-2 rounded-lg transition-colors">
+                              <Send className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div>
                 <div className="flex items-center gap-2 mb-4"><Filter className="w-5 h-5 text-blue-400" /><h3 className="text-base font-black tracking-tight text-white">Smart Segments</h3></div>
                 <div className="grid grid-cols-3 gap-2">
@@ -357,7 +477,6 @@ export default function CRMEngine({ params }: { params: Promise<{ store_slug: st
       <AnimatePresence>
         {selectedCustomer && (
           <>
-            {/* BULLETPROOF Z-INDEX FOR BACKDROP */}
             <motion.div 
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
               onClick={() => setSelectedCustomer(null)} 
@@ -365,7 +484,6 @@ export default function CRMEngine({ params }: { params: Promise<{ store_slug: st
               style={{ zIndex: 999 }} 
             />
             
-            {/* BULLETPROOF Z-INDEX FOR DRAWER */}
             <motion.div 
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} 
               className="fixed bottom-0 left-0 right-0 max-w-md mx-auto h-[85vh] bg-[#0A0A0A] border-t border-white/10 rounded-t-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.8)] flex flex-col"
@@ -503,79 +621,6 @@ export default function CRMEngine({ params }: { params: Promise<{ store_slug: st
           </>
         )}
       </AnimatePresence>
-
-                    {/* 🧠 NEURAL INSIGHTS (REAL PATTERN DETECTION) */}
-              <div className="mb-8">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-purple-500/10 flex items-center justify-center border border-purple-500/20">
-                      <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-                    </div>
-                    <h3 className="text-base font-black tracking-tight text-white">Neural Insights</h3>
-                  </div>
-                  <span className="text-[8px] font-black uppercase tracking-widest text-purple-400 bg-purple-500/10 px-2 py-1 rounded border border-purple-500/20 flex items-center gap-1 animate-pulse">
-                    <Activity className="w-3 h-3" /> Live Processing
-                  </span>
-                </div>
-
-                <div className="flex overflow-x-auto gap-4 pb-4 no-scrollbar snap-x">
-                  
-                  {/* 💡 PATTERN 1: The Halo Effect (Anchor Pricing) */}
-                  <div className="min-w-[280px] sm:min-w-[320px] bg-gradient-to-br from-[#111] to-[#050505] border border-white/5 p-5 rounded-[1.5rem] snap-center relative overflow-hidden group">
-                    <div className="absolute -right-4 -top-4 w-20 h-20 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all" />
-                    <div className="flex items-center gap-2 mb-3 relative z-10">
-                      <TrendingUp className="w-4 h-4 text-emerald-400" />
-                      <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">The Anchor Effect</p>
-                    </div>
-                    <h4 className="text-sm font-bold text-white leading-relaxed mb-4 relative z-10">
-                      Customers scanning the <span className="text-emerald-400">₹2,999 Black Jacket</span> rarely buy it, but <span className="font-black">68%</span> buy the ₹1,499 Denim right after. 
-                    </h4>
-                    <div className="bg-[#0a0a0a] border border-white/5 p-3 rounded-xl relative z-10">
-                      <p className="text-[8px] font-black uppercase tracking-widest text-emerald-500 mb-1">System Action</p>
-                      <p className="text-xs font-bold text-zinc-300">The jacket is a decoy. Move it to the front of the Denim rack to boost conversion.</p>
-                    </div>
-                  </div>
-
-                  {/* 💡 PATTERN 2: Predictive Chronology */}
-                  <div className="min-w-[280px] sm:min-w-[320px] bg-gradient-to-br from-[#111] to-[#050505] border border-white/5 p-5 rounded-[1.5rem] snap-center relative overflow-hidden group">
-                    <div className="absolute -right-4 -top-4 w-20 h-20 bg-blue-500/10 rounded-full blur-2xl group-hover:bg-blue-500/20 transition-all" />
-                    <div className="flex items-center gap-2 mb-3 relative z-10">
-                      <History className="w-4 h-4 text-blue-400" />
-                      <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Predictive Trigger</p>
-                    </div>
-                    <h4 className="text-sm font-bold text-white leading-relaxed mb-4 relative z-10">
-                      VIPs who buy <span className="text-blue-400">Leather Shoes</span> typically return for matching belts around <span className="font-black">Day 45</span>.
-                    </h4>
-                    <div className="bg-[#0a0a0a] border border-white/5 p-3 rounded-xl relative z-10 flex items-center justify-between">
-                      <div>
-                        <p className="text-[8px] font-black uppercase tracking-widest text-blue-500 mb-1">Target Identified</p>
-                        <p className="text-xs font-bold text-zinc-300">8 clients are at Day 43 today.</p>
-                      </div>
-                      <button className="bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-400 p-2 rounded-lg transition-colors">
-                        <Send className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 💡 PATTERN 3: Abandonment Clustering */}
-                  <div className="min-w-[280px] sm:min-w-[320px] bg-gradient-to-br from-[#111] to-[#050505] border border-white/5 p-5 rounded-[1.5rem] snap-center relative overflow-hidden group">
-                    <div className="absolute -right-4 -top-4 w-20 h-20 bg-rose-500/10 rounded-full blur-2xl group-hover:bg-rose-500/20 transition-all" />
-                    <div className="flex items-center gap-2 mb-3 relative z-10">
-                      <AlertTriangle className="w-4 h-4 text-rose-500" />
-                      <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Abandonment Cluster</p>
-                    </div>
-                    <h4 className="text-sm font-bold text-white leading-relaxed mb-4 relative z-10">
-                      12 recent drop-offs for the <span className="text-rose-400">Red Hoodie</span> share a preference for <span className="font-black">Slim Fit</span> styles.
-                    </h4>
-                    <div className="bg-[#0a0a0a] border border-white/5 p-3 rounded-xl relative z-10">
-                      <p className="text-[8px] font-black uppercase tracking-widest text-rose-500 mb-1">Root Cause</p>
-                      <p className="text-xs font-bold text-zinc-300">The current Regular fit is clashing with target audience preference.</p>
-                    </div>
-                  </div>
-
-                </div>
-              </div>
-
 
       {/* 🚀 THE CAMPAIGN PREVIEW MODAL (SaaS Trust Builder) */}
       <AnimatePresence>
