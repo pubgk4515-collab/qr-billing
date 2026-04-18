@@ -47,7 +47,6 @@ export default function CRMEngine() {
   const store_slug = params?.store_slug as string || '';
   const safeStoreSlug = decodeURIComponent(store_slug).toLowerCase().trim();
 
-
   const [loading, setLoading] = useState(true);
   const [storeData, setStoreData] = useState<any>(null);
   
@@ -91,7 +90,7 @@ export default function CRMEngine() {
   ];
   const [neuralInsights, setNeuralInsights] = useState<any[]>(defaultInsights);
 
-    useEffect(() => {
+  useEffect(() => {
     if (!safeStoreSlug) {
       setLoading(false); 
       return;
@@ -110,7 +109,6 @@ export default function CRMEngine() {
           return;
         }
         setStoreData(store);
-
 
         const { data: products } = await supabase.from('products').select('*').eq('store_id', store.id);
 
@@ -180,7 +178,7 @@ export default function CRMEngine() {
           });
 
           const now = new Date();
-                    const processedCustomers: Customer[] = Array.from(customerMap.values()).map(c => {
+          const processedCustomers: Customer[] = Array.from(customerMap.values()).map(c => {
             const diffTime = Math.abs(now.getTime() - c.last_visit.getTime());
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             
@@ -192,6 +190,7 @@ export default function CRMEngine() {
             const favCategory = Object.entries(c.categories || {}).sort(([, a], [, b]) => (b as number) - (a as number))?.[0]?.[0] ?? 'Premium Wear';
             const simulatedScans = c.visits * (Math.floor(Math.random() * 4) + 2); 
             const aov = c.visits ? Math.round(c.total_spend / c.visits) : 0;
+            const visit_frequency = c.visits ? Math.round((now.getTime() - c.first_visit.getTime()) / (1000 * 60 * 60 * 24 * c.visits)) : 1;
 
             // 🔥 REAL PREFERENCE AI LOGIC
             const tags: string[] = [];
@@ -201,6 +200,11 @@ export default function CRMEngine() {
             if (c.visits >= 5) tags.push('Brand Loyalist');
             else if (c.visits === 1) tags.push('First Timer');
 
+            // 🔥 DYNAMIC CHURN PROBABILITY FORMULA
+            // Calculates risk based on missed buying cycles. Capped between 1% and 99%.
+            const rawChurn = Math.round((diffDays / Math.max(visit_frequency, 1)) * 25);
+            const dynamicChurn = Math.min(99, Math.max(1, rawChurn));
+
             return { 
               ...c, 
               days_since_last_visit: diffDays, 
@@ -208,13 +212,12 @@ export default function CRMEngine() {
               avg_order_value: aov,
               simulated_scans: simulatedScans,
               conversion_rate: simulatedScans ? Math.round((c.visits / simulatedScans) * 100) : 0,
-              visit_frequency: c.visits ? Math.round((now.getTime() - c.first_visit.getTime()) / (1000 * 60 * 60 * 24 * c.visits)) : 1,
+              visit_frequency: visit_frequency,
               fav_category: favCategory,
-              churn_prob: diffDays > 45 ? 88 : diffDays > 20 ? 45 : 12,
-              ai_tags: tags // 👈 Map me inject kar diya
+              churn_prob: dynamicChurn, // 👈 Dynamic formula injected
+              ai_tags: tags 
             };
           }).sort((a, b) => b.total_spend - a.total_spend);
-
 
           // REAL NEURAL INSIGHTS GENERATION
           const realInsights = [];
@@ -240,15 +243,15 @@ export default function CRMEngine() {
 
           setNeuralInsights(realInsights.length > 0 ? realInsights : defaultInsights);
 
-                    if (processedCustomers.length === 0) {
+          if (processedCustomers.length === 0) {
             setCustomers([
               { 
-                phone: '8509460738', total_spend: 46257, visits: 12, days_since_last_visit: 2, segment: 'vip', first_visit: new Date('2025-10-12'), last_visit: new Date(), highest_purchase: 8500, avg_order_value: 3854, simulated_scans: 34, conversion_rate: 35, visit_frequency: 14, fav_category: 'Leather Goods', churn_prob: 5, categories: {},
-                ai_tags: ['Premium Buyer', 'Brand Loyalist'] // 👈 Ye add kiya
+                phone: '8509460738', total_spend: 46257, visits: 12, days_since_last_visit: 2, segment: 'vip', first_visit: new Date('2025-10-12'), last_visit: new Date(), highest_purchase: 8500, avg_order_value: 3854, simulated_scans: 34, conversion_rate: 35, visit_frequency: 14, fav_category: 'Leather Goods', churn_prob: 4, categories: {},
+                ai_tags: ['Premium Buyer', 'Brand Loyalist']
               },
               { 
-                phone: '7477613224', total_spend: 14086, visits: 5, days_since_last_visit: 15, segment: 'vip', first_visit: new Date('2026-01-05'), last_visit: new Date(), highest_purchase: 4200, avg_order_value: 2817, simulated_scans: 18, conversion_rate: 27, visit_frequency: 21, fav_category: 'Denim', churn_prob: 25, categories: {},
-                ai_tags: ['Premium Buyer', 'Frequent Visitor'] // 👈 Ye add kiya
+                phone: '7477613224', total_spend: 14086, visits: 5, days_since_last_visit: 15, segment: 'vip', first_visit: new Date('2026-01-05'), last_visit: new Date(), highest_purchase: 4200, avg_order_value: 2817, simulated_scans: 18, conversion_rate: 27, visit_frequency: 21, fav_category: 'Denim', churn_prob: 18, categories: {},
+                ai_tags: ['Premium Buyer', 'Brand Loyalist']
               },
             ]);
           } else {
