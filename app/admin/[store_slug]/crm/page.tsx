@@ -28,6 +28,7 @@ type Customer = {
   visit_frequency: number;
   fav_category: string;
   churn_prob: number;
+  ai_tags: string[];
 };
 
 type CartItem = {
@@ -179,7 +180,7 @@ export default function CRMEngine() {
           });
 
           const now = new Date();
-          const processedCustomers: Customer[] = Array.from(customerMap.values()).map(c => {
+                    const processedCustomers: Customer[] = Array.from(customerMap.values()).map(c => {
             const diffTime = Math.abs(now.getTime() - c.last_visit.getTime());
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             
@@ -188,22 +189,32 @@ export default function CRMEngine() {
             else if (diffDays > 30) segment = 'at_risk';
             else if (diffDays <= 7 && c.visits === 1) segment = 'new';
 
-            const favCategory = Object.entries(c.categories ?? {}).sort(([, a], [, b]) => Number(b) - Number(a))[0]?.[0] ?? 'Premium Wear';
+            const favCategory = Object.entries(c.categories || {}).sort(([, a], [, b]) => (b as number) - (a as number))?.[0]?.[0] ?? 'Premium Wear';
             const simulatedScans = c.visits * (Math.floor(Math.random() * 4) + 2); 
+            const aov = c.visits ? Math.round(c.total_spend / c.visits) : 0;
+
+            // 🔥 REAL PREFERENCE AI LOGIC
+            const tags: string[] = [];
+            if (aov >= 2500) tags.push('Premium Buyer');
+            else if (aov < 1000) tags.push('Value Seeker');
+            
+            if (c.visits >= 5) tags.push('Brand Loyalist');
+            else if (c.visits === 1) tags.push('First Timer');
 
             return { 
               ...c, 
               days_since_last_visit: diffDays, 
               segment,
-              avg_order_value: c.visits ? Math.round(c.total_spend / c.visits) : 0,
+              avg_order_value: aov,
               simulated_scans: simulatedScans,
-              // 🔥 Fixed Divide by zero risks
               conversion_rate: simulatedScans ? Math.round((c.visits / simulatedScans) * 100) : 0,
               visit_frequency: c.visits ? Math.round((now.getTime() - c.first_visit.getTime()) / (1000 * 60 * 60 * 24 * c.visits)) : 1,
               fav_category: favCategory,
-              churn_prob: diffDays > 45 ? 88 : diffDays > 20 ? 45 : 12
+              churn_prob: diffDays > 45 ? 88 : diffDays > 20 ? 45 : 12,
+              ai_tags: tags // 👈 Map me inject kar diya
             };
           }).sort((a, b) => b.total_spend - a.total_spend);
+
 
           // REAL NEURAL INSIGHTS GENERATION
           const realInsights = [];
@@ -229,14 +240,21 @@ export default function CRMEngine() {
 
           setNeuralInsights(realInsights.length > 0 ? realInsights : defaultInsights);
 
-          if (processedCustomers.length === 0) {
+                    if (processedCustomers.length === 0) {
             setCustomers([
-              { phone: '8509460738', total_spend: 46257, visits: 12, days_since_last_visit: 2, segment: 'vip', first_visit: new Date('2025-10-12'), last_visit: new Date(), highest_purchase: 8500, avg_order_value: 3854, simulated_scans: 34, conversion_rate: 35, visit_frequency: 14, fav_category: 'Leather Goods', churn_prob: 5, categories: {} },
-              { phone: '7477613224', total_spend: 14086, visits: 5, days_since_last_visit: 15, segment: 'vip', first_visit: new Date('2026-01-05'), last_visit: new Date(), highest_purchase: 4200, avg_order_value: 2817, simulated_scans: 18, conversion_rate: 27, visit_frequency: 21, fav_category: 'Denim', churn_prob: 25, categories: {} },
+              { 
+                phone: '8509460738', total_spend: 46257, visits: 12, days_since_last_visit: 2, segment: 'vip', first_visit: new Date('2025-10-12'), last_visit: new Date(), highest_purchase: 8500, avg_order_value: 3854, simulated_scans: 34, conversion_rate: 35, visit_frequency: 14, fav_category: 'Leather Goods', churn_prob: 5, categories: {},
+                ai_tags: ['Premium Buyer', 'Brand Loyalist'] // 👈 Ye add kiya
+              },
+              { 
+                phone: '7477613224', total_spend: 14086, visits: 5, days_since_last_visit: 15, segment: 'vip', first_visit: new Date('2026-01-05'), last_visit: new Date(), highest_purchase: 4200, avg_order_value: 2817, simulated_scans: 18, conversion_rate: 27, visit_frequency: 21, fav_category: 'Denim', churn_prob: 25, categories: {},
+                ai_tags: ['Premium Buyer', 'Frequent Visitor'] // 👈 Ye add kiya
+              },
             ]);
           } else {
             setCustomers(processedCustomers);
           }
+
         }
       } catch (err) { console.error(err); } finally { setLoading(false); }
     }
@@ -615,14 +633,23 @@ export default function CRMEngine() {
                   </div>
                 </div>
 
-                {/* 🔹 Preference Layer */}
+                                {/* 🔹 Preference Layer (Real AI) */}
                 <div>
                   <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-3 flex items-center gap-2"><Sparkles className="w-3.5 h-3.5" /> Preference AI</h3>
                   <div className="bg-blue-500/5 border border-blue-500/20 p-4 rounded-2xl flex flex-wrap gap-2">
-                    <span className="bg-blue-500/10 text-blue-400 px-3 py-1.5 rounded-lg text-[10px] font-black tracking-wider flex items-center gap-1.5"><ShoppingBag className="w-3 h-3" /> {selectedCustomer.fav_category}</span>
-                    <span className="bg-white/5 text-zinc-300 px-3 py-1.5 rounded-lg text-[10px] font-black tracking-wider">Premium Buyer</span>
+                    <span className="bg-blue-500/10 text-blue-400 px-3 py-1.5 rounded-lg text-[10px] font-black tracking-wider flex items-center gap-1.5">
+                      <ShoppingBag className="w-3 h-3" /> {selectedCustomer.fav_category}
+                    </span>
+                    
+                    {/* 🔥 Dynamic Tags Mapping */}
+                    {selectedCustomer.ai_tags?.map((tag, idx) => (
+                      <span key={idx} className="bg-white/5 text-zinc-300 px-3 py-1.5 rounded-lg text-[10px] font-black tracking-wider border border-white/5">
+                        {tag}
+                      </span>
+                    ))}
                   </div>
                 </div>
+
 
                 {/* 🔹 Risk Layer */}
                 <div>
