@@ -1,7 +1,7 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -39,10 +39,13 @@ type CartItem = {
 };
 
 // 🔥 Fixed use(params) instability
-export default function CRMEngine({ params }: { params: { store_slug: string } }) {
+export default function CRMEngine() {
   const router = useRouter();
-  const { store_slug } = params;
-  const safeStoreSlug = decodeURIComponent(store_slug || '').toLowerCase().trim();
+  const params = useParams();
+  
+  const store_slug = params?.store_slug as string || '';
+  const safeStoreSlug = decodeURIComponent(store_slug).toLowerCase().trim();
+
 
   const [loading, setLoading] = useState(true);
   const [storeData, setStoreData] = useState<any>(null);
@@ -87,14 +90,26 @@ export default function CRMEngine({ params }: { params: { store_slug: string } }
   ];
   const [neuralInsights, setNeuralInsights] = useState<any[]>(defaultInsights);
 
-  useEffect(() => {
-    if (!safeStoreSlug) return;
+    useEffect(() => {
+    if (!safeStoreSlug) {
+      setLoading(false); 
+      return;
+    }
     
     async function fetchCRMData() {
       try {
-        const { data: store } = await supabase.from('stores').select('*').ilike('slug', safeStoreSlug).single();
-        if (!store) return;
+        const { data: store } = await supabase
+          .from('stores')
+          .select('*')
+          .ilike('slug', safeStoreSlug)
+          .single();
+          
+        if (!store) {
+          setLoading(false);
+          return;
+        }
         setStoreData(store);
+
 
         const { data: products } = await supabase.from('products').select('*').eq('store_id', store.id);
 
