@@ -2,8 +2,8 @@ import "./globals.css";
 import HomeButton from "./components/HomeButton";
 
 export const metadata = {
-  title: "Rampurhat Collection | Enterprise POS",
-  description: "Next-Gen Retail OS & Smart Billing",
+  title: "QReBill | The Future of Retail OS",
+  description: "Lightning-fast QR checkout meets predictive AI. No hardware required.",
 };
 
 export default function RootLayout({
@@ -13,7 +13,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>
+      <body className="bg-[#050505] text-white selection:bg-emerald-500/30">
         {children}
         {/* 🔥 Universal Home Button */}
         <HomeButton />
