@@ -106,7 +106,8 @@ function LandingContent() {
   };
 
   return (
-    <main className={`min-h-screen ${theme.bg} ${theme.text} relative overflow-x-hidden font-sans transition-colors duration-500 selection:bg-blue-500/30`}>
+    <main className={`min-h-screen flex flex-col ${theme.bg} ${theme.text} relative overflow-x-hidden font-sans transition-colors duration-500 selection:bg-blue-500/30`}>
+
       
       {/* 🌌 HYBRID GLOWS (Adapts to theme) */}
       <div className={`absolute top-[-10%] left-1/2 -translate-x-1/2 w-[800px] h-[400px] ${isDark ? 'bg-blue-500/10' : 'bg-blue-500/5'} blur-[150px] rounded-full pointer-events-none transition-colors duration-500`} />
@@ -238,7 +239,7 @@ function LandingContent() {
       </section>
 
       {/* FOOTER PUSH */}
-      <footer className={`border-t relative z-10 transition-colors duration-500 ${isDark ? 'bg-[#050505] border-white/5' : 'bg-white border-black/5'}`}>
+      <footer className={`mt-auto border-t relative z-10 transition-colors duration-500 ${isDark ? 'bg-[#050505] border-white/5' : 'bg-white border-black/5'}`}>
         <div className="max-w-6xl mx-auto px-6 py-12 flex flex-col md:flex-row items-center justify-between">
           <div className="flex items-center gap-2 mb-4 md:mb-0">
             <Zap className="w-4 h-4 text-blue-500 fill-blue-500" />
