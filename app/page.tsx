@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useEffect, Suspense, useRef, useLayoutEffect, useCallback } from 'react';
+import { useState, useEffect, Suspense, useRef, useLayoutEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from './lib/supabase';
 import {
   motion,
   AnimatePresence,
   useInView,
-  useAnimate,
   useMotionValue,
   Variants,
 } from 'framer-motion';
@@ -44,8 +43,6 @@ const easeOut: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 /* ── Theme helpers ── */
 const THEME_KEY = 'qrebill-theme';
-const DARK_CLASS = 'dark';
-const LIGHT_CLASS = 'light';
 
 function getSystemTheme(): boolean {
   if (typeof window === 'undefined') return true;
@@ -62,13 +59,12 @@ function loadThemeFromStorage(): boolean {
 
 function applyThemeClass(isDark: boolean) {
   const root = document.documentElement;
-  root.classList.toggle(DARK_CLASS, isDark);
-  root.classList.toggle(LIGHT_CLASS, !isDark);
-  // Legacy – keep for inline styles that rely on data attribute
+  root.classList.toggle('dark', isDark);
+  root.classList.toggle('light', !isDark);
   root.setAttribute('data-theme', isDark ? 'dark' : 'light');
 }
 
-/* ── Smooth Animated Number (Framer Motion) ── */
+/* ── Smooth Animated Number (FIXED) ── */
 function AnimatedNumber({
   value,
   duration = 1.5,
@@ -81,26 +77,91 @@ function AnimatedNumber({
   const ref = useRef<HTMLSpanElement>(null);
   const isInView = useInView(ref, { once: true, margin: '-20%' });
   const motionVal = useMotionValue(0);
-  const [scope, animate] = useAnimate<HTMLSpanElement>();
+  const [displayValue, setDisplayValue] = useState('0');
   const hasAnimated = useRef(false);
 
   useEffect(() => {
-    if (!isInView || hasAnimated.current) return;
-    hasAnimated.current = true;
+    // Format helper
+    const formatter = new Intl.NumberFormat('en-IN', {
+      maximumFractionDigits: 0,
+    });
 
-    const controls = animate(
-      motionVal,
-      value,
-      { duration, delay, ease: easeOut }
-    );
-    return () => controls?.stop();
-  }, [isInView, value, duration, delay, motionVal, animate]);
+    const onChange = (latest: number) => {
+      setDisplayValue(formatter.format(Math.round(latest)));
+    };
 
-  return (
-    <motion.span ref={ref}>
-      {motionVal}
-    </motion.span>
-  );
+    // Subscribe to motion value changes
+    const unsubscribe = motionVal.on('change', onChange);
+
+    // Start animation when in view (once)
+    if (isInView && !hasAnimated.current) {
+      hasAnimated.current = true;
+      // Reset to 0 before animating (smooth)
+      motionVal.set(0);
+      animateMotion();
+    }
+
+    async function animateMotion() {
+      // Use manual animation with motionVal
+      // We can't use animate() from useAnimate on a motion value directly,
+      // so we animate via Framer Motion's animate function
+      const start = performance.now();
+      const totalDuration = duration * 1000;
+      const delayMs = delay * 1000;
+
+      const step = (now: number) => {
+        const elapsed = now - start - delayMs;
+        if (elapsed < 0) {
+          requestAnimationFrame(step);
+          return;
+        }
+        const progress = Math.min(elapsed / totalDuration, 1);
+        const eased = cubicBezier(easeOut, progress);
+        motionVal.set(eased * value);
+        if (progress < 1) {
+          requestAnimationFrame(step);
+        }
+      };
+
+      if (delayMs > 0) {
+        setTimeout(() => requestAnimationFrame(step), delayMs);
+      } else {
+        requestAnimationFrame(step);
+      }
+    }
+
+    return () => unsubscribe();
+  }, [isInView, value, duration, delay, motionVal, easeOut]);
+
+  // Simple cubic-bezier evaluator
+  function cubicBezier(controlPoints: [number, number, number, number], t: number): number {
+    const [p1x, p1y, p2x, p2y] = controlPoints;
+    // Newton-raphson to find t for x
+    const sampleCurve = (a: number, b: number, c: number, d: number, t: number) =>
+      ((a * t + b) * t + c) * t + d;
+
+    const sampleCurveX = (t: number) => sampleCurve(3 * (1 - t) * (1 - t) * t, 3 * (1 - t) * t * t, t * t * t, 0, 1);
+    // We'll approximate with a lookup table
+    const bezierCache = new Map<number, number>();
+    const lookup = (x: number) => {
+      if (bezierCache.has(x)) return bezierCache.get(x)!;
+      // Binary search for t
+      let lo = 0, hi = 1;
+      for (let i = 0; i < 20; i++) {
+        const mid = (lo + hi) / 2;
+        const xEst = sampleCurve(p1x, p2x, 0, 1, mid);
+        if (xEst < x) lo = mid;
+        else hi = mid;
+      }
+      const t = (lo + hi) / 2;
+      const y = sampleCurve(p1y, p2y, 0, 1, t);
+      bezierCache.set(x, y);
+      return y;
+    };
+    return lookup(t);
+  }
+
+  return <span ref={ref}>{displayValue}</span>;
 }
 
 /* ── Variants ── */
@@ -135,12 +196,10 @@ function LandingContent() {
   // Theme
   const [isDark, setIsDark] = useState(loadThemeFromStorage);
 
-  // Apply class immediately before paint
   useLayoutEffect(() => {
     applyThemeClass(isDark);
   }, [isDark]);
 
-  // Listen to system preference changes
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = (e: MediaQueryListEvent) => {
@@ -152,7 +211,6 @@ function LandingContent() {
     return () => mq.removeEventListener('change', handleChange);
   }, []);
 
-  // Persist theme changes
   useEffect(() => {
     localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
   }, [isDark]);
@@ -238,7 +296,6 @@ function LandingContent() {
     }, 300);
   };
 
-  // Theme‑based classes
   const theme = {
     bg: 'bg-black',
     text: 'text-white',
@@ -253,7 +310,6 @@ function LandingContent() {
     secondaryBtn: 'bg-[#111] text-white hover:bg-[#222] transition-colors',
   };
 
-  // Button press style
   const pressable = 'active:scale-95 transition-transform duration-100';
 
   return (
@@ -557,7 +613,7 @@ function LandingContent() {
           whileInView="visible"
           viewport={{ once: true, margin: '-60px' }}
           variants={fastReveal(0)}
-          className="text-3xl md:text-5xl font-semibold tracking-tight mb-12"
+          className="text-3xl md:text-5xl font-semiboid tracking-tight mb-12"
         >
           You&apos;re not guessing anymore.
         </motion.h2>
@@ -854,7 +910,7 @@ function LandingContent() {
                     <button
                       onClick={triggerScreenLock}
                       disabled={loading}
-                      className={`w-full font-medium text-sm py-4 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 bg-white text-black hover:bg-gray-100`}
+                      className="w-full font-medium text-sm py-4 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 bg-white text-black hover:bg-gray-100"
                     >
                       <Fingerprint className="w-5 h-5" /> Use Biometrics
                     </button>
