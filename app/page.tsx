@@ -206,19 +206,20 @@ function LandingContent() {
     }, 300);
   };
 
-  const theme = {
-    bg: 'bg-[#000000]',
-    text: 'text-white',
-    muted: 'text-[#777]',
-    faint: 'text-[#444]',
-    nav: 'bg-black/80 border-white/5 backdrop-blur-2xl',
-    darkSection: 'bg-[#020202]',
-    card: 'bg-[#0A0A0A] border border-white/[0.03]',
-    cardInner: 'bg-[#111]',
-    divider: 'bg-white/5',
-    primaryBtn: 'bg-white text-black hover:bg-gray-100',
-    secondaryBtn: 'bg-[#111] text-white hover:bg-[#222]',
+    const theme = {
+    bg: isDark ? 'bg-[#000000]' : 'bg-[#FAFAFA]',
+    text: isDark ? 'text-white' : 'text-[#111111]',
+    muted: isDark ? 'text-[#777]' : 'text-[#888]',
+    faint: isDark ? 'text-[#444]' : 'text-[#CCC]',
+    nav: isDark ? 'bg-black/80 border-white/5 backdrop-blur-2xl' : 'bg-white/80 border-black/5 backdrop-blur-2xl',
+    darkSection: isDark ? 'bg-[#020202]' : 'bg-[#F4F4F5]',
+    card: isDark ? 'bg-[#0A0A0A] border-white/[0.03]' : 'bg-white border-black/[0.04] shadow-sm',
+    cardInner: isDark ? 'bg-[#111]' : 'bg-[#F9F9FB]',
+    divider: isDark ? 'bg-white/5' : 'bg-black/5',
+    primaryBtn: isDark ? 'bg-white text-black hover:bg-gray-200' : 'bg-black text-white hover:bg-gray-800',
+    secondaryBtn: isDark ? 'bg-[#111] text-white hover:bg-[#222]' : 'bg-[#F4F4F5] text-black hover:bg-[#E4E4E7]',
   };
+
 
   const stagger = {
     hidden: {},
@@ -426,19 +427,20 @@ function LandingContent() {
                       }
                       transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}
                       className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-colors duration-500 ${
-                        isActive
-                          ? 'bg-white/[0.06] ring-1 ring-white/10'
-                          : 'bg-white/[0.02]'
-                      }`}
+                                 isActive
+    ? isDark ? 'bg-white/[0.06] ring-1 ring-white/10' : 'bg-black/[0.06] ring-1 ring-black/10'
+    : isDark ? 'bg-white/[0.02]' : 'bg-black/[0.02]'
+}`}
                     >
                       {label === 'In Bag' && isActive ? (
                         <Lock className="w-6 h-6 text-amber-400" />
                       ) : (
                         <Icon
-                          className={`w-6 h-6 transition-colors duration-500 ${
-                            isActive ? 'text-white' : 'text-white/20'
-                          }`}
-                        />
+  className={`w-6 h-6 transition-colors duration-500 ${
+    isActive ? (isDark ? 'text-white' : 'text-black') : (isDark ? 'text-white/20' : 'text-black/20')
+  }`}
+/>
+
                       )}
                     </motion.div>
                     <h3
@@ -771,7 +773,8 @@ function LandingContent() {
               animate={{ y: 0, scale: 1 }}
               exit={{ y: '100%', scale: 0.95 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className={`w-full sm:max-w-md rounded-t-[2.5rem] sm:rounded-3xl border bg-[#0A0A0A] border-white/10 relative overflow-hidden pb-12 pt-4 px-6 sm:p-10 min-h-[480px] flex flex-col`}
+              className={`w-full sm:max-w-md rounded-t-[2.5rem] sm:rounded-3xl border ${isDark ? 'bg-[#0A0A0A] border-white/10' : 'bg-white border-black/10 shadow-2xl'} relative overflow-hidden pb-12 pt-4 px-6 sm:p-10 min-h-[480px] flex flex-col`}
+
             >
               <div className="w-12 h-1.5 rounded-full mx-auto mb-8 sm:hidden bg-white/20" />
               <button
