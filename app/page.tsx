@@ -1,9 +1,16 @@
 'use client';
 
-import { useState, useEffect, Suspense, useRef, useLayoutEffect } from 'react';
+import { useState, useEffect, Suspense, useRef, useLayoutEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from './lib/supabase';
-import { motion, AnimatePresence, useInView, Variants } from 'framer-motion';
+import {
+  motion,
+  AnimatePresence,
+  useInView,
+  useAnimate,
+  useMotionValue,
+  Variants,
+} from 'framer-motion';
 import {
   X,
   ShieldCheck,
@@ -32,14 +39,77 @@ const inter = Inter({
   variable: '--font-inter',
 });
 
+/* ── Easing ── */
 const easeOut: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
+/* ── Theme helpers ── */
+const THEME_KEY = 'qrebill-theme';
+const DARK_CLASS = 'dark';
+const LIGHT_CLASS = 'light';
+
+function getSystemTheme(): boolean {
+  if (typeof window === 'undefined') return true;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+function loadThemeFromStorage(): boolean {
+  if (typeof window === 'undefined') return true;
+  const stored = localStorage.getItem(THEME_KEY);
+  if (stored === 'light') return false;
+  if (stored === 'dark') return true;
+  return getSystemTheme();
+}
+
+function applyThemeClass(isDark: boolean) {
+  const root = document.documentElement;
+  root.classList.toggle(DARK_CLASS, isDark);
+  root.classList.toggle(LIGHT_CLASS, !isDark);
+  // Legacy – keep for inline styles that rely on data attribute
+  root.setAttribute('data-theme', isDark ? 'dark' : 'light');
+}
+
+/* ── Smooth Animated Number (Framer Motion) ── */
+function AnimatedNumber({
+  value,
+  duration = 1.5,
+  delay = 0,
+}: {
+  value: number;
+  duration?: number;
+  delay?: number;
+}) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const isInView = useInView(ref, { once: true, margin: '-20%' });
+  const motionVal = useMotionValue(0);
+  const [scope, animate] = useAnimate<HTMLSpanElement>();
+  const hasAnimated = useRef(false);
+
+  useEffect(() => {
+    if (!isInView || hasAnimated.current) return;
+    hasAnimated.current = true;
+
+    const controls = animate(
+      motionVal,
+      value,
+      { duration, delay, ease: easeOut }
+    );
+    return () => controls?.stop();
+  }, [isInView, value, duration, delay, motionVal, animate]);
+
+  return (
+    <motion.span ref={ref}>
+      {motionVal}
+    </motion.span>
+  );
+}
+
+/* ── Variants ── */
 const fastReveal = (delay = 0): Variants => ({
   hidden: { opacity: 0, y: 20 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.5, delay, ease: easeOut },
+    transition: { duration: 0.45, delay, ease: easeOut },
   },
 });
 
@@ -51,80 +121,42 @@ const fadeIn = (delay = 0): Variants => ({
   },
 });
 
-/* ── Fixed AnimatedNumber ── */
-function AnimatedNumber({
-  value,
-  duration = 1.5,
-  delay = 0,
-}: {
-  value: number;
-  duration?: number;
-  delay?: number;
-}) {
-  // Initialise with final value – never show fake data
-  const [count, setCount] = useState(value);
-  const [animate, setAnimate] = useState(false);
-  const ref = useRef<HTMLSpanElement>(null);
-  const isInView = useInView(ref, { once: true, margin: '-20%' });
-  const hasInteracted = useRef(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+const stagger = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.1 } },
+};
 
-  // Fallback: if after 500ms the animation hasn’t started, force correct value
-  useEffect(() => {
-    const t = setTimeout(() => {
-      if (!hasInteracted.current) {
-        setCount(value);
-        if (intervalRef.current) clearInterval(intervalRef.current);
-      }
-    }, 500);
-    return () => clearTimeout(t);
-  }, [value]);
-
-  // Start animation ONLY when the element scrolls into view
-  useLayoutEffect(() => {
-    if (isInView && !hasInteracted.current) {
-      hasInteracted.current = true;
-      setAnimate(true);
-      setCount(0);
-    }
-  }, [isInView]);
-
-  // Run the counting animation
-  useEffect(() => {
-    if (!animate) return;
-    let start = 0;
-    const increment = value / (duration * 60);
-
-    // Small delay before starting, if needed
-    const startTimeout = setTimeout(() => {
-      intervalRef.current = setInterval(() => {
-        start += increment;
-        if (start >= value) {
-          setCount(value);
-          setAnimate(false);
-          if (intervalRef.current) clearInterval(intervalRef.current);
-        } else {
-          setCount(Math.floor(start));
-        }
-      }, 1000 / 60);
-    }, delay * 1000);
-
-    return () => {
-      clearTimeout(startTimeout);
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [animate, value, duration, delay]);
-
-  // If the animation never started → show the final value
-  return <span ref={ref}>{animate ? count : value}</span>;
-}
-
+/* ── Landing Content ── */
 function LandingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlShopSlug = searchParams.get('shop');
 
-  const [isDark, setIsDark] = useState(true);
+  // Theme
+  const [isDark, setIsDark] = useState(loadThemeFromStorage);
+
+  // Apply class immediately before paint
+  useLayoutEffect(() => {
+    applyThemeClass(isDark);
+  }, [isDark]);
+
+  // Listen to system preference changes
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = (e: MediaQueryListEvent) => {
+      if (!localStorage.getItem(THEME_KEY)) {
+        setIsDark(e.matches);
+      }
+    };
+    mq.addEventListener('change', handleChange);
+    return () => mq.removeEventListener('change', handleChange);
+  }, []);
+
+  // Persist theme changes
+  useEffect(() => {
+    localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
+  }, [isDark]);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showPinPad, setShowPinPad] = useState(false);
   const [pin, setPin] = useState('');
@@ -206,25 +238,23 @@ function LandingContent() {
     }, 300);
   };
 
-    const theme = {
-    bg: isDark ? 'bg-[#000000]' : 'bg-[#FAFAFA]',
-    text: isDark ? 'text-white' : 'text-[#111111]',
-    muted: isDark ? 'text-[#777]' : 'text-[#888]',
-    faint: isDark ? 'text-[#444]' : 'text-[#CCC]',
-    nav: isDark ? 'bg-black/80 border-white/5 backdrop-blur-2xl' : 'bg-white/80 border-black/5 backdrop-blur-2xl',
-    darkSection: isDark ? 'bg-[#020202]' : 'bg-[#F4F4F5]',
-    card: isDark ? 'bg-[#0A0A0A] border-white/[0.03]' : 'bg-white border-black/[0.04] shadow-sm',
-    cardInner: isDark ? 'bg-[#111]' : 'bg-[#F9F9FB]',
-    divider: isDark ? 'bg-white/5' : 'bg-black/5',
-    primaryBtn: isDark ? 'bg-white text-black hover:bg-gray-200' : 'bg-black text-white hover:bg-gray-800',
-    secondaryBtn: isDark ? 'bg-[#111] text-white hover:bg-[#222]' : 'bg-[#F4F4F5] text-black hover:bg-[#E4E4E7]',
+  // Theme‑based classes
+  const theme = {
+    bg: 'bg-black',
+    text: 'text-white',
+    muted: 'text-[#777]',
+    faint: 'text-[#444]',
+    nav: 'bg-black/80 border-white/5 backdrop-blur-2xl',
+    darkSection: 'bg-[#020202]',
+    card: 'bg-[#0A0A0A] border border-white/[0.03]',
+    cardInner: 'bg-[#111]',
+    divider: 'bg-white/5',
+    primaryBtn: 'bg-white text-black hover:bg-gray-100 transition-colors',
+    secondaryBtn: 'bg-[#111] text-white hover:bg-[#222] transition-colors',
   };
 
-
-  const stagger = {
-    hidden: {},
-    visible: { transition: { staggerChildren: 0.1 } },
-  };
+  // Button press style
+  const pressable = 'active:scale-95 transition-transform duration-100';
 
   return (
     <main
@@ -241,13 +271,36 @@ function LandingContent() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsDark(!isDark)}
-              className={`p-2 rounded-full transition-all ${theme.secondaryBtn}`}
+              className={`p-2 rounded-full transition-all duration-200 ${theme.secondaryBtn} ${pressable}`}
+              aria-label="Toggle theme"
             >
-              {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+              <AnimatePresence mode="wait">
+                {isDark ? (
+                  <motion.div
+                    key="sun"
+                    initial={{ opacity: 0, rotate: -90 }}
+                    animate={{ opacity: 1, rotate: 0 }}
+                    exit={{ opacity: 0, rotate: 90 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Sun className="w-3.5 h-3.5" />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="moon"
+                    initial={{ opacity: 0, rotate: 90 }}
+                    animate={{ opacity: 1, rotate: 0 }}
+                    exit={{ opacity: 0, rotate: -90 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Moon className="w-3.5 h-3.5" />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </button>
             <button
               onClick={() => setIsModalOpen(true)}
-              className={`px-5 py-2 rounded-full text-xs font-semibold uppercase tracking-[0.12em] active:scale-95 transition-all ${theme.primaryBtn}`}
+              className={`px-5 py-2 rounded-full text-xs font-semibold uppercase tracking-[0.12em] ${pressable} ${theme.primaryBtn}`}
             >
               Enter
             </button>
@@ -283,7 +336,7 @@ function LandingContent() {
           transition={{ duration: 0.5, delay: 0.2, ease: easeOut }}
         >
           <button
-            className={`px-8 py-4 rounded-full font-medium text-sm tracking-wide active:scale-95 transition-all hover:shadow-[0_0_30px_rgba(255,255,255,0.08)] ${theme.primaryBtn}`}
+            className={`px-8 py-4 rounded-full font-medium text-sm tracking-wide ${pressable} transition-all hover:shadow-[0_0_30px_rgba(255,255,255,0.08)] ${theme.primaryBtn}`}
           >
             See it live
           </button>
@@ -427,20 +480,19 @@ function LandingContent() {
                       }
                       transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}
                       className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-colors duration-500 ${
-                                 isActive
-    ? isDark ? 'bg-white/[0.06] ring-1 ring-white/10' : 'bg-black/[0.06] ring-1 ring-black/10'
-    : isDark ? 'bg-white/[0.02]' : 'bg-black/[0.02]'
-}`}
+                        isActive
+                          ? 'bg-white/[0.06] ring-1 ring-white/10'
+                          : 'bg-white/[0.02]'
+                      }`}
                     >
                       {label === 'In Bag' && isActive ? (
                         <Lock className="w-6 h-6 text-amber-400" />
                       ) : (
                         <Icon
-  className={`w-6 h-6 transition-colors duration-500 ${
-    isActive ? (isDark ? 'text-white' : 'text-black') : (isDark ? 'text-white/20' : 'text-black/20')
-  }`}
-/>
-
+                          className={`w-6 h-6 transition-colors duration-500 ${
+                            isActive ? 'text-white' : 'text-white/20'
+                          }`}
+                        />
                       )}
                     </motion.div>
                     <h3
@@ -484,7 +536,7 @@ function LandingContent() {
             className="mt-12 text-center"
           >
             <button
-              className={`px-8 py-4 rounded-full font-medium text-sm active:scale-95 transition-all ${theme.primaryBtn}`}
+              className={`px-8 py-4 rounded-full font-medium text-sm ${pressable} transition-all ${theme.primaryBtn}`}
             >
               See your store live
             </button>
@@ -552,10 +604,10 @@ function LandingContent() {
               variants={fastReveal(0)}
               className="text-4xl md:text-5xl font-semibold tracking-tight mb-8"
             >
-              <AnimatedNumber value={10} duration={1.2} /> picked.
+              <AnimatedNumber value={1240} duration={1.2} /> scanned.
               <br />
               <span className="text-rose-400">
-                <AnimatedNumber value={0} duration={1.2} delay={0.6} /> bought.
+                <AnimatedNumber value={380} duration={1.2} delay={0.6} /> abandoned.
               </span>
             </motion.h2>
 
@@ -566,7 +618,7 @@ function LandingContent() {
               variants={fastReveal(0.3)}
               className="text-lg font-medium text-rose-400 mb-3"
             >
-              You stocked it. You paid for it. It didn&apos;t sell.
+              10 picked, 0 bought. You stocked it, you paid for it. It didn&apos;t sell.
             </motion.p>
 
             <motion.p
@@ -737,7 +789,7 @@ function LandingContent() {
           className="mt-12"
         >
           <button
-            className={`px-10 py-5 rounded-full font-semibold text-sm tracking-wide active:scale-95 transition-all hover:shadow-[0_0_30px_rgba(255,255,255,0.1)] ${theme.primaryBtn}`}
+            className={`px-10 py-5 rounded-full font-semibold text-sm tracking-wide ${pressable} transition-all hover:shadow-[0_0_30px_rgba(255,255,255,0.1)] ${theme.primaryBtn}`}
           >
             I want to know
           </button>
@@ -766,20 +818,19 @@ function LandingContent() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-xl sm:items-center sm:p-4"
+            className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-lg sm:items-center sm:p-4"
           >
             <motion.div
               initial={{ y: '100%', scale: 0.95 }}
               animate={{ y: 0, scale: 1 }}
               exit={{ y: '100%', scale: 0.95 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className={`w-full sm:max-w-md rounded-t-[2.5rem] sm:rounded-3xl border ${isDark ? 'bg-[#0A0A0A] border-white/10' : 'bg-white border-black/10 shadow-2xl'} relative overflow-hidden pb-12 pt-4 px-6 sm:p-10 min-h-[480px] flex flex-col`}
-
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="w-full sm:max-w-md rounded-t-[2.5rem] sm:rounded-3xl border bg-[#0A0A0A] border-white/10 relative overflow-hidden pb-12 pt-4 px-6 sm:p-10 min-h-[480px] flex flex-col"
             >
               <div className="w-12 h-1.5 rounded-full mx-auto mb-8 sm:hidden bg-white/20" />
               <button
                 onClick={closeModal}
-                className="absolute top-6 right-6 p-2 rounded-full transition-colors z-10 bg-[#111] text-white hover:bg-[#222]"
+                className={`absolute top-6 right-6 p-2 rounded-full transition-colors z-10 ${theme.secondaryBtn}`}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -803,7 +854,7 @@ function LandingContent() {
                     <button
                       onClick={triggerScreenLock}
                       disabled={loading}
-                      className="w-full font-medium text-sm py-4 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 bg-white text-black hover:bg-gray-100"
+                      className={`w-full font-medium text-sm py-4 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 bg-white text-black hover:bg-gray-100`}
                     >
                       <Fingerprint className="w-5 h-5" /> Use Biometrics
                     </button>
@@ -845,7 +896,7 @@ function LandingContent() {
                       {[...Array(4)].map((_, i) => (
                         <div
                           key={i}
-                          className={`w-4 h-4 rounded-full transition-all duration-300 ${
+                          className={`w-4 h-4 rounded-full transition-all duration-200 ${
                             pin.length > i ? 'bg-blue-500 scale-110' : 'bg-white/10'
                           }`}
                         />
@@ -856,20 +907,20 @@ function LandingContent() {
                         <button
                           key={n}
                           onClick={() => addDigit(n.toString())}
-                          className="h-14 rounded-2xl text-xl font-medium transition-all bg-[#1C1C1E] text-white"
+                          className="h-14 rounded-2xl text-xl font-medium transition-all active:scale-95 bg-[#1C1C1E] text-white"
                         >
                           {n}
                         </button>
                       ))}
                       <button
                         onClick={removeDigit}
-                        className="h-14 flex items-center justify-center transition-colors text-[#777] hover:text-white"
+                        className="h-14 flex items-center justify-center transition-colors active:scale-95 text-[#777] hover:text-white"
                       >
                         <Delete className="w-6 h-6" />
                       </button>
                       <button
                         onClick={() => addDigit('0')}
-                        className="h-14 rounded-2xl text-xl font-medium transition-all bg-[#1C1C1E] text-white"
+                        className="h-14 rounded-2xl text-xl font-medium transition-all active:scale-95 bg-[#1C1C1E] text-white"
                       >
                         0
                       </button>
