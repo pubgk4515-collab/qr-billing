@@ -8,6 +8,8 @@ import {
   AnimatePresence,
   useInView,
   useMotionValue,
+  useTransform,
+  animate,
   Variants,
 } from 'framer-motion';
 import {
@@ -64,7 +66,7 @@ function applyThemeClass(isDark: boolean) {
   root.setAttribute('data-theme', isDark ? 'dark' : 'light');
 }
 
-/* ── Smooth Animated Number (FIXED) ── */
+/* ── Smooth AnimatedNumber (FIXED) ── */
 function AnimatedNumber({
   value,
   duration = 1.5,
@@ -77,91 +79,30 @@ function AnimatedNumber({
   const ref = useRef<HTMLSpanElement>(null);
   const isInView = useInView(ref, { once: true, margin: '-20%' });
   const motionVal = useMotionValue(0);
-  const [displayValue, setDisplayValue] = useState('0');
   const hasAnimated = useRef(false);
 
+  // Transform: round → format — no React state, DOM updates directly
+  const displayValue = useTransform(motionVal, (latest) => {
+    const rounded = Math.round(latest);
+    return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(
+      rounded
+    );
+  });
+
   useEffect(() => {
-    // Format helper
-    const formatter = new Intl.NumberFormat('en-IN', {
-      maximumFractionDigits: 0,
+    if (!isInView || hasAnimated.current) return;
+    hasAnimated.current = true;
+
+    const controls = animate(motionVal, value, {
+      duration,
+      delay,
+      ease: easeOut,
     });
 
-    const onChange = (latest: number) => {
-      setDisplayValue(formatter.format(Math.round(latest)));
-    };
+    return () => controls.stop();
+  }, [isInView, value, duration, delay, motionVal]);
 
-    // Subscribe to motion value changes
-    const unsubscribe = motionVal.on('change', onChange);
-
-    // Start animation when in view (once)
-    if (isInView && !hasAnimated.current) {
-      hasAnimated.current = true;
-      // Reset to 0 before animating (smooth)
-      motionVal.set(0);
-      animateMotion();
-    }
-
-    async function animateMotion() {
-      // Use manual animation with motionVal
-      // We can't use animate() from useAnimate on a motion value directly,
-      // so we animate via Framer Motion's animate function
-      const start = performance.now();
-      const totalDuration = duration * 1000;
-      const delayMs = delay * 1000;
-
-      const step = (now: number) => {
-        const elapsed = now - start - delayMs;
-        if (elapsed < 0) {
-          requestAnimationFrame(step);
-          return;
-        }
-        const progress = Math.min(elapsed / totalDuration, 1);
-        const eased = cubicBezier(easeOut, progress);
-        motionVal.set(eased * value);
-        if (progress < 1) {
-          requestAnimationFrame(step);
-        }
-      };
-
-      if (delayMs > 0) {
-        setTimeout(() => requestAnimationFrame(step), delayMs);
-      } else {
-        requestAnimationFrame(step);
-      }
-    }
-
-    return () => unsubscribe();
-  }, [isInView, value, duration, delay, motionVal, easeOut]);
-
-  // Simple cubic-bezier evaluator
-  function cubicBezier(controlPoints: [number, number, number, number], t: number): number {
-    const [p1x, p1y, p2x, p2y] = controlPoints;
-    // Newton-raphson to find t for x
-    const sampleCurve = (a: number, b: number, c: number, d: number, t: number) =>
-      ((a * t + b) * t + c) * t + d;
-
-    const sampleCurveX = (t: number) => sampleCurve(3 * (1 - t) * (1 - t) * t, 3 * (1 - t) * t * t, t * t * t, 0, 1);
-    // We'll approximate with a lookup table
-    const bezierCache = new Map<number, number>();
-    const lookup = (x: number) => {
-      if (bezierCache.has(x)) return bezierCache.get(x)!;
-      // Binary search for t
-      let lo = 0, hi = 1;
-      for (let i = 0; i < 20; i++) {
-        const mid = (lo + hi) / 2;
-        const xEst = sampleCurve(p1x, p2x, 0, 1, mid);
-        if (xEst < x) lo = mid;
-        else hi = mid;
-      }
-      const t = (lo + hi) / 2;
-      const y = sampleCurve(p1y, p2y, 0, 1, t);
-      bezierCache.set(x, y);
-      return y;
-    };
-    return lookup(t);
-  }
-
-  return <span ref={ref}>{displayValue}</span>;
+  return <motion.span ref={ref}>{displayValue}</motion.span>;
 }
 
 /* ── Variants ── */
@@ -193,7 +134,6 @@ function LandingContent() {
   const searchParams = useSearchParams();
   const urlShopSlug = searchParams.get('shop');
 
-  // Theme
   const [isDark, setIsDark] = useState(loadThemeFromStorage);
 
   useLayoutEffect(() => {
@@ -296,18 +236,40 @@ function LandingContent() {
     }, 300);
   };
 
+  // ═══ REACTIVE THEME ═══
   const theme = {
-    bg: 'bg-black',
-    text: 'text-white',
-    muted: 'text-[#777]',
-    faint: 'text-[#444]',
-    nav: 'bg-black/80 border-white/5 backdrop-blur-2xl',
-    darkSection: 'bg-[#020202]',
-    card: 'bg-[#0A0A0A] border border-white/[0.03]',
-    cardInner: 'bg-[#111]',
-    divider: 'bg-white/5',
-    primaryBtn: 'bg-white text-black hover:bg-gray-100 transition-colors',
-    secondaryBtn: 'bg-[#111] text-white hover:bg-[#222] transition-colors',
+    bg: isDark ? 'bg-[#000000]' : 'bg-white',
+    text: isDark ? 'text-white' : 'text-black',
+    muted: isDark ? 'text-[#777]' : 'text-[#555]',
+    faint: isDark ? 'text-[#444]' : 'text-[#999]',
+    nav: isDark
+      ? 'bg-black/80 border-white/5 backdrop-blur-2xl'
+      : 'bg-white/80 border-black/5 backdrop-blur-2xl',
+    darkSection: isDark ? 'bg-[#020202]' : 'bg-[#F5F5F7]',
+    card: isDark
+      ? 'bg-[#0A0A0A] border border-white/[0.03]'
+      : 'bg-white border border-black/[0.03] shadow-sm',
+    cardInner: isDark ? 'bg-[#111]' : 'bg-[#F2F2F7]',
+    divider: isDark ? 'bg-white/5' : 'bg-black/5',
+    primaryBtn: isDark
+      ? 'bg-white text-black hover:bg-gray-100 transition-colors'
+      : 'bg-black text-white hover:bg-gray-800 transition-colors',
+    secondaryBtn: isDark
+      ? 'bg-[#111] text-white hover:bg-[#222] transition-colors'
+      : 'bg-[#F2F2F7] text-black hover:bg-[#E5E5EA] transition-colors',
+    modalBg: isDark
+      ? 'bg-[#0A0A0A] border-white/10'
+      : 'bg-white border-black/5',
+    modalCardInner: isDark ? 'bg-[#111]' : 'bg-[#F2F2F7]',
+    modalInput: isDark
+      ? 'bg-[#1C1C1E] text-white'
+      : 'bg-[#F2F2F7] text-black',
+    modalMuted: isDark ? 'text-[#777]' : 'text-[#555]',
+    modalDivider: isDark ? 'bg-white/10' : 'bg-black/10',
+    modalHandle: isDark ? 'bg-white/20' : 'bg-black/20',
+    modalOverlay: isDark
+      ? 'bg-black/40 backdrop-blur-lg'
+      : 'bg-black/20 backdrop-blur-lg',
   };
 
   const pressable = 'active:scale-95 transition-transform duration-100';
@@ -318,11 +280,15 @@ function LandingContent() {
       style={{ fontFamily: 'var(--font-inter), sans-serif' }}
     >
       {/* ═══ NAV ═══ */}
-      <nav className={`fixed top-0 left-0 right-0 z-50 border-b ${theme.nav}`}>
+      <nav
+        className={`fixed top-0 left-0 right-0 z-50 border-b ${theme.nav}`}
+      >
         <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2 opacity-80">
             <Eye className="w-4 h-4" />
-            <span className="text-sm font-semibold tracking-[0.15em] uppercase">QReBill</span>
+            <span className="text-sm font-semibold tracking-[0.15em] uppercase">
+              QReBill
+            </span>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -434,7 +400,10 @@ function LandingContent() {
             <motion.div variants={fadeIn(0.6)} className="pt-4">
               <div className={`h-px w-20 mx-auto ${theme.divider}`} />
             </motion.div>
-            <motion.p variants={fastReveal(0.8)} className="text-xl md:text-2xl font-semibold pt-2">
+            <motion.p
+              variants={fastReveal(0.8)}
+              className="text-xl md:text-2xl font-semibold pt-2"
+            >
               You never know why.
             </motion.p>
           </motion.div>
@@ -476,7 +445,7 @@ function LandingContent() {
               <div className="w-16 h-16 rounded-2xl flex items-center justify-center bg-white/[0.03] border border-white/[0.04]">
                 <step.icon className={`w-7 h-7 ${step.color}`} />
               </div>
-              <p className="text-sm font-medium text-white/60">{step.label}</p>
+              <p className={`text-sm font-medium ${theme.muted}`}>{step.label}</p>
             </motion.div>
           ))}
         </div>
@@ -486,7 +455,7 @@ function LandingContent() {
           whileInView="visible"
           viewport={{ once: true, margin: '-60px' }}
           variants={fastReveal(0.5)}
-          className="mt-12 text-sm text-white/40 max-w-md mx-auto"
+          className={`mt-12 text-sm ${theme.faint} max-w-md mx-auto`}
         >
           No double selling. One scan. One owner.
         </motion.p>
@@ -529,12 +498,12 @@ function LandingContent() {
                     className="flex flex-col items-center text-center"
                   >
                     <motion.div
-                      animate={
-                        isActive
-                          ? { scale: [1, 1.04, 1] }
-                          : {}
-                      }
-                      transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}
+                      animate={isActive ? { scale: [1, 1.04, 1] } : {}}
+                      transition={{
+                        repeat: Infinity,
+                        duration: 2.5,
+                        ease: 'easeInOut',
+                      }}
                       className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-colors duration-500 ${
                         isActive
                           ? 'bg-white/[0.06] ring-1 ring-white/10'
@@ -553,7 +522,7 @@ function LandingContent() {
                     </motion.div>
                     <h3
                       className={`text-sm font-semibold mt-3 ${
-                        isActive ? 'text-white' : theme.faint
+                        isActive ? theme.text : theme.faint
                       }`}
                     >
                       {label}
@@ -613,7 +582,7 @@ function LandingContent() {
           whileInView="visible"
           viewport={{ once: true, margin: '-60px' }}
           variants={fastReveal(0)}
-          className="text-3xl md:text-5xl font-semiboid tracking-tight mb-12"
+          className="text-3xl md:text-5xl font-semibold tracking-tight mb-12"
         >
           You&apos;re not guessing anymore.
         </motion.h2>
@@ -674,7 +643,8 @@ function LandingContent() {
               variants={fastReveal(0.3)}
               className="text-lg font-medium text-rose-400 mb-3"
             >
-              10 picked, 0 bought. You stocked it, you paid for it. It didn&apos;t sell.
+              10 picked, 0 bought. You stocked it, you paid for it. It didn&apos;t
+              sell.
             </motion.p>
 
             <motion.p
@@ -682,7 +652,7 @@ function LandingContent() {
               whileInView="visible"
               viewport={{ once: true, margin: '-60px' }}
               variants={fastReveal(0.5)}
-              className="text-sm text-white/40"
+              className={`text-sm ${theme.faint}`}
             >
               That&apos;s money you&apos;ll never see again.
             </motion.p>
@@ -698,28 +668,30 @@ function LandingContent() {
             >
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-white/40">Scanned today</span>
+                  <span className={`text-sm ${theme.faint}`}>Scanned today</span>
                   <span className="text-2xl md:text-3xl font-semibold">
                     <AnimatedNumber value={1240} duration={1.5} />
                   </span>
                 </div>
                 <div className={`h-px ${theme.divider}`} />
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-white/40">In bags</span>
+                  <span className={`text-sm ${theme.faint}`}>In bags</span>
                   <span className="text-2xl md:text-3xl font-semibold">
                     <AnimatedNumber value={860} duration={1.5} delay={0.2} />
                   </span>
                 </div>
                 <div className={`h-px ${theme.divider}`} />
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-white/40">Abandoned</span>
+                  <span className={`text-sm ${theme.faint}`}>Abandoned</span>
                   <span className="text-2xl md:text-3xl font-semibold text-rose-400">
                     <AnimatedNumber value={380} duration={1.5} delay={0.4} />
                   </span>
                 </div>
                 <div className={`h-px ${theme.divider}`} />
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-rose-400">Lost today</span>
+                  <span className="text-sm font-medium text-rose-400">
+                    Lost today
+                  </span>
                   <span className="text-2xl md:text-3xl font-semibold text-rose-400">
                     ₹<AnimatedNumber value={18400} duration={2} delay={0.6} />
                   </span>
@@ -770,16 +742,16 @@ function LandingContent() {
             <div className="w-10 h-10 rounded-xl bg-rose-500/5 flex items-center justify-center">
               <TrendingDown className="w-5 h-5 text-rose-400" />
             </div>
-            <span className="text-sm text-white/40">Leave</span>
+            <span className={`text-sm ${theme.faint}`}>Leave</span>
           </div>
-          <div className="h-px w-10 bg-white/5 hidden md:block" />
+          <div className={`h-px w-10 ${theme.divider} hidden md:block`} />
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-green-500/5 flex items-center justify-center">
               <BellRing className="w-5 h-5 text-green-400" />
             </div>
-            <span className="text-sm text-white/40">Reminded</span>
+            <span className={`text-sm ${theme.faint}`}>Reminded</span>
           </div>
-          <div className="h-px w-10 bg-white/5 hidden md:block" />
+          <div className={`h-px w-10 ${theme.divider} hidden md:block`} />
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
               <RefreshCcw className="w-5 h-5 text-white/50" />
@@ -793,7 +765,7 @@ function LandingContent() {
           whileInView="visible"
           viewport={{ once: true, margin: '-60px' }}
           variants={fastReveal(0.8)}
-          className="mt-10 text-sm text-white/40 max-w-sm mx-auto"
+          className={`mt-10 text-sm ${theme.faint} max-w-sm mx-auto`}
         >
           One tap. They&apos;re back. Automatically.
         </motion.p>
@@ -816,7 +788,7 @@ function LandingContent() {
         >
           <motion.p
             variants={fastReveal(0)}
-            className="text-2xl md:text-3xl font-medium text-white/40"
+            className={`text-2xl md:text-3xl font-medium ${theme.faint}`}
           >
             Some stores guess.
           </motion.p>
@@ -827,7 +799,7 @@ function LandingContent() {
             Some stores know.
           </motion.p>
           <motion.div variants={fadeIn(0.6)} className="pt-2">
-            <div className="h-px w-16 mx-auto bg-white/5" />
+            <div className={`h-px w-16 mx-auto ${theme.divider}`} />
           </motion.div>
           <motion.p
             variants={fastReveal(0.8)}
@@ -853,15 +825,15 @@ function LandingContent() {
       </motion.section>
 
       {/* ═══ FOOTER ═══ */}
-      <footer className={`border-t py-7 px-6 ${theme.divider} bg-black`}>
+      <footer className={`border-t py-7 px-6 ${theme.divider} ${theme.bg}`}>
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <Eye className="w-3.5 h-3.5 text-white/30" />
-            <span className="text-xs font-semibold tracking-[0.15em] uppercase text-white/30">
+            <Eye className="w-3.5 h-3.5 opacity-30" />
+            <span className="text-xs font-semibold tracking-[0.15em] uppercase opacity-30">
               QReBill
             </span>
           </div>
-          <p className="text-[10px] font-medium uppercase tracking-[0.15em] text-white/30">
+          <p className="text-[10px] font-medium uppercase tracking-[0.15em] opacity-30">
             Blind stores lose. Smart stores don&apos;t.
           </p>
         </div>
@@ -874,16 +846,18 @@ function LandingContent() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-lg sm:items-center sm:p-4"
+            className={`fixed inset-0 z-50 flex items-end justify-center ${theme.modalOverlay} sm:items-center sm:p-4`}
           >
             <motion.div
               initial={{ y: '100%', scale: 0.95 }}
               animate={{ y: 0, scale: 1 }}
               exit={{ y: '100%', scale: 0.95 }}
               transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="w-full sm:max-w-md rounded-t-[2.5rem] sm:rounded-3xl border bg-[#0A0A0A] border-white/10 relative overflow-hidden pb-12 pt-4 px-6 sm:p-10 min-h-[480px] flex flex-col"
+              className={`w-full sm:max-w-md rounded-t-[2.5rem] sm:rounded-3xl border ${theme.modalBg} relative overflow-hidden pb-12 pt-4 px-6 sm:p-10 min-h-[480px] flex flex-col`}
             >
-              <div className="w-12 h-1.5 rounded-full mx-auto mb-8 sm:hidden bg-white/20" />
+              <div
+                className={`w-12 h-1.5 rounded-full mx-auto mb-8 sm:hidden ${theme.modalHandle}`}
+              />
               <button
                 onClick={closeModal}
                 className={`absolute top-6 right-6 p-2 rounded-full transition-colors z-10 ${theme.secondaryBtn}`}
@@ -900,34 +874,42 @@ function LandingContent() {
                     exit={{ opacity: 0, x: -20 }}
                     className="flex flex-col items-center text-center mt-6 flex-1"
                   >
-                    <div className="w-20 h-20 rounded-[1.5rem] flex items-center justify-center mb-8 bg-[#111]">
+                    <div
+                      className={`w-20 h-20 rounded-[1.5rem] flex items-center justify-center mb-8 ${theme.modalCardInner}`}
+                    >
                       <ShieldCheck className="w-10 h-10 text-blue-500" />
                     </div>
-                    <h2 className="text-2xl font-semibold mb-2 tracking-tight">Store Access</h2>
-                    <p className="text-[#777] text-sm mb-10 font-medium px-4">
+                    <h2 className="text-2xl font-semibold mb-2 tracking-tight">
+                      Store Access
+                    </h2>
+                    <p className={`${theme.modalMuted} text-sm mb-10 font-medium px-4`}>
                       Verify identity to enter your dashboard.
                     </p>
                     <button
                       onClick={triggerScreenLock}
                       disabled={loading}
-                      className="w-full font-medium text-sm py-4 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 bg-white text-black hover:bg-gray-100"
+                      className={`w-full font-medium text-sm py-4 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 ${theme.primaryBtn}`}
                     >
                       <Fingerprint className="w-5 h-5" /> Use Biometrics
                     </button>
                     <div className="flex items-center gap-4 w-full mt-8 mb-6">
-                      <div className="h-px flex-1 bg-white/10" />
-                      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#777]">
+                      <div className={`h-px flex-1 ${theme.modalDivider}`} />
+                      <span
+                        className={`text-[10px] font-bold uppercase tracking-[0.2em] ${theme.modalMuted}`}
+                      >
                         OR
                       </span>
-                      <div className="h-px flex-1 bg-white/10" />
+                      <div className={`h-px flex-1 ${theme.modalDivider}`} />
                     </div>
                     <button
                       onClick={() => setShowPinPad(true)}
-                      className="font-semibold text-xs transition-colors py-2 uppercase tracking-widest text-[#777] hover:text-white"
+                      className={`font-semibold text-xs transition-colors py-2 uppercase tracking-widest ${theme.modalMuted} hover:${theme.text}`}
                     >
                       Use Passcode
                     </button>
-                    {error && <p className="mt-6 text-red-500 text-xs font-bold">{error}</p>}
+                    {error && (
+                      <p className="mt-6 text-red-500 text-xs font-bold">{error}</p>
+                    )}
                   </motion.div>
                 ) : (
                   <motion.div
@@ -940,7 +922,7 @@ function LandingContent() {
                     <div className="w-full flex items-center mb-8">
                       <button
                         onClick={() => setShowPinPad(false)}
-                        className="p-2 rounded-full transition-colors bg-[#111] text-white hover:bg-[#222]"
+                        className={`p-2 rounded-full transition-colors ${theme.secondaryBtn}`}
                       >
                         <ArrowLeft className="w-5 h-5" />
                       </button>
@@ -953,7 +935,9 @@ function LandingContent() {
                         <div
                           key={i}
                           className={`w-4 h-4 rounded-full transition-all duration-200 ${
-                            pin.length > i ? 'bg-blue-500 scale-110' : 'bg-white/10'
+                            pin.length > i
+                              ? 'bg-blue-500 scale-110'
+                              : theme.modalDivider
                           }`}
                         />
                       ))}
@@ -963,27 +947,27 @@ function LandingContent() {
                         <button
                           key={n}
                           onClick={() => addDigit(n.toString())}
-                          className="h-14 rounded-2xl text-xl font-medium transition-all active:scale-95 bg-[#1C1C1E] text-white"
+                          className={`h-14 rounded-2xl text-xl font-medium transition-all active:scale-95 ${theme.modalInput}`}
                         >
                           {n}
                         </button>
                       ))}
                       <button
                         onClick={removeDigit}
-                        className="h-14 flex items-center justify-center transition-colors active:scale-95 text-[#777] hover:text-white"
+                        className={`h-14 flex items-center justify-center transition-colors active:scale-95 ${theme.modalMuted} hover:${theme.text}`}
                       >
                         <Delete className="w-6 h-6" />
                       </button>
                       <button
                         onClick={() => addDigit('0')}
-                        className="h-14 rounded-2xl text-xl font-medium transition-all active:scale-95 bg-[#1C1C1E] text-white"
+                        className={`h-14 rounded-2xl text-xl font-medium transition-all active:scale-95 ${theme.modalInput}`}
                       >
                         0
                       </button>
                       <button
                         onClick={handlePinSubmit}
                         disabled={pin.length < 4 || loading}
-                        className="h-14 rounded-2xl flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all bg-white text-black hover:bg-gray-100"
+                        className={`h-14 rounded-2xl flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all ${theme.primaryBtn}`}
                       >
                         {loading ? (
                           <Loader2 className="w-6 h-6 animate-spin" />
@@ -992,7 +976,9 @@ function LandingContent() {
                         )}
                       </button>
                     </div>
-                    {error && <p className="mt-6 text-red-500 text-xs font-bold">{error}</p>}
+                    {error && (
+                      <p className="mt-6 text-red-500 text-xs font-bold">{error}</p>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
