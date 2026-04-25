@@ -21,7 +21,8 @@ import {
   BellRing,
   Scan,
   TrendingDown,
-  Repeat,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { Inter } from 'next/font/google';
 
@@ -58,8 +59,8 @@ function LandingContent() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setActiveStep((prev) => (prev + 1) % 5);
-    }, 2200);
+      setActiveStep((prev) => (prev + 1) % 4);
+    }, 2500);
     return () => clearInterval(interval);
   }, []);
 
@@ -127,25 +128,27 @@ function LandingContent() {
   const theme = {
     bg: isDark ? 'bg-[#000000]' : 'bg-white',
     text: isDark ? 'text-white' : 'text-black',
-    textMuted: isDark ? 'text-[#888888]' : 'text-[#666666]',
+    textMuted: isDark ? 'text-[#777777]' : 'text-[#555555]',
+    textFaint: isDark ? 'text-[#555555]' : 'text-[#999999]',
     nav: isDark
       ? 'bg-black/80 border-white/5 backdrop-blur-2xl'
       : 'bg-white/80 border-black/5 backdrop-blur-2xl',
-    sectionBg: isDark ? 'bg-[#0A0A0A]' : 'bg-[#F5F5F7]',
+    sectionBg: isDark ? 'bg-[#050505]' : 'bg-[#F5F5F7]',
     card: isDark
-      ? 'bg-[#111111] border border-white/[0.05] shadow-[0_0_30px_rgba(255,255,255,0.03)]'
-      : 'bg-white border border-black/[0.03] shadow-[0_8px_30px_rgba(0,0,0,0.04)]',
-    cardInner: isDark ? 'bg-[#1A1A1A]' : 'bg-[#F2F2F7]',
+      ? 'bg-[#0D0D0D] border border-white/[0.04]'
+      : 'bg-white border border-black/[0.03] shadow-[0_2px_20px_rgba(0,0,0,0.03)]',
+    cardInner: isDark ? 'bg-[#141414]' : 'bg-[#F2F2F7]',
     input: isDark ? 'bg-[#1C1C1E] text-white' : 'bg-[#F2F2F7] text-black',
     modalBg: isDark
-      ? 'bg-[#111111] border border-white/10 shadow-[0_-20px_80px_rgba(0,0,0,0.95)]'
+      ? 'bg-[#0D0D0D] border border-white/10 shadow-[0_-20px_80px_rgba(0,0,0,0.95)]'
       : 'bg-white border border-black/5 shadow-[0_-20px_80px_rgba(0,0,0,0.1)]',
     primaryBtn: isDark
-      ? 'bg-white text-black hover:bg-gray-100 hover:shadow-[0_0_20px_rgba(255,255,255,0.15)]'
-      : 'bg-black text-white hover:bg-gray-800 hover:shadow-[0_0_20px_rgba(0,0,0,0.15)]',
+      ? 'bg-white text-black hover:bg-gray-100'
+      : 'bg-black text-white hover:bg-gray-800',
     secondaryBtn: isDark
-      ? 'bg-[#1A1A1A] text-white hover:bg-[#2C2C2E]'
+      ? 'bg-[#141414] text-white hover:bg-[#222]'
       : 'bg-[#F2F2F7] text-black hover:bg-[#E5E5EA]',
+    divider: isDark ? 'bg-white/5' : 'bg-black/5',
   };
 
   const fadeUp = {
@@ -153,14 +156,14 @@ function LandingContent() {
     visible: {
       opacity: 1,
       y: 0,
-      transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] as const },
+      transition: { duration: 0.8, ease: [0.22, 1, 0.36, 1] as const },
     },
   };
 
   const stagger = {
     hidden: {},
     visible: {
-      transition: { staggerChildren: 0.1 },
+      transition: { staggerChildren: 0.12 },
     },
   };
 
@@ -173,33 +176,16 @@ function LandingContent() {
       <nav
         className={`fixed top-0 left-0 right-0 z-50 border-b transition-all duration-500 ${theme.nav}`}
       >
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Layers className="w-5 h-5 text-white/80" />
+            <Eye className="w-5 h-5 text-white/70" />
             <span className="text-lg font-semibold tracking-tight">QReBill</span>
-          </div>
-
-          <div
-            className={`hidden md:flex items-center gap-10 text-xs font-semibold tracking-[0.15em] uppercase ${theme.textMuted}`}
-          >
-            <a href="#system" className="hover:text-white transition-colors">
-              System
-            </a>
-            <a href="#control" className="hover:text-white transition-colors">
-              Live
-            </a>
-            <a href="#intelligence" className="hover:text-white transition-colors">
-              Insights
-            </a>
-            <a href="#crm" className="hover:text-white transition-colors">
-              Customers
-            </a>
           </div>
 
           <div className="flex items-center gap-4">
             <button
               onClick={() => setIsDark(!isDark)}
-              className={`p-2 rounded-full transition-all duration-300 ${theme.secondaryBtn} hover:scale-110`}
+              className={`p-2 rounded-full transition-all duration-300 ${theme.secondaryBtn}`}
             >
               <AnimatePresence mode="wait">
                 {isDark ? (
@@ -225,108 +211,174 @@ function LandingContent() {
             </button>
             <button
               onClick={() => setIsModalOpen(true)}
-              className={`px-5 py-2 rounded-full text-xs font-bold uppercase tracking-[0.2em] transition-all active:scale-95 ${theme.primaryBtn}`}
+              className={`px-5 py-2 rounded-full text-xs font-semibold uppercase tracking-[0.15em] transition-all active:scale-95 ${theme.primaryBtn}`}
             >
-              Console
+              Store Login
             </button>
           </div>
         </div>
       </nav>
 
       {/* ---------- 1. HERO ---------- */}
-      <section className="pt-48 pb-40 px-6 max-w-5xl mx-auto flex flex-col items-center text-center z-10 w-full">
-        <motion.div
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: '-50px' }}
-          variants={fadeUp}
-          className="mb-10"
-        >
-          <span
-            className={`text-[10px] font-bold uppercase tracking-[0.3em] px-4 py-2 rounded-full border ${
-              isDark ? 'border-white/10 bg-white/5' : 'border-black/10 bg-black/5'
-            }`}
-          >
-            Store Operating System
-          </span>
-        </motion.div>
-
+      <section className="pt-44 pb-36 px-6 max-w-4xl mx-auto flex flex-col items-center text-center z-10 w-full">
         <motion.h1
           initial="hidden"
           whileInView="visible"
-          viewport={{ once: true, margin: '-50px' }}
+          viewport={{ once: true, margin: '-60px' }}
           variants={fadeUp}
-          className="text-5xl md:text-[5.5rem] font-semibold leading-[1.05] tracking-[-0.02em] mb-8 max-w-3xl"
+          className="text-5xl md:text-[5rem] font-semibold leading-[1.08] tracking-[-0.02em] mb-8 max-w-3xl"
         >
-          Your store.
-          <br />
-          <span className={theme.textMuted}>Fully visible. In real‑time.</span>
+          Nothing in your store goes unseen.
         </motion.h1>
 
         <motion.p
           initial="hidden"
           whileInView="visible"
-          viewport={{ once: true, margin: '-50px' }}
+          viewport={{ once: true, margin: '-60px' }}
           variants={fadeUp}
           className={`text-lg md:text-xl font-normal max-w-xl mb-14 leading-relaxed ${theme.textMuted}`}
         >
-          Total visibility. Instant control. No blind spots.
+          See what customers pick. What they leave. And what you lose.
         </motion.p>
 
         <motion.div
           initial="hidden"
           whileInView="visible"
-          viewport={{ once: true, margin: '-50px' }}
+          viewport={{ once: true, margin: '-60px' }}
           variants={fadeUp}
-          className="flex flex-col sm:flex-row items-center gap-4"
         >
           <button
             className={`px-8 py-4 rounded-full font-medium text-sm transition-all active:scale-95 ${theme.primaryBtn}`}
           >
-            Get Started
-          </button>
-          <button
-            className={`px-8 py-4 rounded-full font-medium text-sm transition-all active:scale-95 ${theme.secondaryBtn}`}
-          >
-            See It Live &darr;
+            See It Live
           </button>
         </motion.div>
       </section>
 
-      {/* ---------- 2. SYSTEM REVEAL ---------- */}
-      <section
-        id="system"
-        className={`py-36 px-6 ${theme.sectionBg} transition-colors duration-500`}
-      >
-        <div className="max-w-7xl mx-auto">
+      {/* ---------- 2. REALIZATION ---------- */}
+      <section className={`py-36 px-6 ${theme.sectionBg} transition-colors duration-500`}>
+        <div className="max-w-3xl mx-auto text-center">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: '-80px' }}
+            variants={stagger}
+            className="space-y-6"
+          >
+            <motion.p
+              variants={fadeUp}
+              className={`text-2xl md:text-3xl font-medium leading-relaxed ${theme.textFaint}`}
+            >
+              Customers walk in.
+            </motion.p>
+            <motion.p
+              variants={fadeUp}
+              className={`text-2xl md:text-3xl font-medium leading-relaxed ${theme.textFaint}`}
+            >
+              They pick things up.
+            </motion.p>
+            <motion.p
+              variants={fadeUp}
+              className={`text-2xl md:text-3xl font-medium leading-relaxed ${theme.textFaint}`}
+            >
+              They put things down.
+            </motion.p>
+            <motion.p
+              variants={fadeUp}
+              className={`text-2xl md:text-3xl font-medium leading-relaxed ${theme.textFaint}`}
+            >
+              They leave.
+            </motion.p>
+
+            <motion.div variants={fadeUp} className="pt-8">
+              <div className={`h-px w-32 mx-auto mb-8 ${theme.divider}`} />
+              <p className="text-xl md:text-2xl font-semibold">
+                You only see what gets billed.
+              </p>
+              <p className={`text-lg md:text-xl mt-3 ${theme.textMuted}`}>
+                Everything else is invisible.
+              </p>
+            </motion.div>
+          </motion.div>
+
+          {/* Blind spot visual */}
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: '-50px' }}
+            variants={fadeUp}
+            className="mt-16 flex items-center justify-center gap-8"
+          >
+            <div className="flex items-center gap-3">
+              <Eye className="w-5 h-5 text-white/60" />
+              <span className={`text-sm font-medium ${theme.textMuted}`}>What you see</span>
+            </div>
+            <div className={`h-px w-16 ${theme.divider}`} />
+            <div className="flex items-center gap-3">
+              <EyeOff className="w-5 h-5 text-rose-400" />
+              <span className="text-sm font-medium text-rose-400">What you miss</span>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ---------- 3. SYSTEM REVEAL ---------- */}
+      <section className="py-36 px-6">
+        <div className="max-w-6xl mx-auto">
           <motion.div
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true, margin: '-80px' }}
             variants={fadeUp}
-            className="mb-24 max-w-2xl"
+            className="mb-20 max-w-2xl"
           >
             <h2 className="text-4xl md:text-5xl font-semibold tracking-tight mb-6">
-              How it powers your floor.
+              Every item in your store is now live.
             </h2>
             <p className={`text-xl font-normal leading-relaxed ${theme.textMuted}`}>
-              Every physical item gets a digital twin that moves through five states — automatically.
+              A small QR tag on each product. That&apos;s it. The system handles the rest.
             </p>
           </motion.div>
 
+          {/* 4-State Lifecycle */}
           <div className="relative mt-16">
-            <div className="hidden md:block absolute top-1/2 left-[8%] right-[8%] h-px bg-white/10 -translate-y-1/2" />
+            <div className="hidden md:block absolute top-1/2 left-[6%] right-[6%] h-px bg-white/5 -translate-y-1/2" />
 
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-10 relative">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-6 relative">
               {[
-                { label: 'Bind', sub: 'Tag assigned', icon: QrCode },
-                { label: 'Scan', sub: 'Customer scans', icon: Scan },
-                { label: 'Lock', sub: 'Item reserved', icon: ShoppingBag },
-                { label: 'Sell', sub: 'Checkout unlocks', icon: TrendingDown },
-                { label: 'Reset', sub: 'Tag clears', icon: RefreshCcw },
+                {
+                  label: 'Active',
+                  sub: 'Available on the floor',
+                  icon: QrCode,
+                  color: 'emerald',
+                },
+                {
+                  label: 'In Bag',
+                  sub: 'Locked instantly for one customer',
+                  icon: ShoppingBag,
+                  color: 'amber',
+                },
+                {
+                  label: 'Sold',
+                  sub: 'Checked out. Done.',
+                  icon: TrendingDown,
+                  color: 'blue',
+                },
+                {
+                  label: 'Ready',
+                  sub: 'Tag resets. Back in play.',
+                  icon: RefreshCcw,
+                  color: 'slate',
+                },
               ].map((step, i) => {
                 const isActive = i === activeStep;
                 const isPast = i < activeStep;
+                const colorGlow: Record<string, string> = {
+                  emerald: 'shadow-[0_0_30px_rgba(52,211,153,0.15)]',
+                  amber: 'shadow-[0_0_30px_rgba(251,191,36,0.15)]',
+                  blue: 'shadow-[0_0_30px_rgba(96,165,250,0.15)]',
+                  slate: 'shadow-[0_0_30px_rgba(148,163,184,0.1)]',
+                };
                 return (
                   <motion.div
                     key={step.label}
@@ -338,235 +390,210 @@ function LandingContent() {
                   >
                     <div className="relative mb-5">
                       <div
-                        className={`w-14 h-14 rounded-2xl flex items-center justify-center relative z-10 transition-all duration-700 ${
+                        className={`w-16 h-16 rounded-2xl flex items-center justify-center relative z-10 transition-all duration-700 ${
                           isActive
-                            ? 'bg-white/10 ring-1 ring-white/20 shadow-[0_0_25px_rgba(99,102,241,0.3)]'
-                            : 'bg-white/5'
+                            ? `bg-white/10 ring-1 ring-white/15 ${colorGlow[step.color]}`
+                            : 'bg-white/[0.03]'
                         }`}
                       >
                         <step.icon
-                          className={`w-6 h-6 transition-colors duration-500 ${
+                          className={`w-7 h-7 transition-colors duration-500 ${
                             isActive
-                              ? 'text-blue-400'
+                              ? 'text-white'
                               : isPast
-                              ? 'text-emerald-400'
-                              : 'text-white/20'
+                              ? 'text-white/40'
+                              : 'text-white/15'
                           }`}
                         />
                       </div>
                       {isActive && (
-                        <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full bg-blue-500/10 blur-xl animate-pulse" />
+                        <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full bg-white/5 blur-xl animate-pulse" />
                       )}
                     </div>
-                    <h3 className="text-lg font-semibold mb-1 tracking-tight">{step.label}</h3>
-                    <p className={`text-sm font-medium ${theme.textMuted}`}>{step.sub}</p>
+                    <h3
+                      className={`text-lg font-semibold mb-1 tracking-tight ${
+                        isActive ? 'text-white' : theme.textMuted
+                      }`}
+                    >
+                      {step.label}
+                    </h3>
+                    <p className={`text-sm font-medium ${theme.textFaint}`}>{step.sub}</p>
                   </motion.div>
                 );
               })}
             </div>
           </div>
+
+          {/* In Bag power moment */}
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: '-50px' }}
+            variants={fadeUp}
+            className={`mt-20 p-10 rounded-[2.5rem] ${theme.card} border-amber-400/10 max-w-2xl mx-auto text-center`}
+          >
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <ShoppingBag className="w-5 h-5 text-amber-400" />
+              <span className="text-sm font-semibold text-amber-400 uppercase tracking-wider">
+                In Bag = Locked
+              </span>
+            </div>
+            <p className="text-xl font-medium leading-relaxed">
+              Once a customer scans, that item is theirs.
+            </p>
+            <p className={`text-base mt-2 leading-relaxed ${theme.textMuted}`}>
+              No other customer can scan it. No double selling. No confusion at the counter.
+            </p>
+          </motion.div>
         </div>
       </section>
 
-      {/* ---------- 3. LIVE STORE STATE ---------- */}
-      <section id="control" className="py-36 px-6">
-        <div className="max-w-7xl mx-auto">
-          <motion.div
+      {/* ---------- 4. CONTROL MOMENT ---------- */}
+      <section className={`py-36 px-6 ${theme.sectionBg} transition-colors duration-500`}>
+        <div className="max-w-4xl mx-auto text-center">
+          <motion.h2
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true, margin: '-80px' }}
             variants={fadeUp}
-            className="mb-24 max-w-2xl"
+            className="text-4xl md:text-5xl font-semibold tracking-tight mb-6"
           >
-            <h2 className="text-4xl md:text-5xl font-semibold tracking-tight mb-6">
-              Your store is alive.
-            </h2>
-            <p className={`text-xl font-normal leading-relaxed ${theme.textMuted}`}>
-              Every product has a real‑time state. No more guessing what’s on the floor.
-            </p>
-          </motion.div>
+            You don&apos;t guess anymore.
+          </motion.h2>
+          <motion.p
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: '-80px' }}
+            variants={fadeUp}
+            className={`text-xl md:text-2xl font-normal max-w-2xl mx-auto leading-relaxed ${theme.textMuted}`}
+          >
+            You see everything.
+          </motion.p>
 
           <motion.div
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true, margin: '-50px' }}
-            variants={stagger}
-            className="grid grid-cols-1 md:grid-cols-3 gap-6"
+            variants={fadeUp}
+            className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto"
           >
             {[
-              {
-                label: 'Active',
-                desc: 'Available for scan',
-                color: 'emerald',
-                icon: QrCode,
-              },
-              {
-                label: 'In Bag',
-                desc: 'Locked by a customer',
-                color: 'amber',
-                icon: ShoppingBag,
-              },
-              {
-                label: 'Ready to Bind',
-                desc: 'Empty, waiting for product',
-                color: 'blue',
-                icon: RefreshCcw,
-              },
-            ].map((state) => {
-              const colorMap: Record<string, string> = {
-                emerald: 'border-emerald-400/20 text-emerald-400',
-                amber: 'border-amber-400/20 text-amber-400',
-                blue: 'border-blue-400/20 text-blue-400',
-              };
-              const glowMap: Record<string, string> = {
-                emerald: 'shadow-[0_0_30px_rgba(52,211,153,0.1)]',
-                amber: 'shadow-[0_0_30px_rgba(251,191,36,0.1)]',
-                blue: 'shadow-[0_0_30px_rgba(96,165,250,0.1)]',
-              };
-              return (
-                <motion.div
-                  key={state.label}
-                  variants={fadeUp}
-                  className={`${theme.card} rounded-[2.5rem] p-8 relative overflow-hidden transition-all duration-500 hover:scale-[1.02] ${glowMap[state.color]}`}
-                >
-                  <div
-                    className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-6 ${theme.cardInner} border ${colorMap[state.color]}`}
-                  >
-                    <state.icon className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-2xl font-semibold mb-2 tracking-tight">{state.label}</h3>
-                  <p className={`text-sm ${theme.textMuted}`}>{state.desc}</p>
-                  <div className="mt-6 flex items-center gap-2">
-                    <span className="relative flex h-2 w-2">
-                      <span
-                        className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 bg-${state.color}-400`}
-                      />
-                      <span
-                        className={`relative inline-flex rounded-full h-2 w-2 bg-${state.color}-400`}
-                      />
-                    </span>
-                    <span className={`text-xs font-medium uppercase tracking-wider text-${state.color}-400`}>
-                      Live
-                    </span>
-                  </div>
-                </motion.div>
-              );
-            })}
+              { label: 'Who scanned', detail: 'Every customer identified' },
+              { label: 'What they took', detail: 'Item tracked in real-time' },
+              { label: 'What they left', detail: 'Abandoned items flagged' },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className={`${theme.card} rounded-2xl p-6 text-center`}
+              >
+                <p className="text-lg font-semibold mb-1">{item.label}</p>
+                <p className={`text-sm ${theme.textFaint}`}>{item.detail}</p>
+              </div>
+            ))}
           </motion.div>
         </div>
       </section>
 
-      {/* ---------- 4. BEHAVIOR INTELLIGENCE ---------- */}
-      <section
-        id="intelligence"
-        className={`py-36 px-6 ${theme.sectionBg} transition-colors duration-500`}
-      >
-        <div className="max-w-7xl mx-auto">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: '-80px' }}
-            variants={fadeUp}
-            className="mb-24 max-w-2xl"
-          >
-            <h2 className="text-4xl md:text-5xl font-semibold tracking-tight mb-6">
-              See what they touch.
-            </h2>
-            <p className={`text-xl font-normal leading-relaxed ${theme.textMuted}`}>
-              Not just what they buy. Every scan, every abandon, every hidden signal.
-            </p>
-          </motion.div>
+      {/* ---------- 5. BEHAVIOR INSIGHT ---------- */}
+      <section className="py-36 px-6">
+        <div className="max-w-6xl mx-auto flex flex-col lg:flex-row items-center gap-16">
+          <div className="lg:w-1/2">
+            <motion.h2
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: '-80px' }}
+              variants={fadeUp}
+              className="text-4xl md:text-5xl font-semibold tracking-tight mb-8"
+            >
+              10 people picked it up.
+              <br />
+              <span className="text-rose-400">0 bought it.</span>
+            </motion.h2>
+            <motion.p
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: '-50px' }}
+              variants={fadeUp}
+              className={`text-xl font-normal leading-relaxed mb-6 ${theme.textMuted}`}
+            >
+              That&apos;s not data.
+            </motion.p>
+            <motion.p
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: '-50px' }}
+              variants={fadeUp}
+              className="text-2xl font-semibold"
+            >
+              That&apos;s lost money.
+            </motion.p>
 
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: '-50px' }}
-            variants={fadeUp}
-            className="flex flex-col lg:flex-row gap-8"
-          >
-            <div className="lg:w-1/2">
-              <div className={`${theme.card} rounded-[3rem] p-10 h-full flex flex-col justify-between`}>
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-[0.3em] mb-8 text-white/40">
-                    Today’s Scan Intelligence
-                  </h3>
-                  <div className="space-y-6">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
-                        <Scan className="w-5 h-5 text-white/50" />
-                      </div>
-                      <div>
-                        <p className="text-2xl font-semibold">1,240</p>
-                        <span className={`text-xs ${theme.textMuted}`}>Product scans</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
-                        <ShoppingBag className="w-5 h-5 text-amber-400" />
-                      </div>
-                      <div>
-                        <p className="text-2xl font-semibold">860</p>
-                        <span className={`text-xs ${theme.textMuted}`}>Added to bag</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
-                        <TrendingDown className="w-5 h-5 text-rose-400" />
-                      </div>
-                      <div>
-                        <p className="text-2xl font-semibold text-rose-400">240</p>
-                        <span className={`text-xs ${theme.textMuted}`}>Abandoned · ₹12,800 lost</span>
-                      </div>
-                    </div>
-                  </div>
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: '-50px' }}
+              variants={fadeUp}
+              className="mt-10 space-y-4"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-rose-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
                 </div>
-                <div className="mt-8 pt-6 border-t border-white/5">
-                  <p className={`text-xs ${theme.textMuted}`}>
-                    Every scan is a signal. Every abandon is recoverable.
-                  </p>
+                <p className={`text-sm leading-relaxed ${theme.textMuted}`}>
+                  You now see which items get touched the most — and which ones never convert.
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-rose-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                </div>
+                <p className={`text-sm leading-relaxed ${theme.textMuted}`}>
+                  Move slow stock. Double down on what people actually want.
+                </p>
+              </div>
+            </motion.div>
+          </div>
+
+          <div className="lg:w-1/2 w-full">
+            <div className={`${theme.card} rounded-[3rem] p-10`}>
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Scan className="w-5 h-5 text-white/40" />
+                    <span className="text-sm font-medium">Scanned today</span>
+                  </div>
+                  <span className="text-2xl font-semibold">1,240</span>
+                </div>
+                <div className={`h-px ${theme.divider}`} />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <ShoppingBag className="w-5 h-5 text-amber-400" />
+                    <span className="text-sm font-medium">Went into bags</span>
+                  </div>
+                  <span className="text-2xl font-semibold">860</span>
+                </div>
+                <div className={`h-px ${theme.divider}`} />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <TrendingDown className="w-5 h-5 text-rose-400" />
+                    <span className="text-sm font-medium">Never bought</span>
+                  </div>
+                  <span className="text-2xl font-semibold text-rose-400">380</span>
+                </div>
+                <div className={`h-px ${theme.divider}`} />
+                <div className="flex items-center justify-between">
+                  <span className={`text-sm font-medium ${theme.textFaint}`}>Revenue left behind</span>
+                  <span className="text-2xl font-semibold text-rose-400">₹18,400</span>
                 </div>
               </div>
             </div>
-
-            <div className="lg:w-1/2 flex flex-col justify-center">
-              <motion.div
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true, margin: '-50px' }}
-                variants={fadeUp}
-                className="space-y-8"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="w-8 h-8 rounded-full bg-rose-500/10 flex items-center justify-center shrink-0 mt-1">
-                    <span className="w-2 h-2 rounded-full bg-rose-500" />
-                  </div>
-                  <div>
-                    <h4 className="text-xl font-semibold mb-2">Missed Revenue, Quantified</h4>
-                    <p className={`text-sm leading-relaxed ${theme.textMuted}`}>
-                      Know exactly which items were touched and never bought. Intelligence your POS can’t offer.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-4">
-                  <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0 mt-1">
-                    <span className="w-2 h-2 rounded-full bg-blue-500" />
-                  </div>
-                  <div>
-                    <h4 className="text-xl font-semibold mb-2">Smart Restocking</h4>
-                    <p className={`text-sm leading-relaxed ${theme.textMuted}`}>
-                      High‑touch, low‑conversion items trigger alerts — never run out of what’s hot.
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
-      {/* ---------- 5. CRM ENGINE ---------- */}
-      <section id="crm" className="py-36 px-6">
-        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-20">
+      {/* ---------- 6. CRM / RETURN LOOP ---------- */}
+      <section className={`py-36 px-6 ${theme.sectionBg} transition-colors duration-500`}>
+        <div className="max-w-6xl mx-auto flex flex-col lg:flex-row items-center gap-16">
           <div className="lg:w-1/2">
             <motion.h2
               initial="hidden"
@@ -575,112 +602,119 @@ function LandingContent() {
               variants={fadeUp}
               className="text-4xl md:text-5xl font-semibold tracking-tight mb-6"
             >
-              Built‑in retention.
+              Customers don&apos;t come back on their own.
             </motion.h2>
             <motion.p
               initial="hidden"
               whileInView="visible"
               viewport={{ once: true, margin: '-80px' }}
               variants={fadeUp}
-              className={`text-xl font-normal leading-relaxed mb-10 ${theme.textMuted}`}
+              className={`text-xl font-normal leading-relaxed mb-6 ${theme.textMuted}`}
             >
-              Turn walk‑aways into loyal customers. Automated WhatsApp loops that bring them back.
+              You bring them back.
+            </motion.p>
+            <motion.p
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: '-50px' }}
+              variants={fadeUp}
+              className={`text-base leading-relaxed ${theme.textFaint}`}
+            >
+              When someone abandons a bag, QReBill sends them a WhatsApp message. Not spam — a
+              simple reminder of what they left behind.
             </motion.p>
 
             <motion.div
               initial="hidden"
               whileInView="visible"
               viewport={{ once: true, margin: '-50px' }}
-              variants={stagger}
-              className="space-y-6"
+              variants={fadeUp}
+              className="mt-8 flex items-center gap-3"
             >
-              <motion.div variants={fadeUp} className="flex items-start gap-4">
-                <div className="w-8 h-8 rounded-full bg-rose-500/10 flex items-center justify-center shrink-0 mt-1">
-                  <span className="w-2 h-2 rounded-full bg-rose-500" />
-                </div>
-                <div>
-                  <h4 className="text-lg font-semibold mb-1">Abandonment Recovery</h4>
-                  <p className={`text-sm ${theme.textMuted} leading-relaxed`}>
-                    Automatically message customers who left items in their bag. One tap restores the cart.
-                  </p>
-                </div>
-              </motion.div>
-              <motion.div variants={fadeUp} className="flex items-start gap-4">
-                <div className="w-8 h-8 rounded-full bg-green-500/10 flex items-center justify-center shrink-0 mt-1">
-                  <span className="w-2 h-2 rounded-full bg-green-500" />
-                </div>
-                <div>
-                  <h4 className="text-lg font-semibold mb-1">Repeat Purchase Engine</h4>
-                  <p className={`text-sm ${theme.textMuted} leading-relaxed`}>
-                    “Back in stock” or “You loved this” — sent exactly when they’re ready.
-                  </p>
-                </div>
-              </motion.div>
+              <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center">
+                <BellRing className="w-5 h-5 text-green-400" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">Repeat buyers grow.</p>
+                <p className={`text-xs ${theme.textFaint}`}>
+                  One tap. They&apos;re back in your store.
+                </p>
+              </div>
             </motion.div>
           </div>
 
           <div className="lg:w-1/2 w-full">
-            <div
-              className={`${theme.card} w-full rounded-[3rem] p-8 flex flex-col relative overflow-hidden border-rose-500/10`}
-            >
-              <div className="flex items-center gap-3 mb-8">
-                <BellRing className="w-5 h-5 text-rose-500" />
-                <span className="text-sm font-semibold">Today’s Revenue Leak</span>
+            <div className={`${theme.card} rounded-[3rem] p-8 border-rose-500/5`}>
+              <div className="flex items-center gap-3 mb-6">
+                <BellRing className="w-5 h-5 text-rose-400" />
+                <span className="text-sm font-semibold">Pending recovery</span>
               </div>
 
-              <div className="mb-8">
-                <h3 className="text-5xl font-semibold tracking-tighter text-rose-500 mb-2">
-                  ₹3,240
-                </h3>
-                <p className={`text-sm ${theme.textMuted}`}>
-                  12 items scanned, not bought. Recover now.
-                </p>
-              </div>
+              <p className="text-5xl font-semibold tracking-tighter text-rose-400 mb-2">
+                ₹3,240
+              </p>
+              <p className={`text-sm mb-8 ${theme.textMuted}`}>
+                12 items scanned today. Never billed.
+              </p>
 
               <div className="space-y-3 mb-8">
-                <div
-                  className={`w-full p-4 rounded-xl ${theme.cardInner} flex justify-between items-center`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-white/5" />
-                    <div>
-                      <p className="text-sm font-semibold">Premium Denim</p>
-                      <p className={`text-xs ${theme.textMuted}`}>3 customers abandoned</p>
-                    </div>
+                {[
+                  { name: 'Premium Denim', count: 3 },
+                  { name: 'Cotton T-Shirt', count: 5 },
+                ].map((item) => (
+                  <div
+                    key={item.name}
+                    className={`w-full p-4 rounded-xl ${theme.cardInner} flex justify-between items-center`}
+                  >
+                    <p className="text-sm font-medium">{item.name}</p>
+                    <p className={`text-xs ${theme.textFaint}`}>
+                      {item.count} customer{item.count > 1 ? 's' : ''}
+                    </p>
                   </div>
-                </div>
-                <div
-                  className={`w-full p-4 rounded-xl ${theme.cardInner} flex justify-between items-center`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-white/5" />
-                    <div>
-                      <p className="text-sm font-semibold">Cotton T‑Shirt</p>
-                      <p className={`text-xs ${theme.textMuted}`}>5 customers abandoned</p>
-                    </div>
-                  </div>
-                </div>
+                ))}
               </div>
 
               <button className="w-full py-4 bg-rose-500 hover:bg-rose-400 text-white font-semibold rounded-2xl active:scale-95 transition-all duration-300">
-                Trigger WhatsApp Recovery
+                Send WhatsApp Reminder
               </button>
-
-              <div className="mt-8 pt-6 border-t border-white/5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center">
-                    <Repeat className="w-5 h-5 text-blue-400" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold">Returning Customers</p>
-                    <p className={`text-xs ${theme.textMuted}`}>
-                      18% of today’s buyers came from a recovery loop.
-                    </p>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* ---------- 7. FINAL PUSH ---------- */}
+      <section className="py-40 px-6">
+        <div className="max-w-3xl mx-auto text-center">
+          <motion.h2
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: '-80px' }}
+            variants={fadeUp}
+            className="text-4xl md:text-5xl font-semibold tracking-tight mb-6"
+          >
+            Stores that see more, sell more.
+          </motion.h2>
+          <motion.p
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: '-50px' }}
+            variants={fadeUp}
+            className={`text-lg mb-12 ${theme.textMuted}`}
+          >
+            Stop running your store blind.
+          </motion.p>
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: '-50px' }}
+            variants={fadeUp}
+          >
+            <button
+              className={`px-10 py-5 rounded-full font-semibold text-base transition-all active:scale-95 ${theme.primaryBtn}`}
+            >
+              Start Using QReBill
+            </button>
+          </motion.div>
         </div>
       </section>
 
@@ -690,20 +724,20 @@ function LandingContent() {
           isDark ? 'border-white/5 bg-black' : 'border-black/5 bg-white'
         }`}
       >
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between">
           <div className="flex items-center gap-2 mb-4 md:mb-0">
-            <Layers className="w-4 h-4 text-blue-400" />
+            <Eye className="w-4 h-4 text-white/50" />
             <span className="text-sm font-semibold tracking-tight">QReBill</span>
           </div>
           <p
-            className={`text-[10px] font-bold uppercase tracking-[0.3em] ${theme.textMuted}`}
+            className={`text-[10px] font-semibold uppercase tracking-[0.25em] ${theme.textFaint}`}
           >
-            © 2025 QReBill. Nothing goes unseen.
+            © 2025 QReBill. See everything.
           </p>
         </div>
       </footer>
 
-      {/* ---------- Console Modal (unchanged) ---------- */}
+      {/* ---------- Console Modal ---------- */}
       <AnimatePresence>
         {isModalOpen && (
           <motion.div
@@ -745,11 +779,11 @@ function LandingContent() {
                     >
                       <ShieldCheck className="w-10 h-10 text-blue-500" />
                     </div>
-                    <h2 className="text-2xl font-semibold mb-2 tracking-tight">Console Access</h2>
-                    <p
-                      className={`${theme.textMuted} text-sm mb-10 font-medium px-4`}
-                    >
-                      Authenticate identity to enter the control layer.
+                    <h2 className="text-2xl font-semibold mb-2 tracking-tight">
+                      Store Access
+                    </h2>
+                    <p className={`${theme.textMuted} text-sm mb-10 font-medium px-4`}>
+                      Verify your identity to enter your store dashboard.
                     </p>
                     <button
                       onClick={triggerScreenLock}
@@ -759,17 +793,13 @@ function LandingContent() {
                       <Fingerprint className="w-5 h-5" /> Use Biometrics
                     </button>
                     <div className="flex items-center gap-4 w-full mt-8 mb-6">
-                      <div
-                        className={`h-px flex-1 ${isDark ? 'bg-white/10' : 'bg-black/10'}`}
-                      />
+                      <div className={`h-px flex-1 ${isDark ? 'bg-white/10' : 'bg-black/10'}`} />
                       <span
                         className={`text-[10px] font-bold uppercase tracking-[0.2em] ${theme.textMuted}`}
                       >
                         OR
                       </span>
-                      <div
-                        className={`h-px flex-1 ${isDark ? 'bg-white/10' : 'bg-black/10'}`}
-                      />
+                      <div className={`h-px flex-1 ${isDark ? 'bg-white/10' : 'bg-black/10'}`} />
                     </div>
                     <button
                       onClick={() => setShowPinPad(true)}
