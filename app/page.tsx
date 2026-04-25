@@ -77,21 +77,25 @@ function AnimatedNumber({
   delay?: number;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const isInView = useInView(ref, { once: true, margin: '-20%' });
+  const isInView = useInView(ref, { once: true, margin: '-50px' }); // more reliable trigger
   const motionVal = useMotionValue(0);
   const hasAnimated = useRef(false);
+  const formatterRef = useRef<Intl.NumberFormat | null>(null);
 
-  // Transform: round → format — no React state, DOM updates directly
-  const displayValue = useTransform(motionVal, (latest) => {
-    const rounded = Math.round(latest);
-    return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(
-      rounded
-    );
-  });
+  // lazy initialise formatter
+  if (!formatterRef.current) {
+    formatterRef.current = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
+  }
 
   useEffect(() => {
     if (!isInView || hasAnimated.current) return;
     hasAnimated.current = true;
+
+    const unsubscribe = motionVal.on('change', (latest) => {
+      if (ref.current) {
+        ref.current.textContent = formatterRef.current!.format(Math.round(latest));
+      }
+    });
 
     const controls = animate(motionVal, value, {
       duration,
@@ -99,10 +103,13 @@ function AnimatedNumber({
       ease: easeOut,
     });
 
-    return () => controls.stop();
+    return () => {
+      controls.stop();
+      unsubscribe();
+    };
   }, [isInView, value, duration, delay, motionVal]);
 
-  return <motion.span ref={ref}>{displayValue}</motion.span>;
+  return <span ref={ref}>0</span>;
 }
 
 /* ── Variants ── */
@@ -903,7 +910,7 @@ function LandingContent() {
                     </div>
                     <button
                       onClick={() => setShowPinPad(true)}
-                      className={`font-semibold text-xs transition-colors py-2 uppercase tracking-widest ${theme.modalMuted} hover:${theme.text}`}
+                      className={`font-semibold text-xs transition-colors py-2 uppercase tracking-widest ${theme.modalMuted} ${isDark ? 'hover:text-white' : 'hover:text-black'}`}
                     >
                       Use Passcode
                     </button>
@@ -954,7 +961,7 @@ function LandingContent() {
                       ))}
                       <button
                         onClick={removeDigit}
-                        className={`h-14 flex items-center justify-center transition-colors active:scale-95 ${theme.modalMuted} hover:${theme.text}`}
+                        className={`h-14 flex items-center justify-center transition-colors active:scale-95 ${theme.modalMuted} ${isDark ? 'hover:text-white' : 'hover:text-black'}`}
                       >
                         <Delete className="w-6 h-6" />
                       </button>
