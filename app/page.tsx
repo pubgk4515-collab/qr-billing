@@ -6,7 +6,8 @@ import { supabase } from './lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, ShieldCheck, Loader2, ChevronRight, Delete, ArrowLeft, 
-  SmartphoneNfc, Moon, Sun, BarChart3, Fingerprint, Layers
+  SmartphoneNfc, Moon, Sun, BarChart3, Fingerprint, Layers,
+  QrCode, Lock, RefreshCcw, BellRing
 } from 'lucide-react';
 
 function LandingContent() {
@@ -101,7 +102,6 @@ function LandingContent() {
     secondaryBtn: isDark ? 'bg-[#1C1C1E] text-white hover:bg-[#2C2C2E]' : 'bg-[#F2F2F7] text-black hover:bg-[#E5E5EA]',
   };
 
-  // 🔥 FIX 1: Removed string 'easeOut' to prevent TS union mismatch
   const fadeUp = {
     hidden: { opacity: 0, y: 30 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.6 } }
@@ -118,9 +118,9 @@ function LandingContent() {
           </div>
           
           <div className={`hidden md:flex items-center gap-8 text-xs font-semibold tracking-wide uppercase ${theme.textMuted}`}>
-            <a href="#ecosystem" className={`hover:${theme.text} transition-colors`}>Ecosystem</a>
-            <a href="#intelligence" className={`hover:${theme.text} transition-colors`}>Intelligence</a>
-            <a href="#automation" className={`hover:${theme.text} transition-colors`}>Automation</a>
+            <a href="#inventory" className={`hover:${theme.text} transition-colors`}>Smart Tags</a>
+            <a href="#control" className={`hover:${theme.text} transition-colors`}>Floor Control</a>
+            <a href="#crm" className={`hover:${theme.text} transition-colors`}>Live CRM</a>
           </div>
 
           <div className="flex items-center gap-4">
@@ -140,186 +140,149 @@ function LandingContent() {
         </div>
       </nav>
 
+      {/* 🚀 THE NEW HERO: 100% Focused on Live Tracking & Control */}
       <section className="pt-48 pb-32 px-6 max-w-5xl mx-auto flex flex-col items-center text-center z-10 w-full">
         <motion.p initial="hidden" animate="visible" variants={fadeUp} className={`text-xs font-bold uppercase tracking-[0.2em] mb-6 ${theme.textMuted}`}>
-          Local Retail Control Layer
+          Beyond Billing. Total Retail Infrastructure.
         </motion.p>
         
         <motion.h1 initial="hidden" animate="visible" variants={fadeUp} className="text-6xl md:text-[5.5rem] font-medium tracking-tighter leading-[1.05] mb-8">
-          Stop managing a store. <br />
-          <span className={theme.textMuted}>Start running an empire.</span>
+          Every Product. <br />
+          <span className={theme.textMuted}>Tracked Live.</span>
         </motion.h1>
         
-        <motion.p initial="hidden" animate="visible" variants={fadeUp} className={`text-lg md:text-2xl font-normal max-w-3xl mb-12 leading-relaxed ${theme.textMuted}`}>
-          Frictionless QR checkout, Triple-Signal Data Intelligence, and automated revenue recovery. A deeply integrated ecosystem engineered for control.
+        <motion.p initial="hidden" animate="visible" variants={fadeUp} className={`text-lg md:text-xl font-normal max-w-3xl mb-12 leading-relaxed ${theme.textMuted}`}>
+          Deploy intelligent QR tags. Watch customers scan, build bags, and checkout in real-time. Global inventory locking prevents double-scans automatically.
         </motion.p>
         
         <motion.div initial="hidden" animate="visible" variants={fadeUp} className="flex items-center gap-4">
           <button className={`px-8 py-4 rounded-full font-semibold text-sm transition-all active:scale-95 ${theme.primaryBtn}`}>
-            Deploy System
+            Deploy Control System
           </button>
           <button className={`px-8 py-4 rounded-full font-semibold text-sm transition-all active:scale-95 ${theme.secondaryBtn}`}>
-            Explore Architecture
+            See Tag System
           </button>
         </motion.div>
       </section>
 
-      <section id="ecosystem" className={`py-32 px-6 ${theme.sectionBg} transition-colors duration-500`}>
+      {/* 🧩 SECTION 1: THE "TAG" SYSTEM (The Real Innovation) */}
+      <section id="inventory" className={`py-32 px-6 ${theme.sectionBg} transition-colors duration-500`}>
         <div className="max-w-7xl mx-auto">
           <div className="mb-20 max-w-2xl">
-            <h2 className="text-4xl md:text-5xl font-medium tracking-tight mb-6">Frictionless Checkout.</h2>
+            <h2 className="text-4xl md:text-5xl font-medium tracking-tight mb-6">How Tags Power Your Store.</h2>
             <p className={`text-xl font-normal leading-relaxed ${theme.textMuted}`}>
-              Eliminate queues and hardware dependency. Transform any customer smartphone into a personalized point of sale.
+              Every physical item gets a unique digital identity. This isn't just a barcode; it's a state-machine that updates instantly across your entire retail floor.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className={`${theme.card} rounded-[2rem] p-10 h-[500px] flex flex-col relative overflow-hidden`}>
-              <div className="max-w-sm relative z-10">
-                <h3 className="text-2xl font-semibold mb-3 tracking-tight">Zero Hardware Protocol</h3>
-                <p className={`${theme.textMuted} text-sm leading-relaxed`}>Customers scan intelligent product tags, build their digital bag, and execute self-checkout instantly.</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Tag Flow 1 */}
+            <div className={`${theme.card} rounded-[2rem] p-8 flex flex-col relative overflow-hidden`}>
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-6 ${theme.cardInner}`}>
+                <QrCode className="w-6 h-6 text-blue-500" />
               </div>
-              
-              <div className="absolute -bottom-10 -right-10 w-80 h-[400px] bg-black/5 dark:bg-white/5 rounded-3xl border border-black/10 dark:border-white/10 p-4 transform rotate-[-5deg]">
-                <div className={`w-full h-full ${theme.cardInner} rounded-2xl flex flex-col p-4`}>
-                  <div className="w-full h-48 bg-black/10 dark:bg-white/10 rounded-xl mb-4 relative overflow-hidden">
-                     <div className="absolute top-1/2 left-0 w-full h-px bg-blue-500/50 shadow-[0_0_10px_rgba(59,130,246,1)] animate-pulse" />
-                     <div className="absolute inset-0 flex items-center justify-center"><SmartphoneNfc className="w-10 h-10 opacity-20" /></div>
-                  </div>
-                  <div className="w-3/4 h-4 bg-black/10 dark:bg-white/10 rounded mb-2" />
-                  <div className="w-1/2 h-4 bg-black/10 dark:bg-white/10 rounded mb-6" />
-                  <div className="mt-auto w-full h-12 bg-blue-500 rounded-xl" />
-                </div>
+              <h3 className="text-xl font-semibold mb-3 tracking-tight">1. Customer Scans</h3>
+              <p className={`${theme.textMuted} text-sm leading-relaxed mb-6`}>
+                The physical product connects to the customer's phone, moving instantly into their personal 'Digital Bag'.
+              </p>
+              <div className={`mt-auto p-4 rounded-xl ${theme.cardInner} font-mono text-xs flex justify-between`}>
+                <span className={theme.textMuted}>TAG001_SHIRT</span>
+                <span className="text-blue-500 font-bold">SCANNED</span>
               </div>
             </div>
 
-            <div className={`${theme.card} rounded-[2rem] p-10 h-[500px] flex flex-col relative overflow-hidden`}>
-              <div className="max-w-sm relative z-10">
-                <h3 className="text-2xl font-semibold mb-3 tracking-tight">Real-Time Command</h3>
-                <p className={`${theme.textMuted} text-sm leading-relaxed`}>Complete visibility into live store traffic. Monitor active scans, digital bags, and approvals from the owner console.</p>
+            {/* Tag Flow 2: The "In-Bag" Conflict Resolver */}
+            <div className={`${theme.card} rounded-[2rem] p-8 flex flex-col relative overflow-hidden`}>
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-6 ${theme.cardInner}`}>
+                <Lock className="w-6 h-6 text-rose-500" />
               </div>
+              <h3 className="text-xl font-semibold mb-3 tracking-tight">2. Global System Lock</h3>
+              <p className={`${theme.textMuted} text-sm leading-relaxed mb-6`}>
+                First scanner claims the item. The system globally locks this specific tag. No two customers can scan or buy the same piece.
+              </p>
+              <div className={`mt-auto p-4 rounded-xl ${theme.cardInner} font-mono text-xs flex justify-between border border-rose-500/20`}>
+                <span className={theme.textMuted}>TAG001_SHIRT</span>
+                <span className="text-rose-500 font-bold">IN BAG (LOCKED)</span>
+              </div>
+            </div>
 
-              <div className="absolute -bottom-10 -right-5 w-full max-w-sm h-[300px] bg-black/5 dark:bg-white/5 rounded-t-3xl border-t border-l border-r border-black/10 dark:border-white/10 p-6">
-                 <div className="flex justify-between items-center mb-6">
-                   <div className="w-1/3 h-4 bg-black/10 dark:bg-white/10 rounded" />
-                   <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center"><span className="w-2 h-2 rounded-full bg-blue-500" /></div>
-                 </div>
-                 <div className="space-y-3">
-                   {/* 🔥 FIX 2: Added ': number' to implicitly typed 'i' */}
-                   {Array.from({ length: 3 }).map((_, i) => (
-                     <div key={i} className={`w-full p-4 rounded-xl ${theme.cardInner} flex justify-between items-center`}>
-                       <div className="flex gap-3 items-center">
-                         <div className="w-8 h-8 rounded-lg bg-black/10 dark:bg-white/10" />
-                         <div>
-                           <div className="w-20 h-3 bg-black/10 dark:bg-white/10 rounded mb-1" />
-                           <div className="w-12 h-2 bg-black/5 dark:bg-white/5 rounded" />
-                         </div>
-                       </div>
-                       <div className="w-16 h-6 rounded-full bg-green-500/20" />
-                     </div>
-                   ))}
-                 </div>
+            {/* Tag Flow 3 */}
+            <div className={`${theme.card} rounded-[2rem] p-8 flex flex-col relative overflow-hidden`}>
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-6 ${theme.cardInner}`}>
+                <RefreshCcw className="w-6 h-6 text-emerald-500" />
+              </div>
+              <h3 className="text-xl font-semibold mb-3 tracking-tight">3. Payment & Auto-Reset</h3>
+              <p className={`${theme.textMuted} text-sm leading-relaxed mb-6`}>
+                Upon successful checkout, the inventory deducts. If the cart is abandoned, the tag auto-resets for the next customer.
+              </p>
+              <div className={`mt-auto p-4 rounded-xl ${theme.cardInner} font-mono text-xs flex justify-between border border-emerald-500/20`}>
+                <span className={theme.textMuted}>TAG001_SHIRT</span>
+                <span className="text-emerald-500 font-bold">BILLED & CLEARED</span>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section id="intelligence" className="py-32 px-6">
+      {/* 📊 SECTION 2: ACTIONABLE CRM (Stop showing graphs, show MONEY) */}
+      <section id="crm" className="py-32 px-6">
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-16">
           <div className="lg:w-1/2">
-            <h2 className="text-4xl md:text-5xl font-medium tracking-tight mb-6">Triple-Signal Engine.</h2>
+            <h2 className="text-4xl md:text-5xl font-medium tracking-tight mb-6">Stop Looking at Charts. <br/>Look at the Money.</h2>
             <p className={`text-xl font-normal leading-relaxed mb-10 ${theme.textMuted}`}>
-              Standard POS systems only record the final transaction. QReBill captures the entire decision matrix to build a predictive consumer database.
+              Generic POS systems show you what you earned. QReBill shows you exactly what you lost today, and gives you the trigger to win it back.
             </p>
             
-            <div className="space-y-8">
-              <div className="flex gap-5">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${theme.cardInner}`}><span className="font-bold text-sm">01</span></div>
+            <div className="space-y-6">
+              <div className="flex items-start gap-4">
+                <div className="w-8 h-8 rounded-full bg-rose-500/10 flex items-center justify-center shrink-0 mt-1"><span className="w-2 h-2 rounded-full bg-rose-500"/></div>
                 <div>
-                  <h4 className="text-lg font-semibold mb-1">Intent Trace</h4>
-                  <p className={`text-sm ${theme.textMuted} leading-relaxed`}>Capture product scans to understand exact customer preferences before they commit to a purchase.</p>
+                  <h4 className="text-lg font-semibold mb-1">Abandonment Tracing</h4>
+                  <p className={`text-sm ${theme.textMuted} leading-relaxed`}>Know exactly which customer scanned which product, put it in their bag, but walked out without paying.</p>
                 </div>
               </div>
-              <div className="flex gap-5">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${theme.cardInner}`}><span className="font-bold text-sm">02</span></div>
+              <div className="flex items-start gap-4">
+                <div className="w-8 h-8 rounded-full bg-green-500/10 flex items-center justify-center shrink-0 mt-1"><span className="w-2 h-2 rounded-full bg-green-500"/></div>
                 <div>
-                  <h4 className="text-lg font-semibold mb-1">Behavior Analysis</h4>
-                  <p className={`text-sm ${theme.textMuted} leading-relaxed`}>Track cart additions and abandonment metrics to identify friction points and revenue leaks.</p>
-                </div>
-              </div>
-              <div className="flex gap-5">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${theme.cardInner}`}><span className="font-bold text-sm">03</span></div>
-                <div>
-                  <h4 className="text-lg font-semibold mb-1">Financial Truth</h4>
-                  <p className={`text-sm ${theme.textMuted} leading-relaxed`}>Connect behavior data to actual payments, identifying your 'Whale' spenders instantly.</p>
+                  <h4 className="text-lg font-semibold mb-1">Instant Revenue Recovery</h4>
+                  <p className={`text-sm ${theme.textMuted} leading-relaxed`}>One tap to launch a hyper-personalized WhatsApp campaign targeting exactly those lost items.</p>
                 </div>
               </div>
             </div>
           </div>
           
           <div className="lg:w-1/2 w-full">
-             <div className={`${theme.card} w-full aspect-square rounded-[3rem] p-8 flex flex-col justify-end relative overflow-hidden`}>
-                <div className="absolute top-10 left-10"><BarChart3 className={`w-8 h-8 ${theme.textMuted}`} /></div>
-                <div className="flex items-end justify-between h-64 gap-4 w-full px-4">
-                  {/* 🔥 FIX 3: Added strict types to 'height' and 'i' */}
-                  {[40, 60, 30, 80, 55].map((height, i) => (
-                    <div key={i} className="w-full flex flex-col justify-end gap-2 group">
-                      <div className={`w-full rounded-t-lg transition-all duration-500 ${i === 5 ? 'bg-blue-500' : 'bg-black/10 dark:bg-white/10 group-hover:bg-black/20 dark:group-hover:bg-white/20'}`} style={{ height: `${height}%` }} />
-                    </div>
-                  ))}
+             {/* 🔥 The "Actionable Data" UI Widget */}
+             <div className={`${theme.card} w-full rounded-[3rem] p-8 flex flex-col relative overflow-hidden border-rose-500/10`}>
+                <div className="flex items-center gap-3 mb-8">
+                  <BellRing className="w-5 h-5 text-rose-500" />
+                  <span className="text-sm font-semibold">Today's Revenue Leak</span>
                 </div>
-                <div className={`w-full h-px mt-4 ${isDark ? 'bg-white/10' : 'bg-black/10'}`} />
+                
+                <div className="mb-8">
+                  <h3 className="text-5xl font-medium tracking-tighter text-rose-500 mb-2">₹3,240</h3>
+                  <p className={`text-sm ${theme.textMuted}`}>Potential loss identified. 12 items scanned but not billed today.</p>
+                </div>
+
+                <div className="space-y-3 mb-8">
+                  <div className={`w-full p-4 rounded-xl ${theme.cardInner} flex justify-between items-center`}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-black/10 dark:bg-white/10" />
+                      <div><p className="text-sm font-semibold">Premium Denim</p><p className={`text-xs ${theme.textMuted}`}>Abandoned by 3 customers</p></div>
+                    </div>
+                  </div>
+                  <div className={`w-full p-4 rounded-xl ${theme.cardInner} flex justify-between items-center`}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-black/10 dark:bg-white/10" />
+                      <div><p className="text-sm font-semibold">Cotton T-Shirt</p><p className={`text-xs ${theme.textMuted}`}>Abandoned by 5 customers</p></div>
+                    </div>
+                  </div>
+                </div>
+
+                <button className="w-full py-4 bg-black dark:bg-white text-white dark:text-black font-semibold rounded-2xl active:scale-95 transition-transform">
+                  Trigger WhatsApp Recovery
+                </button>
              </div>
-          </div>
-        </div>
-      </section>
-
-      <section id="automation" className={`py-32 px-6 ${theme.sectionBg} transition-colors duration-500`}>
-        <div className="max-w-7xl mx-auto">
-          <div className="mb-20 max-w-2xl">
-            <h2 className="text-4xl md:text-5xl font-medium tracking-tight mb-6">Revenue Reactivation.</h2>
-            <p className={`text-xl font-normal leading-relaxed ${theme.textMuted}`}>
-              Move beyond manual outreach. Deploy AI-driven lifecycle automation that recovers lost sales and generates predictive repeat loops.
-            </p>
-          </div>
-
-          <div className={`${theme.card} w-full rounded-[3rem] p-10 md:p-16 flex flex-col md:flex-row items-center gap-16`}>
-            <div className="w-full md:w-1/2 relative">
-               <div className={`w-full rounded-[2rem] p-6 ${theme.cardInner}`}>
-                 <div className="flex items-center gap-4 mb-6">
-                   <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center"><span className="w-3 h-3 bg-white rounded-full" /></div>
-                   <div>
-                     <div className="w-24 h-4 bg-black/10 dark:bg-white/10 rounded mb-1" />
-                     <div className="w-16 h-3 bg-black/5 dark:bg-white/5 rounded" />
-                   </div>
-                 </div>
-                 <div className="space-y-4">
-                   <div className={`w-[80%] p-4 rounded-2xl rounded-tl-sm ${theme.card} text-sm leading-relaxed`}>
-                     AI detected abandonment. Executing targeted recovery sequence for premium segment.
-                   </div>
-                   <div className="w-[80%] p-4 rounded-2xl rounded-tr-sm bg-green-500 text-white text-sm leading-relaxed ml-auto">
-                     Initiating 1-on-1 personalized offers based on historic category preferences.
-                   </div>
-                 </div>
-               </div>
-            </div>
-            
-            <div className="w-full md:w-1/2">
-               <h3 className="text-3xl font-semibold mb-6 tracking-tight">Automated Control</h3>
-               <p className={`${theme.textMuted} text-lg leading-relaxed mb-8`}>
-                 QReBill doesn't just send messages; it analyzes spending velocity. It isolates at-risk VIPs and triggers custom win-back campaigns without human intervention.
-               </p>
-               <ul className="space-y-4">
-                 {/* 🔥 FIX 4: Typed the array map for texts */}
-                 {['Zero-touch cart recovery', 'Dynamic cluster segmentation', 'Predictive churn alerts'].map((text: string, i: number) => (
-                   <li key={i} className="flex items-center gap-3">
-                     <div className="w-6 h-6 rounded-full bg-blue-500/10 flex items-center justify-center"><ChevronRight className="w-3 h-3 text-blue-500" /></div>
-                     <span className="font-medium text-sm">{text}</span>
-                   </li>
-                 ))}
-               </ul>
-            </div>
           </div>
         </div>
       </section>
@@ -331,7 +294,7 @@ function LandingContent() {
             <span className="text-sm font-bold tracking-tight">QReBill OS.</span>
           </div>
           <p className={`text-[10px] font-bold uppercase tracking-widest ${theme.textMuted}`}>
-            © 2026 Developed for Enterprise Scaling.
+            © 2026 Designed for Retail Empires.
           </p>
         </div>
       </footer>
@@ -356,7 +319,6 @@ function LandingContent() {
                 ) : (
                   <motion.div key="pinpad" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="flex flex-col items-center w-full mt-2 flex-1">
                     <div className="w-full flex items-center mb-8"><button onClick={() => setShowPinPad(false)} className={`p-2 rounded-full transition-colors ${theme.secondaryBtn}`}><ArrowLeft className="w-5 h-5" /></button><h2 className="text-xl font-semibold ml-4 tracking-tight">Enter Passcode</h2></div>
-                    {/* 🔥 FIX 5: Typed array map and digit strings */}
                     <div className="flex gap-4 mb-10">{[...Array(4)].map((_, i: number) => (<div key={i} className={`w-4 h-4 rounded-full transition-all duration-300 ${pin.length > i ? 'bg-blue-500 scale-110' : (isDark ? 'bg-white/10' : 'bg-black/10')}`} />))}</div>
                     <div className="grid grid-cols-3 gap-3 w-full max-w-xs">{['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((n: string) => (<button key={n} onClick={() => addDigit(n)} className={`h-14 rounded-2xl text-xl font-medium transition-all ${theme.input}`}>{n}</button>))}
                       <button onClick={removeDigit} className={`h-14 flex items-center justify-center transition-colors ${theme.textMuted} hover:${theme.text}`}><Delete className="w-6 h-6" /></button>
