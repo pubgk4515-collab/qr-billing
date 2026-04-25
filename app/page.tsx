@@ -8,7 +8,6 @@ import {
   AnimatePresence,
   useInView,
   useMotionValue,
-  useTransform,
   animate,
   Variants,
 } from 'framer-motion';
@@ -66,7 +65,7 @@ function applyThemeClass(isDark: boolean) {
   root.setAttribute('data-theme', isDark ? 'dark' : 'light');
 }
 
-/* ── Smooth AnimatedNumber (FIXED) ── */
+/* ── Smooth AnimatedNumber ── */
 function AnimatedNumber({
   value,
   duration = 1.5,
@@ -77,15 +76,17 @@ function AnimatedNumber({
   delay?: number;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const isInView = useInView(ref, { once: true, margin: '-50px' }); // more reliable trigger
+  const isInView = useInView(ref, { once: true, margin: '-50px' });
   const motionVal = useMotionValue(0);
   const hasAnimated = useRef(false);
   const formatterRef = useRef<Intl.NumberFormat | null>(null);
 
-  // lazy initialise formatter
   if (!formatterRef.current) {
     formatterRef.current = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
   }
+
+  // Set initial textContent to the formatted value so it's never 0
+  const initialFormatted = formatterRef.current.format(value);
 
   useEffect(() => {
     if (!isInView || hasAnimated.current) return;
@@ -109,7 +110,7 @@ function AnimatedNumber({
     };
   }, [isInView, value, duration, delay, motionVal]);
 
-  return <span ref={ref}>0</span>;
+  return <span ref={ref}>{initialFormatted}</span>;
 }
 
 /* ── Variants ── */
@@ -243,12 +244,13 @@ function LandingContent() {
     }, 300);
   };
 
-  // ═══ REACTIVE THEME ═══
+  /* ── REACTIVE THEME ── */
   const theme = {
     bg: isDark ? 'bg-[#000000]' : 'bg-white',
     text: isDark ? 'text-white' : 'text-black',
     muted: isDark ? 'text-[#777]' : 'text-[#555]',
     faint: isDark ? 'text-[#444]' : 'text-[#999]',
+    faintInverse: isDark ? 'text-[#999]' : 'text-[#444]',
     nav: isDark
       ? 'bg-black/80 border-white/5 backdrop-blur-2xl'
       : 'bg-white/80 border-black/5 backdrop-blur-2xl',
@@ -277,6 +279,34 @@ function LandingContent() {
     modalOverlay: isDark
       ? 'bg-black/40 backdrop-blur-lg'
       : 'bg-black/20 backdrop-blur-lg',
+
+    /* ── NEW: theme‑aware icon / tag / visual helpers ── */
+    iconContainer: isDark
+      ? 'bg-white/[0.03] border-white/[0.04]'
+      : 'bg-black/[0.02] border-black/[0.04]',
+    iconColor: isDark ? 'text-white/60' : 'text-black/50',
+    iconColorOff: isDark ? 'text-white/20' : 'text-black/15',
+    tagLine: isDark ? 'bg-white/[0.03]' : 'bg-black/[0.04]',
+    tagActive: isDark
+      ? 'bg-white/[0.06] ring-white/10'
+      : 'bg-black/[0.04] ring-black/8',
+    tagInactive: isDark ? 'bg-white/[0.02]' : 'bg-black/[0.02]',
+    ctaShadow: isDark
+      ? 'hover:shadow-[0_0_30px_rgba(255,255,255,0.08)]'
+      : 'hover:shadow-[0_0_30px_rgba(0,0,0,0.08)]',
+    ctaShadowLg: isDark
+      ? 'hover:shadow-[0_0_30px_rgba(255,255,255,0.1)]'
+      : 'hover:shadow-[0_0_30px_rgba(0,0,0,0.1)]',
+    subtleBg: isDark ? 'bg-white/5' : 'bg-black/3',
+    subtleBgRose: isDark ? 'bg-rose-500/5' : 'bg-rose-500/8',
+    subtleBgGreen: isDark ? 'bg-green-500/5' : 'bg-green-500/8',
+    subtleBgAmber: isDark ? 'bg-amber-400/5' : 'bg-amber-400/10',
+    subtleBorderAmber: isDark ? 'border-amber-400/10' : 'border-amber-400/20',
+    amberText: 'text-amber-400',
+    roseText: 'text-rose-400',
+    blueText: 'text-blue-500',
+    greenText: isDark ? 'text-green-400' : 'text-green-600',
+    footerOpacity: isDark ? 'opacity-30' : 'opacity-40',
   };
 
   const pressable = 'active:scale-95 transition-transform duration-100';
@@ -365,7 +395,7 @@ function LandingContent() {
           transition={{ duration: 0.5, delay: 0.2, ease: easeOut }}
         >
           <button
-            className={`px-8 py-4 rounded-full font-medium text-sm tracking-wide ${pressable} transition-all hover:shadow-[0_0_30px_rgba(255,255,255,0.08)] ${theme.primaryBtn}`}
+            className={`px-8 py-4 rounded-full font-medium text-sm tracking-wide ${pressable} transition-all ${theme.ctaShadow} ${theme.primaryBtn}`}
           >
             See it live
           </button>
@@ -398,7 +428,7 @@ function LandingContent() {
                 key={line}
                 variants={fastReveal(i * 0.12)}
                 className={`text-2xl md:text-3xl font-medium ${
-                  i === 3 ? 'text-rose-400' : theme.faint
+                  i === 3 ? theme.roseText : theme.faint
                 }`}
               >
                 {line}
@@ -437,9 +467,9 @@ function LandingContent() {
 
         <div className="flex flex-col md:flex-row items-center justify-center gap-10 md:gap-16">
           {[
-            { icon: Scan, label: 'Customer scans', color: 'text-white/60' },
-            { icon: Lock, label: 'Item locks instantly', color: 'text-amber-400' },
-            { icon: EyeOff, label: 'Others blocked', color: 'text-rose-400' },
+            { icon: Scan, label: 'Customer scans' },
+            { icon: Lock, label: 'Item locks instantly' },
+            { icon: EyeOff, label: 'Others blocked' },
           ].map((step, i) => (
             <motion.div
               key={step.label}
@@ -449,8 +479,8 @@ function LandingContent() {
               variants={fastReveal(i * 0.15)}
               className="flex flex-col items-center gap-3"
             >
-              <div className="w-16 h-16 rounded-2xl flex items-center justify-center bg-white/[0.03] border border-white/[0.04]">
-                <step.icon className={`w-7 h-7 ${step.color}`} />
+              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${theme.iconContainer}`}>
+                <step.icon className={`w-7 h-7 ${i === 0 ? theme.iconColor : i === 1 ? theme.amberText : theme.roseText}`} />
               </div>
               <p className={`text-sm font-medium ${theme.muted}`}>{step.label}</p>
             </motion.div>
@@ -488,7 +518,7 @@ function LandingContent() {
           </motion.h2>
 
           <div className="relative">
-            <div className="hidden md:block absolute top-1/2 left-0 right-0 h-px bg-white/[0.03] -translate-y-1/2" />
+            <div className={`hidden md:block absolute top-1/2 left-0 right-0 h-px ${theme.tagLine} -translate-y-1/2`} />
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-4 relative">
               {['Active', 'In Bag', 'Sold', 'Ready'].map((label, i) => {
@@ -513,16 +543,16 @@ function LandingContent() {
                       }}
                       className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-colors duration-500 ${
                         isActive
-                          ? 'bg-white/[0.06] ring-1 ring-white/10'
-                          : 'bg-white/[0.02]'
+                          ? `ring-1 ${theme.tagActive}`
+                          : theme.tagInactive
                       }`}
                     >
                       {label === 'In Bag' && isActive ? (
-                        <Lock className="w-6 h-6 text-amber-400" />
+                        <Lock className={`w-6 h-6 ${theme.amberText}`} />
                       ) : (
                         <Icon
                           className={`w-6 h-6 transition-colors duration-500 ${
-                            isActive ? 'text-white' : 'text-white/20'
+                            isActive ? theme.text : theme.iconColorOff
                           }`}
                         />
                       )}
@@ -548,9 +578,9 @@ function LandingContent() {
             variants={fastReveal(0.4)}
             className="mt-14 max-w-lg mx-auto text-center"
           >
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-400/5 border border-amber-400/10 mb-4">
-              <Lock className="w-4 h-4 text-amber-400" />
-              <span className="text-xs font-semibold text-amber-400 uppercase tracking-wider">
+            <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${theme.subtleBgAmber} border ${theme.subtleBorderAmber} mb-4`}>
+              <Lock className={`w-4 h-4 ${theme.amberText}`} />
+              <span className={`text-xs font-semibold ${theme.amberText} uppercase tracking-wider`}>
                 In Bag = Locked
               </span>
             </div>
@@ -610,7 +640,7 @@ function LandingContent() {
               key={line}
               variants={fastReveal(i * 0.15)}
               className={`text-2xl md:text-3xl font-medium ${
-                i === 2 ? 'text-rose-400' : theme.text
+                i === 2 ? theme.roseText : theme.text
               }`}
             >
               {line}
@@ -638,7 +668,7 @@ function LandingContent() {
             >
               <AnimatedNumber value={1240} duration={1.2} /> scanned.
               <br />
-              <span className="text-rose-400">
+              <span className={theme.roseText}>
                 <AnimatedNumber value={380} duration={1.2} delay={0.6} /> abandoned.
               </span>
             </motion.h2>
@@ -648,7 +678,7 @@ function LandingContent() {
               whileInView="visible"
               viewport={{ once: true, margin: '-60px' }}
               variants={fastReveal(0.3)}
-              className="text-lg font-medium text-rose-400 mb-3"
+              className={`text-lg font-medium ${theme.roseText} mb-3`}
             >
               10 picked, 0 bought. You stocked it, you paid for it. It didn&apos;t
               sell.
@@ -690,16 +720,16 @@ function LandingContent() {
                 <div className={`h-px ${theme.divider}`} />
                 <div className="flex items-center justify-between">
                   <span className={`text-sm ${theme.faint}`}>Abandoned</span>
-                  <span className="text-2xl md:text-3xl font-semibold text-rose-400">
+                  <span className={`text-2xl md:text-3xl font-semibold ${theme.roseText}`}>
                     <AnimatedNumber value={380} duration={1.5} delay={0.4} />
                   </span>
                 </div>
                 <div className={`h-px ${theme.divider}`} />
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-rose-400">
+                  <span className={`text-sm font-medium ${theme.roseText}`}>
                     Lost today
                   </span>
-                  <span className="text-2xl md:text-3xl font-semibold text-rose-400">
+                  <span className={`text-2xl md:text-3xl font-semibold ${theme.roseText}`}>
                     ₹<AnimatedNumber value={18400} duration={2} delay={0.6} />
                   </span>
                 </div>
@@ -746,22 +776,22 @@ function LandingContent() {
           className="mt-12 flex flex-col md:flex-row items-center justify-center gap-5 md:gap-8"
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-rose-500/5 flex items-center justify-center">
-              <TrendingDown className="w-5 h-5 text-rose-400" />
+            <div className={`w-10 h-10 rounded-xl ${theme.subtleBgRose} flex items-center justify-center`}>
+              <TrendingDown className={`w-5 h-5 ${theme.roseText}`} />
             </div>
             <span className={`text-sm ${theme.faint}`}>Leave</span>
           </div>
           <div className={`h-px w-10 ${theme.divider} hidden md:block`} />
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-green-500/5 flex items-center justify-center">
-              <BellRing className="w-5 h-5 text-green-400" />
+            <div className={`w-10 h-10 rounded-xl ${theme.subtleBgGreen} flex items-center justify-center`}>
+              <BellRing className={`w-5 h-5 ${theme.greenText}`} />
             </div>
             <span className={`text-sm ${theme.faint}`}>Reminded</span>
           </div>
           <div className={`h-px w-10 ${theme.divider} hidden md:block`} />
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
-              <RefreshCcw className="w-5 h-5 text-white/50" />
+            <div className={`w-10 h-10 rounded-xl ${theme.subtleBg} flex items-center justify-center`}>
+              <RefreshCcw className={`w-5 h-5 ${theme.faintInverse}`} />
             </div>
             <span className="text-sm font-medium">Return</span>
           </div>
@@ -824,7 +854,7 @@ function LandingContent() {
           className="mt-12"
         >
           <button
-            className={`px-10 py-5 rounded-full font-semibold text-sm tracking-wide ${pressable} transition-all hover:shadow-[0_0_30px_rgba(255,255,255,0.1)] ${theme.primaryBtn}`}
+            className={`px-10 py-5 rounded-full font-semibold text-sm tracking-wide ${pressable} transition-all ${theme.ctaShadowLg} ${theme.primaryBtn}`}
           >
             I want to know
           </button>
@@ -834,13 +864,13 @@ function LandingContent() {
       {/* ═══ FOOTER ═══ */}
       <footer className={`border-t py-7 px-6 ${theme.divider} ${theme.bg}`}>
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Eye className="w-3.5 h-3.5 opacity-30" />
-            <span className="text-xs font-semibold tracking-[0.15em] uppercase opacity-30">
+          <div className={`flex items-center gap-2 ${theme.footerOpacity}`}>
+            <Eye className="w-3.5 h-3.5" />
+            <span className="text-xs font-semibold tracking-[0.15em] uppercase">
               QReBill
             </span>
           </div>
-          <p className="text-[10px] font-medium uppercase tracking-[0.15em] opacity-30">
+          <p className={`text-[10px] font-medium uppercase tracking-[0.15em] ${theme.footerOpacity}`}>
             Blind stores lose. Smart stores don&apos;t.
           </p>
         </div>
@@ -884,7 +914,7 @@ function LandingContent() {
                     <div
                       className={`w-20 h-20 rounded-[1.5rem] flex items-center justify-center mb-8 ${theme.modalCardInner}`}
                     >
-                      <ShieldCheck className="w-10 h-10 text-blue-500" />
+                      <ShieldCheck className={`w-10 h-10 ${theme.blueText}`} />
                     </div>
                     <h2 className="text-2xl font-semibold mb-2 tracking-tight">
                       Store Access
