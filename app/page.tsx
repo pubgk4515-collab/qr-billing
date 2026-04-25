@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense, useRef } from 'react';
+import { useState, useEffect, Suspense, useRef, useLayoutEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from './lib/supabase';
 import { motion, AnimatePresence, useInView, Variants } from 'framer-motion';
@@ -51,6 +51,7 @@ const fadeIn = (delay = 0): Variants => ({
   },
 });
 
+/* ── Fixed AnimatedNumber ── */
 function AnimatedNumber({
   value,
   duration = 1.5,
@@ -60,27 +61,62 @@ function AnimatedNumber({
   duration?: number;
   delay?: number;
 }) {
-  const [count, setCount] = useState(0);
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: '-60px' });
+  // Initialise with final value – never show fake data
+  const [count, setCount] = useState(value);
+  const [animate, setAnimate] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  const isInView = useInView(ref, { once: true, margin: '-20%' });
+  const hasInteracted = useRef(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Fallback: if after 500ms the animation hasn’t started, force correct value
   useEffect(() => {
-    if (!isInView) return;
+    const t = setTimeout(() => {
+      if (!hasInteracted.current) {
+        setCount(value);
+        if (intervalRef.current) clearInterval(intervalRef.current);
+      }
+    }, 500);
+    return () => clearTimeout(t);
+  }, [value]);
+
+  // Start animation ONLY when the element scrolls into view
+  useLayoutEffect(() => {
+    if (isInView && !hasInteracted.current) {
+      hasInteracted.current = true;
+      setAnimate(true);
+      setCount(0);
+    }
+  }, [isInView]);
+
+  // Run the counting animation
+  useEffect(() => {
+    if (!animate) return;
     let start = 0;
     const increment = value / (duration * 60);
-    const timer = setInterval(() => {
-      start += increment;
-      if (start >= value) {
-        setCount(value);
-        clearInterval(timer);
-      } else {
-        setCount(Math.floor(start));
-      }
-    }, 1000 / 60);
-    return () => clearInterval(timer);
-  }, [isInView, value, duration]);
 
-  return <span ref={ref}>{count.toLocaleString()}</span>;
+    // Small delay before starting, if needed
+    const startTimeout = setTimeout(() => {
+      intervalRef.current = setInterval(() => {
+        start += increment;
+        if (start >= value) {
+          setCount(value);
+          setAnimate(false);
+          if (intervalRef.current) clearInterval(intervalRef.current);
+        } else {
+          setCount(Math.floor(start));
+        }
+      }, 1000 / 60);
+    }, delay * 1000);
+
+    return () => {
+      clearTimeout(startTimeout);
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [animate, value, duration, delay]);
+
+  // If the animation never started → show the final value
+  return <span ref={ref}>{animate ? count : value}</span>;
 }
 
 function LandingContent() {
@@ -107,7 +143,6 @@ function LandingContent() {
     }
   }, [urlShopSlug]);
 
-  /* Subtle tag cycle */
   useEffect(() => {
     const interval = setInterval(() => {
       setActiveStep((prev) => (prev + 1) % 4);
@@ -722,7 +757,7 @@ function LandingContent() {
         </div>
       </footer>
 
-      {/* ═══ CONSOLE MODAL (unchanged core) ═══ */}
+      {/* ═══ CONSOLE MODAL ═══ */}
       <AnimatePresence>
         {isModalOpen && (
           <motion.div
