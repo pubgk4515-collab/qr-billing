@@ -16,14 +16,12 @@ import {
   Fingerprint,
   Layers,
   QrCode,
-  Lock,
+  ShoppingBag,
   RefreshCcw,
   BellRing,
   Scan,
-  PackageOpen,
-  Repeat,
-  ShoppingBag,
   TrendingDown,
+  Repeat,
 } from 'lucide-react';
 import { Inter } from 'next/font/google';
 
@@ -46,7 +44,6 @@ function LandingContent() {
   const [error, setError] = useState('');
   const [activeShop, setActiveShop] = useState<string | null>(null);
 
-  // Lifecycle animation states
   const [activeStep, setActiveStep] = useState(0);
 
   useEffect(() => {
@@ -59,7 +56,6 @@ function LandingContent() {
     }
   }, [urlShopSlug]);
 
-  // Auto‑cycle tag lifecycle demo
   useEffect(() => {
     const interval = setInterval(() => {
       setActiveStep((prev) => (prev + 1) % 5);
@@ -152,7 +148,6 @@ function LandingContent() {
       : 'bg-[#F2F2F7] text-black hover:bg-[#E5E5EA]',
   };
 
-  // Fixed easing: cubic-bezier as a tuple
   const fadeUp = {
     hidden: { opacity: 0, y: 40 },
     visible: {
@@ -181,23 +176,23 @@ function LandingContent() {
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Layers className="w-5 h-5 text-white/80" />
-            <span className="text-lg font-semibold tracking-tight">RetailOS</span>
+            <span className="text-lg font-semibold tracking-tight">QReBill</span>
           </div>
 
           <div
             className={`hidden md:flex items-center gap-10 text-xs font-semibold tracking-[0.15em] uppercase ${theme.textMuted}`}
           >
-            <a href="#system" className={`hover:${theme.text} transition-colors`}>
+            <a href="#system" className="hover:text-white transition-colors">
               System
             </a>
-            <a href="#control" className={`hover:${theme.text} transition-colors`}>
-              Control
+            <a href="#control" className="hover:text-white transition-colors">
+              Live
             </a>
-            <a href="#intelligence" className={`hover:${theme.text} transition-colors`}>
-              Intelligence
+            <a href="#intelligence" className="hover:text-white transition-colors">
+              Insights
             </a>
-            <a href="#crm" className={`hover:${theme.text} transition-colors`}>
-              CRM
+            <a href="#crm" className="hover:text-white transition-colors">
+              Customers
             </a>
           </div>
 
@@ -238,28 +233,34 @@ function LandingContent() {
         </div>
       </nav>
 
-      {/* ---------- 1. HERO (Dominance) ---------- */}
-      <section className="pt-48 pb-36 px-6 max-w-6xl mx-auto flex flex-col items-center text-center z-10 w-full">
-        <motion.p
+      {/* ---------- 1. HERO ---------- */}
+      <section className="pt-48 pb-40 px-6 max-w-5xl mx-auto flex flex-col items-center text-center z-10 w-full">
+        <motion.div
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, margin: '-50px' }}
           variants={fadeUp}
-          className={`text-xs font-bold uppercase tracking-[0.25em] mb-8 ${theme.textMuted}`}
+          className="mb-10"
         >
-          Store Operating System
-        </motion.p>
+          <span
+            className={`text-[10px] font-bold uppercase tracking-[0.3em] px-4 py-2 rounded-full border ${
+              isDark ? 'border-white/10 bg-white/5' : 'border-black/10 bg-black/5'
+            }`}
+          >
+            Store Operating System
+          </span>
+        </motion.div>
 
         <motion.h1
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, margin: '-50px' }}
           variants={fadeUp}
-          className="text-5xl md:text-[5.5rem] font-semibold leading-[1.05] tracking-[-0.02em] mb-8 max-w-4xl"
+          className="text-5xl md:text-[5.5rem] font-semibold leading-[1.05] tracking-[-0.02em] mb-8 max-w-3xl"
         >
-          Track every product.
+          Your store.
           <br />
-          <span className={theme.textMuted}>Every customer. In real‑time.</span>
+          <span className={theme.textMuted}>Fully visible. In real‑time.</span>
         </motion.h1>
 
         <motion.p
@@ -267,9 +268,9 @@ function LandingContent() {
           whileInView="visible"
           viewport={{ once: true, margin: '-50px' }}
           variants={fadeUp}
-          className={`text-lg md:text-xl font-normal max-w-2xl mb-14 leading-relaxed ${theme.textMuted}`}
+          className={`text-lg md:text-xl font-normal max-w-xl mb-14 leading-relaxed ${theme.textMuted}`}
         >
-          Total retail visibility. Every scan, every bag, every lost sale — revealed and actionable instantly.
+          Total visibility. Instant control. No blind spots.
         </motion.p>
 
         <motion.div
@@ -282,20 +283,20 @@ function LandingContent() {
           <button
             className={`px-8 py-4 rounded-full font-medium text-sm transition-all active:scale-95 ${theme.primaryBtn}`}
           >
-            Get Full Control
+            Get Started
           </button>
           <button
             className={`px-8 py-4 rounded-full font-medium text-sm transition-all active:scale-95 ${theme.secondaryBtn}`}
           >
-            See the System &darr;
+            See It Live &darr;
           </button>
         </motion.div>
       </section>
 
-      {/* ---------- 2. SYSTEM REVEAL (Tag Lifecycle) ---------- */}
+      {/* ---------- 2. SYSTEM REVEAL ---------- */}
       <section
         id="system"
-        className={`py-32 px-6 ${theme.sectionBg} transition-colors duration-500`}
+        className={`py-36 px-6 ${theme.sectionBg} transition-colors duration-500`}
       >
         <div className="max-w-7xl mx-auto">
           <motion.div
@@ -303,49 +304,26 @@ function LandingContent() {
             whileInView="visible"
             viewport={{ once: true, margin: '-80px' }}
             variants={fadeUp}
-            className="mb-20 max-w-2xl"
+            className="mb-24 max-w-2xl"
           >
             <h2 className="text-4xl md:text-5xl font-semibold tracking-tight mb-6">
-              The Tag Lifecycle
+              How it powers your floor.
             </h2>
             <p className={`text-xl font-normal leading-relaxed ${theme.textMuted}`}>
-              A lightweight QR tag powers your entire store. Here&apos;s the end‑to‑end sequence that
-              turns a physical item into a revenue stream.
+              Every physical item gets a digital twin that moves through five states — automatically.
             </p>
           </motion.div>
 
-          {/* Lifecycle Stepper */}
           <div className="relative mt-16">
-            {/* Connecting line (desktop) */}
             <div className="hidden md:block absolute top-1/2 left-[8%] right-[8%] h-px bg-white/10 -translate-y-1/2" />
 
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-8 relative">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-10 relative">
               {[
-                {
-                  label: 'Bind',
-                  sub: 'Tag assigned to product',
-                  icon: PackageOpen,
-                },
-                {
-                  label: 'Scan',
-                  sub: 'Customer scans to bag',
-                  icon: Scan,
-                },
-                {
-                  label: 'Lock',
-                  sub: 'Item reserved globally',
-                  icon: Lock,
-                },
-                {
-                  label: 'Sell',
-                  sub: 'Checkout releases lock',
-                  icon: ShoppingBag,
-                },
-                {
-                  label: 'Reset',
-                  sub: 'Tag auto‑resets',
-                  icon: Repeat,
-                },
+                { label: 'Bind', sub: 'Tag assigned', icon: QrCode },
+                { label: 'Scan', sub: 'Customer scans', icon: Scan },
+                { label: 'Lock', sub: 'Item reserved', icon: ShoppingBag },
+                { label: 'Sell', sub: 'Checkout unlocks', icon: TrendingDown },
+                { label: 'Reset', sub: 'Tag clears', icon: RefreshCcw },
               ].map((step, i) => {
                 const isActive = i === activeStep;
                 const isPast = i < activeStep;
@@ -358,7 +336,6 @@ function LandingContent() {
                     variants={fadeUp}
                     className="flex flex-col items-center text-center relative"
                   >
-                    {/* Step circle */}
                     <div className="relative mb-5">
                       <div
                         className={`w-14 h-14 rounded-2xl flex items-center justify-center relative z-10 transition-all duration-700 ${
@@ -377,7 +354,6 @@ function LandingContent() {
                           }`}
                         />
                       </div>
-                      {/* Glow dot */}
                       {isActive && (
                         <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full bg-blue-500/10 blur-xl animate-pulse" />
                       )}
@@ -392,22 +368,21 @@ function LandingContent() {
         </div>
       </section>
 
-      {/* ---------- 3. CONTROL LAYER (Live States) ---------- */}
-      <section id="control" className="py-32 px-6">
+      {/* ---------- 3. LIVE STORE STATE ---------- */}
+      <section id="control" className="py-36 px-6">
         <div className="max-w-7xl mx-auto">
           <motion.div
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true, margin: '-80px' }}
             variants={fadeUp}
-            className="mb-20 max-w-2xl"
+            className="mb-24 max-w-2xl"
           >
             <h2 className="text-4xl md:text-5xl font-semibold tracking-tight mb-6">
-              Your store, alive.
+              Your store is alive.
             </h2>
             <p className={`text-xl font-normal leading-relaxed ${theme.textMuted}`}>
-              See every product state in real‑time. No polling, no reloads — a living dashboard that
-              breathes with your floor.
+              Every product has a real‑time state. No more guessing what’s on the floor.
             </p>
           </motion.div>
 
@@ -423,19 +398,19 @@ function LandingContent() {
                 label: 'Active',
                 desc: 'Available for scan',
                 color: 'emerald',
-                icon: PackageOpen,
+                icon: QrCode,
               },
               {
                 label: 'In Bag',
-                desc: 'Reserved by a customer',
+                desc: 'Locked by a customer',
                 color: 'amber',
                 icon: ShoppingBag,
               },
               {
-                label: 'Sold',
-                desc: 'Billed & cleared',
+                label: 'Ready to Bind',
+                desc: 'Empty, waiting for product',
                 color: 'blue',
-                icon: Lock,
+                icon: RefreshCcw,
               },
             ].map((state) => {
               const colorMap: Record<string, string> = {
@@ -461,7 +436,6 @@ function LandingContent() {
                   </div>
                   <h3 className="text-2xl font-semibold mb-2 tracking-tight">{state.label}</h3>
                   <p className={`text-sm ${theme.textMuted}`}>{state.desc}</p>
-                  {/* Live indicator */}
                   <div className="mt-6 flex items-center gap-2">
                     <span className="relative flex h-2 w-2">
                       <span
@@ -485,7 +459,7 @@ function LandingContent() {
       {/* ---------- 4. BEHAVIOR INTELLIGENCE ---------- */}
       <section
         id="intelligence"
-        className={`py-32 px-6 ${theme.sectionBg} transition-colors duration-500`}
+        className={`py-36 px-6 ${theme.sectionBg} transition-colors duration-500`}
       >
         <div className="max-w-7xl mx-auto">
           <motion.div
@@ -493,14 +467,13 @@ function LandingContent() {
             whileInView="visible"
             viewport={{ once: true, margin: '-80px' }}
             variants={fadeUp}
-            className="mb-20 max-w-2xl"
+            className="mb-24 max-w-2xl"
           >
             <h2 className="text-4xl md:text-5xl font-semibold tracking-tight mb-6">
-              Stop guessing. Start seeing.
+              See what they touch.
             </h2>
             <p className={`text-xl font-normal leading-relaxed ${theme.textMuted}`}>
-              Track what customers touch, not just what they buy. Uncover scanning patterns,
-              drop‑off rates, and hidden revenue opportunities.
+              Not just what they buy. Every scan, every abandon, every hidden signal.
             </p>
           </motion.div>
 
@@ -511,12 +484,11 @@ function LandingContent() {
             variants={fadeUp}
             className="flex flex-col lg:flex-row gap-8"
           >
-            {/* Funnel visualization */}
             <div className="lg:w-1/2">
               <div className={`${theme.card} rounded-[3rem] p-10 h-full flex flex-col justify-between`}>
                 <div>
                   <h3 className="text-xs font-bold uppercase tracking-[0.3em] mb-8 text-white/40">
-                    Today&apos;s Scan Intelligence
+                    Today’s Scan Intelligence
                   </h3>
                   <div className="space-y-6">
                     <div className="flex items-center gap-4">
@@ -539,40 +511,30 @@ function LandingContent() {
                     </div>
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
-                        <Lock className="w-5 h-5 text-emerald-400" />
-                      </div>
-                      <div>
-                        <p className="text-2xl font-semibold">620</p>
-                        <span className={`text-xs ${theme.textMuted}`}>Completed purchases</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center">
                         <TrendingDown className="w-5 h-5 text-rose-400" />
                       </div>
                       <div>
                         <p className="text-2xl font-semibold text-rose-400">240</p>
-                        <span className={`text-xs ${theme.textMuted}`}>Abandoned bags · ₹12,800 leaked</span>
+                        <span className={`text-xs ${theme.textMuted}`}>Abandoned · ₹12,800 lost</span>
                       </div>
                     </div>
                   </div>
                 </div>
                 <div className="mt-8 pt-6 border-t border-white/5">
                   <p className={`text-xs ${theme.textMuted}`}>
-                    Every scan is a signal. Every abandoned bag is a second chance.
+                    Every scan is a signal. Every abandon is recoverable.
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Insight text */}
             <div className="lg:w-1/2 flex flex-col justify-center">
               <motion.div
                 initial="hidden"
                 whileInView="visible"
                 viewport={{ once: true, margin: '-50px' }}
                 variants={fadeUp}
-                className="space-y-6"
+                className="space-y-8"
               >
                 <div className="flex items-start gap-4">
                   <div className="w-8 h-8 rounded-full bg-rose-500/10 flex items-center justify-center shrink-0 mt-1">
@@ -581,8 +543,7 @@ function LandingContent() {
                   <div>
                     <h4 className="text-xl font-semibold mb-2">Missed Revenue, Quantified</h4>
                     <p className={`text-sm leading-relaxed ${theme.textMuted}`}>
-                      Know exactly which items were touched, held, and never bought. That&apos;s
-                      intelligence your POS can&apos;t provide.
+                      Know exactly which items were touched and never bought. Intelligence your POS can’t offer.
                     </p>
                   </div>
                 </div>
@@ -591,10 +552,9 @@ function LandingContent() {
                     <span className="w-2 h-2 rounded-full bg-blue-500" />
                   </div>
                   <div>
-                    <h4 className="text-xl font-semibold mb-2">Smart Restocking Triggers</h4>
+                    <h4 className="text-xl font-semibold mb-2">Smart Restocking</h4>
                     <p className={`text-sm leading-relaxed ${theme.textMuted}`}>
-                      High‑touch, low‑conversion items trigger automated stock alerts — so you
-                      never run out of what&apos;s hot.
+                      High‑touch, low‑conversion items trigger alerts — never run out of what’s hot.
                     </p>
                   </div>
                 </div>
@@ -604,9 +564,9 @@ function LandingContent() {
         </div>
       </section>
 
-      {/* ---------- 5. CRM ENGINE (Addiction Layer) ---------- */}
-      <section id="crm" className="py-32 px-6">
-        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-16">
+      {/* ---------- 5. CRM ENGINE ---------- */}
+      <section id="crm" className="py-36 px-6">
+        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-20">
           <div className="lg:w-1/2">
             <motion.h2
               initial="hidden"
@@ -615,7 +575,7 @@ function LandingContent() {
               variants={fadeUp}
               className="text-4xl md:text-5xl font-semibold tracking-tight mb-6"
             >
-              The Addiction Engine.
+              Built‑in retention.
             </motion.h2>
             <motion.p
               initial="hidden"
@@ -624,8 +584,7 @@ function LandingContent() {
               variants={fadeUp}
               className={`text-xl font-normal leading-relaxed mb-10 ${theme.textMuted}`}
             >
-              Loyalty loops that run on autopilot. Turn one‑time shoppers into returning customers
-              with intelligent WhatsApp recovery and hyper‑personalized offers.
+              Turn walk‑aways into loyal customers. Automated WhatsApp loops that bring them back.
             </motion.p>
 
             <motion.div
@@ -642,8 +601,7 @@ function LandingContent() {
                 <div>
                   <h4 className="text-lg font-semibold mb-1">Abandonment Recovery</h4>
                   <p className={`text-sm ${theme.textMuted} leading-relaxed`}>
-                    Automatically message customers who left items in their bag. One tap restores
-                    their cart.
+                    Automatically message customers who left items in their bag. One tap restores the cart.
                   </p>
                 </div>
               </motion.div>
@@ -652,10 +610,9 @@ function LandingContent() {
                   <span className="w-2 h-2 rounded-full bg-green-500" />
                 </div>
                 <div>
-                  <h4 className="text-lg font-semibold mb-1">Repeat Purchase Loops</h4>
+                  <h4 className="text-lg font-semibold mb-1">Repeat Purchase Engine</h4>
                   <p className={`text-sm ${theme.textMuted} leading-relaxed`}>
-                    Track purchase cycles. Send “back in stock” or “you loved this” nudges exactly
-                    when they&apos;re ready.
+                    “Back in stock” or “You loved this” — sent exactly when they’re ready.
                   </p>
                 </div>
               </motion.div>
@@ -663,13 +620,12 @@ function LandingContent() {
           </div>
 
           <div className="lg:w-1/2 w-full">
-            {/* Revenue Recovery Widget */}
             <div
               className={`${theme.card} w-full rounded-[3rem] p-8 flex flex-col relative overflow-hidden border-rose-500/10`}
             >
               <div className="flex items-center gap-3 mb-8">
                 <BellRing className="w-5 h-5 text-rose-500" />
-                <span className="text-sm font-semibold">Today&apos;s Revenue Leak</span>
+                <span className="text-sm font-semibold">Today’s Revenue Leak</span>
               </div>
 
               <div className="mb-8">
@@ -677,7 +633,7 @@ function LandingContent() {
                   ₹3,240
                 </h3>
                 <p className={`text-sm ${theme.textMuted}`}>
-                  Potential revenue identified. 12 items scanned but not billed today.
+                  12 items scanned, not bought. Recover now.
                 </p>
               </div>
 
@@ -689,7 +645,7 @@ function LandingContent() {
                     <div className="w-10 h-10 rounded-lg bg-white/5" />
                     <div>
                       <p className="text-sm font-semibold">Premium Denim</p>
-                      <p className={`text-xs ${theme.textMuted}`}>Abandoned by 3 customers</p>
+                      <p className={`text-xs ${theme.textMuted}`}>3 customers abandoned</p>
                     </div>
                   </div>
                 </div>
@@ -700,7 +656,7 @@ function LandingContent() {
                     <div className="w-10 h-10 rounded-lg bg-white/5" />
                     <div>
                       <p className="text-sm font-semibold">Cotton T‑Shirt</p>
-                      <p className={`text-xs ${theme.textMuted}`}>Abandoned by 5 customers</p>
+                      <p className={`text-xs ${theme.textMuted}`}>5 customers abandoned</p>
                     </div>
                   </div>
                 </div>
@@ -710,7 +666,6 @@ function LandingContent() {
                 Trigger WhatsApp Recovery
               </button>
 
-              {/* Repeat Customer Loop Mock */}
               <div className="mt-8 pt-6 border-t border-white/5">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center">
@@ -719,7 +674,7 @@ function LandingContent() {
                   <div>
                     <p className="text-sm font-semibold">Returning Customers</p>
                     <p className={`text-xs ${theme.textMuted}`}>
-                      18% of today&apos;s buyers came from a recovery loop.
+                      18% of today’s buyers came from a recovery loop.
                     </p>
                   </div>
                 </div>
@@ -738,17 +693,17 @@ function LandingContent() {
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between">
           <div className="flex items-center gap-2 mb-4 md:mb-0">
             <Layers className="w-4 h-4 text-blue-400" />
-            <span className="text-sm font-semibold tracking-tight">RetailOS</span>
+            <span className="text-sm font-semibold tracking-tight">QReBill</span>
           </div>
           <p
             className={`text-[10px] font-bold uppercase tracking-[0.3em] ${theme.textMuted}`}
           >
-            © 2025 Store Operating System. Control never felt this good.
+            © 2025 QReBill. Nothing goes unseen.
           </p>
         </div>
       </footer>
 
-      {/* ---------- Console Modal (unchanged logic, refined styling) ---------- */}
+      {/* ---------- Console Modal (unchanged) ---------- */}
       <AnimatePresence>
         {isModalOpen && (
           <motion.div
