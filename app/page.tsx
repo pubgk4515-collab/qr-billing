@@ -219,7 +219,7 @@ function LandingContent() {
         </div>
       </nav>
 
-      {/* ---------- 1. HERO ---------- */}
+      {/* ---------- 1. HERO (PAIN & CURIOSITY) ---------- */}
       <section className="pt-44 pb-36 px-6 max-w-4xl mx-auto flex flex-col items-center text-center z-10 w-full">
         <motion.h1
           initial="hidden"
@@ -228,7 +228,9 @@ function LandingContent() {
           variants={fadeUp}
           className="text-5xl md:text-[5rem] font-semibold leading-[1.08] tracking-[-0.02em] mb-8 max-w-3xl"
         >
-          Nothing in your store goes unseen.
+          You&apos;re losing sales every day.
+          <br />
+          <span className={theme.textMuted}>You just don&apos;t see it.</span>
         </motion.h1>
 
         <motion.p
@@ -238,7 +240,9 @@ function LandingContent() {
           variants={fadeUp}
           className={`text-lg md:text-xl font-normal max-w-xl mb-14 leading-relaxed ${theme.textMuted}`}
         >
-          See what customers pick. What they leave. And what you lose.
+          Customers are picking. Comparing. Leaving.
+          <br />
+          You never know why.
         </motion.p>
 
         <motion.div
@@ -250,12 +254,12 @@ function LandingContent() {
           <button
             className={`px-8 py-4 rounded-full font-medium text-sm transition-all active:scale-95 ${theme.primaryBtn}`}
           >
-            See It Live
+            See what you&apos;re missing
           </button>
         </motion.div>
       </section>
 
-      {/* ---------- 2. REALIZATION ---------- */}
+      {/* ---------- 2. REALIZATION (MAKE THE OWNER FEEL BLIND) ---------- */}
       <section className={`py-36 px-6 ${theme.sectionBg} transition-colors duration-500`}>
         <div className="max-w-3xl mx-auto text-center">
           <motion.div
@@ -269,25 +273,25 @@ function LandingContent() {
               variants={fadeUp}
               className={`text-2xl md:text-3xl font-medium leading-relaxed ${theme.textFaint}`}
             >
-              Customers walk in.
+              They touch products.
             </motion.p>
             <motion.p
               variants={fadeUp}
               className={`text-2xl md:text-3xl font-medium leading-relaxed ${theme.textFaint}`}
             >
-              They pick things up.
+              They compare prices.
             </motion.p>
             <motion.p
               variants={fadeUp}
               className={`text-2xl md:text-3xl font-medium leading-relaxed ${theme.textFaint}`}
             >
-              They put things down.
+              They walk away.
             </motion.p>
             <motion.p
               variants={fadeUp}
-              className={`text-2xl md:text-3xl font-medium leading-relaxed ${theme.textFaint}`}
+              className={`text-2xl md:text-3xl font-medium leading-relaxed text-rose-400`}
             >
-              They leave.
+              You never know why.
             </motion.p>
 
             <motion.div variants={fadeUp} className="pt-8">
@@ -295,13 +299,12 @@ function LandingContent() {
               <p className="text-xl md:text-2xl font-semibold">
                 You only see what gets billed.
               </p>
-              <p className={`text-lg md:text-xl mt-3 ${theme.textMuted}`}>
-                Everything else is invisible.
+              <p className={`text-lg md:text-xl mt-3 text-rose-400 font-medium`}>
+                The rest? It disappears. Forever.
               </p>
             </motion.div>
           </motion.div>
 
-          {/* Blind spot visual */}
           <motion.div
             initial="hidden"
             whileInView="visible"
@@ -316,13 +319,13 @@ function LandingContent() {
             <div className={`h-px w-16 ${theme.divider}`} />
             <div className="flex items-center gap-3">
               <EyeOff className="w-5 h-5 text-rose-400" />
-              <span className="text-sm font-medium text-rose-400">What you miss</span>
+              <span className="text-sm font-medium text-rose-400">What you lose</span>
             </div>
           </motion.div>
         </div>
       </section>
 
-      {/* ---------- 3. SYSTEM REVEAL ---------- */}
+      {/* ---------- 3. SYSTEM REVEAL (THE WEAPON) ---------- */}
       <section className="py-36 px-6">
         <div className="max-w-6xl mx-auto">
           <motion.div
@@ -333,14 +336,13 @@ function LandingContent() {
             className="mb-20 max-w-2xl"
           >
             <h2 className="text-4xl md:text-5xl font-semibold tracking-tight mb-6">
-              Every item in your store is now live.
+              Before: blind. After: total control.
             </h2>
             <p className={`text-xl font-normal leading-relaxed ${theme.textMuted}`}>
-              A small QR tag on each product. That&apos;s it. The system handles the rest.
+              A small QR tag on each product. That&apos;s all it takes.
             </p>
           </motion.div>
 
-          {/* 4-State Lifecycle */}
           <div className="relative mt-16">
             <div className="hidden md:block absolute top-1/2 left-[6%] right-[6%] h-px bg-white/5 -translate-y-1/2" />
 
@@ -354,7 +356,7 @@ function LandingContent() {
                 },
                 {
                   label: 'In Bag',
-                  sub: 'Locked instantly for one customer',
+                  sub: 'Locked for one customer',
                   icon: ShoppingBag,
                   color: 'amber',
                 },
@@ -424,7 +426,6 @@ function LandingContent() {
             </div>
           </div>
 
-          {/* In Bag power moment */}
           <motion.div
             initial="hidden"
             whileInView="visible"
@@ -439,16 +440,16 @@ function LandingContent() {
               </span>
             </div>
             <p className="text-xl font-medium leading-relaxed">
-              Once a customer scans, that item is theirs.
+              Once scanned, it&apos;s gone. No one else can touch it.
             </p>
             <p className={`text-base mt-2 leading-relaxed ${theme.textMuted}`}>
-              No other customer can scan it. No double selling. No confusion at the counter.
+              No double selling. No confusion. It&apos;s theirs until they pay — or leave.
             </p>
           </motion.div>
         </div>
       </section>
 
-      {/* ---------- 4. CONTROL MOMENT ---------- */}
+      {/* ---------- 4. CONTROL MOMENT (AUTHORITY) ---------- */}
       <section className={`py-36 px-6 ${theme.sectionBg} transition-colors duration-500`}>
         <div className="max-w-4xl mx-auto text-center">
           <motion.h2
@@ -458,7 +459,7 @@ function LandingContent() {
             variants={fadeUp}
             className="text-4xl md:text-5xl font-semibold tracking-tight mb-6"
           >
-            You don&apos;t guess anymore.
+            You&apos;re not guessing anymore.
           </motion.h2>
           <motion.p
             initial="hidden"
@@ -467,7 +468,7 @@ function LandingContent() {
             variants={fadeUp}
             className={`text-xl md:text-2xl font-normal max-w-2xl mx-auto leading-relaxed ${theme.textMuted}`}
           >
-            You see everything.
+            You see everything. In real time.
           </motion.p>
 
           <motion.div
@@ -478,9 +479,9 @@ function LandingContent() {
             className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto"
           >
             {[
-              { label: 'Who scanned', detail: 'Every customer identified' },
-              { label: 'What they took', detail: 'Item tracked in real-time' },
-              { label: 'What they left', detail: 'Abandoned items flagged' },
+              { label: 'Who is serious', detail: 'Know who actually wants to buy' },
+              { label: 'Who is wasting time', detail: 'Spot the scanners who never buy' },
+              { label: 'What is about to sell', detail: 'Predict purchases before checkout' },
             ].map((item) => (
               <div
                 key={item.label}
@@ -494,7 +495,7 @@ function LandingContent() {
         </div>
       </section>
 
-      {/* ---------- 5. BEHAVIOR INSIGHT ---------- */}
+      {/* ---------- 5. BEHAVIOR INSIGHT (THE PUNCH) ---------- */}
       <section className="py-36 px-6">
         <div className="max-w-6xl mx-auto flex flex-col lg:flex-row items-center gap-16">
           <div className="lg:w-1/2">
@@ -516,16 +517,16 @@ function LandingContent() {
               variants={fadeUp}
               className={`text-xl font-normal leading-relaxed mb-6 ${theme.textMuted}`}
             >
-              That&apos;s not data.
+              That&apos;s not data. That&apos;s lost money.
             </motion.p>
             <motion.p
               initial="hidden"
               whileInView="visible"
               viewport={{ once: true, margin: '-50px' }}
               variants={fadeUp}
-              className="text-2xl font-semibold"
+              className="text-lg font-medium mb-10 text-rose-400"
             >
-              That&apos;s lost money.
+              You stocked it. You paid for it. And it didn&apos;t sell.
             </motion.p>
 
             <motion.div
@@ -533,7 +534,7 @@ function LandingContent() {
               whileInView="visible"
               viewport={{ once: true, margin: '-50px' }}
               variants={fadeUp}
-              className="mt-10 space-y-4"
+              className="space-y-4"
             >
               <div className="flex items-start gap-3">
                 <div className="w-6 h-6 rounded-full bg-rose-500/10 flex items-center justify-center shrink-0 mt-0.5">
@@ -591,7 +592,7 @@ function LandingContent() {
         </div>
       </section>
 
-      {/* ---------- 6. CRM / RETURN LOOP ---------- */}
+      {/* ---------- 6. CRM ENGINE (SURVIVAL TOOL) ---------- */}
       <section className={`py-36 px-6 ${theme.sectionBg} transition-colors duration-500`}>
         <div className="max-w-6xl mx-auto flex flex-col lg:flex-row items-center gap-16">
           <div className="lg:w-1/2">
@@ -602,7 +603,9 @@ function LandingContent() {
               variants={fadeUp}
               className="text-4xl md:text-5xl font-semibold tracking-tight mb-6"
             >
-              Customers don&apos;t come back on their own.
+              They didn&apos;t buy.
+              <br />
+              But you don&apos;t let them disappear.
             </motion.h2>
             <motion.p
               initial="hidden"
@@ -611,7 +614,7 @@ function LandingContent() {
               variants={fadeUp}
               className={`text-xl font-normal leading-relaxed mb-6 ${theme.textMuted}`}
             >
-              You bring them back.
+              A simple message brings them back.
             </motion.p>
             <motion.p
               initial="hidden"
@@ -620,8 +623,8 @@ function LandingContent() {
               variants={fadeUp}
               className={`text-base leading-relaxed ${theme.textFaint}`}
             >
-              When someone abandons a bag, QReBill sends them a WhatsApp message. Not spam — a
-              simple reminder of what they left behind.
+              When someone abandons a bag, they don&apos;t vanish. QReBill reaches out for you —
+              naturally, automatically.
             </motion.p>
 
             <motion.div
@@ -647,14 +650,14 @@ function LandingContent() {
             <div className={`${theme.card} rounded-[3rem] p-8 border-rose-500/5`}>
               <div className="flex items-center gap-3 mb-6">
                 <BellRing className="w-5 h-5 text-rose-400" />
-                <span className="text-sm font-semibold">Pending recovery</span>
+                <span className="text-sm font-semibold">Unrecovered sales today</span>
               </div>
 
               <p className="text-5xl font-semibold tracking-tighter text-rose-400 mb-2">
                 ₹3,240
               </p>
               <p className={`text-sm mb-8 ${theme.textMuted}`}>
-                12 items scanned today. Never billed.
+                12 items scanned. Never billed. Waiting.
               </p>
 
               <div className="space-y-3 mb-8">
@@ -675,14 +678,14 @@ function LandingContent() {
               </div>
 
               <button className="w-full py-4 bg-rose-500 hover:bg-rose-400 text-white font-semibold rounded-2xl active:scale-95 transition-all duration-300">
-                Send WhatsApp Reminder
+                Recover Lost Sales
               </button>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ---------- 7. FINAL PUSH ---------- */}
+      {/* ---------- 7. FINAL PUSH (BINARY CHOICE) ---------- */}
       <section className="py-40 px-6">
         <div className="max-w-3xl mx-auto text-center">
           <motion.h2
@@ -692,7 +695,9 @@ function LandingContent() {
             variants={fadeUp}
             className="text-4xl md:text-5xl font-semibold tracking-tight mb-6"
           >
-            Stores that see more, sell more.
+            Blind stores lose money.
+            <br />
+            Smart stores don&apos;t.
           </motion.h2>
           <motion.p
             initial="hidden"
@@ -712,7 +717,7 @@ function LandingContent() {
             <button
               className={`px-10 py-5 rounded-full font-semibold text-base transition-all active:scale-95 ${theme.primaryBtn}`}
             >
-              Start Using QReBill
+              Stop Losing Sales
             </button>
           </motion.div>
         </div>
@@ -732,12 +737,12 @@ function LandingContent() {
           <p
             className={`text-[10px] font-semibold uppercase tracking-[0.25em] ${theme.textFaint}`}
           >
-            © 2025 QReBill. See everything.
+            © 2025 QReBill. Never run blind again.
           </p>
         </div>
       </footer>
 
-      {/* ---------- Console Modal ---------- */}
+      {/* ---------- Console Modal (unchanged) ---------- */}
       <AnimatePresence>
         {isModalOpen && (
           <motion.div
