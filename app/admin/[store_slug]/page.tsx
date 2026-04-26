@@ -589,30 +589,42 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
           </div>
 
           {/* Manual dispatch inputs – full width, matching card grid */}
-          <form onSubmit={handleManualBillSubmit} className="flex flex-col sm:flex-row gap-0 mb-6 w-full">
-            <input
-              type="text"
-              placeholder="CART ID"
-              value={manualBillCartId}
-              onChange={(e) => setManualBillCartId(e.target.value.toUpperCase())}
-              className={`flex-1 min-w-0 py-2.5 px-4 text-sm font-medium rounded-l-xl border border-r-0 ${theme.input} ${theme.placeholder} focus:outline-none`}
-            />
-            <input
-              type="tel"
-              maxLength={10}
-              placeholder="Phone"
-              value={manualBillPhone}
-              onChange={(e) => setManualBillPhone(e.target.value.replace(/\D/g, ''))}
-              className={`flex-1 min-w-0 py-2.5 px-4 text-sm font-medium border border-x-0 ${theme.input} ${theme.placeholder} focus:outline-none`}
-            />
-            <button
-              type="submit"
-              disabled={!manualBillCartId || manualBillPhone.length < 10}
-              className="px-6 py-2.5 text-sm font-semibold bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366]/20 disabled:opacity-50 rounded-r-xl border border-[#25D366]/20 border-l-0 transition-all flex items-center justify-center"
-            >
-              <Send className="w-4 h-4" />
-            </button>
-          </form>
+          <form onSubmit={handleManualBillSubmit} className="w-full mb-6">
+  <div className={`flex w-full rounded-[2rem] border ${theme.borderLight} overflow-hidden ${theme.card}`}>
+    
+    <input
+      type="text"
+      placeholder="CART ID"
+      value={manualBillCartId}
+      onChange={(e) => setManualBillCartId(e.target.value.toUpperCase())}
+      className={`flex-1 min-w-0 px-4 py-3 text-sm font-medium bg-transparent focus:outline-none ${theme.placeholder}`}
+    />
+
+    <div className={`w-px ${theme.divider}`} />
+
+    <input
+      type="tel"
+      maxLength={10}
+      placeholder="Phone"
+      value={manualBillPhone}
+      onChange={(e) => setManualBillPhone(e.target.value.replace(/\D/g, ''))}
+      className={`flex-1 min-w-0 px-4 py-3 text-sm font-medium bg-transparent focus:outline-none ${theme.placeholder}`}
+    />
+
+    <button
+      type="submit"
+      disabled={!manualBillCartId || manualBillPhone.length < 10}
+      className="px-5 flex items-center justify-center transition-all disabled:opacity-50"
+      style={{
+        backgroundColor: `${themeColor}15`,
+        color: themeColor,
+      }}
+    >
+      <Send className="w-4 h-4" />
+    </button>
+    
+  </div>
+</form>
 
           <div className="grid grid-cols-1 gap-3">
             <AnimatePresence>
