@@ -222,13 +222,66 @@ function LandingContent() {
     }
   };
 
-  const triggerScreenLock = async () => {
-    setError('Verifying...');
-    setTimeout(() => {
-      setError('Use PIN instead.');
-      setShowPinPad(true);
-    }, 1200);
+    const triggerScreenLock = async () => {
+    setError('Requesting biometric access...');
+
+    if (!activeShop) {
+      setError("Store identity missing. Please use secure link.");
+      return;
+    }
+
+    try {
+      // 1. Check if device supports WebAuthn/Passkeys
+      if (!window.PublicKeyCredential) {
+        setError('Biometrics not supported on this device. Use Passcode.');
+        setTimeout(() => setShowPinPad(true), 1500);
+        return;
+      }
+
+      // 2. Create a secure random cryptographic challenge
+      const challenge = new Uint8Array(32);
+      window.crypto.getRandomValues(challenge);
+
+      // 3. Trigger Native FaceID / TouchID / Windows Hello
+      const credential = await navigator.credentials.create({
+        publicKey: {
+          challenge: challenge,
+          rp: { name: "QReBill OS" },
+          user: {
+            id: new Uint8Array(16),
+            name: activeShop,
+            displayName: "Store Admin"
+          },
+          pubKeyCredParams: [{ type: "public-key", alg: -7 }],
+          authenticatorSelection: { 
+            authenticatorAttachment: "platform", // This forces device's built-in scanner
+            userVerification: "required" 
+          },
+          timeout: 60000,
+        }
+      });
+
+      // 4. If FaceID/Fingerprint is Successful
+      if (credential) {
+        setLoading(true);
+        setError('Identity Verified! Entering Command Center...');
+        
+        // Bypass the PIN completely and set the secure ticket
+        localStorage.setItem('active_admin_session', activeShop);
+        
+        // Push to Admin Dashboard
+        router.push(`/admin/${activeShop}`);
+      }
+    } catch (err) {
+      console.error("Biometric Auth Error:", err);
+      setError('Biometric cancelled or failed. Please use Passcode.');
+      setTimeout(() => {
+        setShowPinPad(true);
+        setError(''); // Clear error to show clean PIN pad
+      }, 1500);
+    }
   };
+
 
   const addDigit = (num: string) => {
     if (pin.length < 4) setPin((p) => p + num);

@@ -6,7 +6,7 @@ import { supabase } from '../../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Store, CheckCircle2, Loader2, Package, QrCode, Smartphone, 
-  Zap, Trash2, Clock, Lock, KeyRound, MessageCircle, Send, Plus, X, 
+  Zap, Trash2, Clock, MessageCircle, Send, Plus, X, 
   Eye, XCircle, Image as ImageIcon 
 } from 'lucide-react';
 import Link from 'next/link';
@@ -24,8 +24,6 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
   // --- Authentication States ---
   const [isAuthed, setIsAuthed] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
-  const [pinInput, setPinInput] = useState('');
-  const [pinError, setPinError] = useState(false);
 
   // --- POS Checkout States ---
   const [scannedItems, setScannedItems] = useState<any[]>([]); 
@@ -41,19 +39,32 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
   // --- Digital Bill Requests State ---
   const [billRequests, setBillRequests] = useState<any[]>([]); 
 
-  // 🔥 NEW: Manual Override States
+  // --- Manual Override States ---
   const [manualApproveCartId, setManualApproveCartId] = useState('');
   const [manualBillCartId, setManualBillCartId] = useState('');
   const [manualBillPhone, setManualBillPhone] = useState('');
 
   const safeStoreSlug = decodeURIComponent(store_slug || '').toLowerCase().trim();
 
-  // 1. INITIALIZE STORE CONFIGURATION & VERIFY AUTHENTICATION
+  // 1. INVISIBLE ZERO-FRICTION AUTHENTICATION
   useEffect(() => {
     if (!safeStoreSlug) return;
     
-    async function fetchInitialData() {
+    async function verifyAndLoad() {
       try {
+        // Silent Check: Main Gate Ticket (Browser Memory)
+        const activeSession = localStorage.getItem('active_admin_session');
+
+        // Agar ticket nahi hai ya galat dukaan ki ticket hai -> Kick out to Landing Page
+        if (activeSession !== safeStoreSlug) {
+          router.push('/');
+          return;
+        }
+
+        // Ticket is valid!
+        setIsAuthed(true);
+
+        // Fetch Store Data
         const { data: store } = await supabase
           .from('stores')
           .select('*')
@@ -62,23 +73,21 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
           
         if (store) {
           setStoreData(store);
-          
-          const savedAuth = localStorage.getItem(`admin_auth_${safeStoreSlug}`);
-          if (savedAuth === 'true') {
-            setIsAuthed(true);
-            fetchLiveQueue(store.id); 
-            fetchBillRequests(store.id); 
-          }
+          fetchLiveQueue(store.id); 
+          fetchBillRequests(store.id); 
+        } else {
+          router.push('/');
         }
       } catch (err) { 
         console.error("Initialization Error:", err); 
+        router.push('/');
       } finally { 
         setAuthChecking(false);
         setLoading(false); 
       }
     }
-    fetchInitialData();
-  }, [safeStoreSlug]);
+    verifyAndLoad();
+  }, [safeStoreSlug, router]);
 
   // 2. LIVE QUEUE SYNCHRONIZATION
   const fetchLiveQueue = async (storeId: string) => {
@@ -114,20 +123,6 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
     }, 3000); 
     return () => clearInterval(interval);
   }, [storeData?.id, isAuthed]);
-
-  const handlePinSubmit = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (storeData && pinInput === storeData.admin_pin) {
-      localStorage.setItem(`admin_auth_${safeStoreSlug}`, 'true');
-      setIsAuthed(true);
-      fetchLiveQueue(storeData.id);
-      fetchBillRequests(storeData.id);
-    } else {
-      setPinError(true);
-      setPinInput('');
-      setTimeout(() => setPinError(false), 2000);
-    }
-  };
 
   const processScannedTag = async (tagId: string) => {
     if (!tagId) return;
@@ -295,7 +290,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
     }
   };
 
-  // 🔥 NEW: MANUAL APPROVE SUBMIT
+  // MANUAL APPROVE SUBMIT
   const handleManualApproveSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualApproveCartId.trim()) return;
@@ -330,7 +325,7 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
     }
   };
 
-  // 🔥 NEW: MANUAL BILL SUBMIT
+  // MANUAL BILL SUBMIT
   const handleManualBillSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualBillCartId.trim() || manualBillPhone.length < 10) {
@@ -358,29 +353,8 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
   // ⏳ INITIALIZATION SCREEN
   if (loading || authChecking) return <div className="min-h-screen bg-[#050505] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin" style={{ color: themeColor }} /></div>;
 
-  // 🔐 SECURE LOCK SCREEN (UNAUTHENTICATED)
-  if (!isAuthed) {
-    return (
-      <div className="min-h-screen bg-[#050505] text-white flex flex-col items-center justify-center p-6 font-sans">
-        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-xs bg-[#0A0A0A] border border-white/10 rounded-[2.5rem] p-8 text-center shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 opacity-50" style={{ backgroundColor: themeColor }} />
-          <div className="w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-6 border border-white/5" style={{ backgroundColor: `${themeColor}15` }}>
-            <Lock className="w-8 h-8" style={{ color: themeColor }} />
-          </div>
-          <h1 className="text-2xl font-black tracking-tight mb-2">Admin Access</h1>
-          <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mb-8">{storeData?.store_name}</p>
-          <form onSubmit={handlePinSubmit} className="flex flex-col gap-4">
-            <div className="relative">
-              <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-              <input type="password" maxLength={4} value={pinInput} onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))} placeholder="Enter 4-Digit PIN" autoFocus className={`w-full bg-[#111] border ${pinError ? 'border-red-500' : 'border-white/10'} rounded-2xl py-4 pl-12 pr-4 text-center text-lg tracking-[0.5em] font-black focus:outline-none transition-all`} />
-            </div>
-            {pinError && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs text-red-500 font-bold">Authentication Failed</motion.p>}
-            <button type="submit" disabled={pinInput.length !== 4} className="w-full py-4 rounded-2xl font-black text-black mt-2 disabled:opacity-50 transition-all active:scale-95 shadow-xl" style={{ backgroundColor: themeColor }}>Unlock Dashboard</button>
-          </form>
-        </motion.div>
-      </div>
-    );
-  }
+  // Agar galti se render ho jaye par authed na ho (halaki redirect ho jayega)
+  if (!isAuthed) return null;
 
   // 🔓 COMMAND CENTER (AUTHENTICATED)
   return (
@@ -412,7 +386,6 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
               <span className="text-xs font-bold bg-white/5 border border-white/10 px-4 py-1.5 rounded-full text-zinc-400">{pendingOrders.length} Waiting</span>
             </div>
             
-            {/* 🔥 NEW: Manual Order Approval Form */}
             <form onSubmit={handleManualApproveSubmit} className="flex w-full sm:w-auto">
               <input 
                 type="text" 
@@ -484,7 +457,6 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
               <MessageCircle className="w-5 h-5 text-[#25D366]" /> Bill Requests
             </h2>
             
-            {/* 🔥 NEW: Manual Digital Bill Form */}
             <form onSubmit={handleManualBillSubmit} className="flex w-full sm:w-auto relative">
               <input 
                 type="text" 
