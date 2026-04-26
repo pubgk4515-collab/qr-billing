@@ -4,13 +4,51 @@ import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Store, CheckCircle2, Loader2, Package, QrCode, Smartphone, 
-  Zap, Trash2, Clock, MessageCircle, Send, Plus, X, 
-  Eye, XCircle, Image as ImageIcon 
+import {
+  Store,
+  CheckCircle2,
+  Loader2,
+  Package,
+  QrCode,
+  Smartphone,
+  Zap,
+  Trash2,
+  Clock,
+  MessageCircle,
+  Send,
+  Plus,
+  X,
+  Eye,
+  XCircle,
+  Image as ImageIcon,
 } from 'lucide-react';
 import Link from 'next/link';
-import { Html5Qrcode } from 'html5-qrcode'; 
+import { Html5Qrcode } from 'html5-qrcode';
+
+/* ── Style constants (aligned with landing system) ── */
+const style = {
+  bg: 'bg-[#020202]',
+  card: 'bg-[#0A0A0A] border border-white/[0.03] rounded-3xl',
+  cardInner: 'bg-[#111] border border-white/[0.02] rounded-2xl',
+  text: 'text-white',
+  muted: 'text-[#777]',
+  faint: 'text-[#555]',
+  accent: 'text-white', // will be overridden by themeColor where appropriate
+  primaryBtn:
+    'bg-white text-black hover:bg-gray-100 active:scale-95 transition-all font-semibold',
+  secondaryBtn:
+    'bg-white/5 text-white hover:bg-white/10 active:scale-95 transition-all font-semibold',
+  dangerBtn:
+    'bg-red-500/10 text-red-400 hover:bg-red-500/20 active:scale-95 transition-all font-semibold',
+  outlineBtn:
+    'bg-transparent border border-white/10 text-white hover:bg-white/5 active:scale-95 transition-all font-semibold',
+  headerBtn:
+    'bg-white/5 border border-white/5 rounded-xl text-xs font-semibold hover:bg-white/10 transition-colors',
+  input:
+    'bg-[#111] border border-white/10 rounded-xl py-3 px-4 text-sm font-medium placeholder:text-[#555] focus:outline-none focus:border-white/20',
+  divider: 'bg-white/5',
+  liveIndicator: 'text-emerald-400', // could use themeColor, but general green is fine
+};
 
 export default function AdminDashboard({ params }: { params: Promise<{ store_slug: string }> }) {
   const router = useRouter();
@@ -20,98 +58,74 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
   const [storeData, setStoreData] = useState<any>(null);
   const [pendingOrders, setPendingOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // --- Authentication States ---
+
   const [isAuthed, setIsAuthed] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
 
-  // --- POS Checkout States ---
-  const [scannedItems, setScannedItems] = useState<any[]>([]); 
+  const [scannedItems, setScannedItems] = useState<any[]>([]);
   const [customerPhone, setCustomerPhone] = useState('');
-  const [manualTagId, setManualTagId] = useState(''); 
-  const [isScannerOpen, setIsScannerOpen] = useState(false); 
-  const [itemFetching, setItemFetching] = useState(false); 
+  const [manualTagId, setManualTagId] = useState('');
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [itemFetching, setItemFetching] = useState(false);
 
-  // --- Order Details Modal States ---
   const [viewingOrder, setViewingOrder] = useState<any>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
 
-  // --- Digital Bill Requests State ---
-  const [billRequests, setBillRequests] = useState<any[]>([]); 
+  const [billRequests, setBillRequests] = useState<any[]>([]);
 
-  // --- Manual Override States ---
   const [manualApproveCartId, setManualApproveCartId] = useState('');
   const [manualBillCartId, setManualBillCartId] = useState('');
   const [manualBillPhone, setManualBillPhone] = useState('');
 
   const safeStoreSlug = decodeURIComponent(store_slug || '').toLowerCase().trim();
 
-  // 1. INVISIBLE ZERO-FRICTION AUTHENTICATION
+  // ---------- AUTHENTICATION ----------
   useEffect(() => {
     if (!safeStoreSlug) return;
-    
-    async function verifyAndLoad() {
-      try {
-        // Silent Check: Main Gate Ticket (Browser Memory)
-        const activeSession = localStorage.getItem('active_admin_session');
-
-        // Agar ticket nahi hai ya galat dukaan ki ticket hai -> Kick out to Landing Page
-        if (activeSession !== safeStoreSlug) {
-          router.push('/');
-          return;
-        }
-
-        // Ticket is valid!
-        setIsAuthed(true);
-
-        // Fetch Store Data
-        const { data: store } = await supabase
-          .from('stores')
-          .select('*')
-          .ilike('slug', safeStoreSlug)
-          .single();
-          
-        if (store) {
-          setStoreData(store);
-          fetchLiveQueue(store.id); 
-          fetchBillRequests(store.id); 
-        } else {
-          router.push('/');
-        }
-      } catch (err) { 
-        console.error("Initialization Error:", err); 
+    (async () => {
+      const activeSession = localStorage.getItem('active_admin_session');
+      if (activeSession !== safeStoreSlug) {
         router.push('/');
-      } finally { 
-        setAuthChecking(false);
-        setLoading(false); 
+        return;
       }
-    }
-    verifyAndLoad();
+      setIsAuthed(true);
+      const { data: store } = await supabase
+        .from('stores')
+        .select('*')
+        .ilike('slug', safeStoreSlug)
+        .single();
+      if (store) {
+        setStoreData(store);
+        fetchLiveQueue(store.id);
+        fetchBillRequests(store.id);
+      } else {
+        router.push('/');
+      }
+      setAuthChecking(false);
+      setLoading(false);
+    })();
   }, [safeStoreSlug, router]);
 
-  // 2. LIVE QUEUE SYNCHRONIZATION
+  // ---------- DATA FETCHING ----------
   const fetchLiveQueue = async (storeId: string) => {
     if (!isAuthed) return;
     const { data } = await supabase
       .from('sales')
       .select('*')
       .eq('store_id', storeId)
-      .eq('payment_status', 'pending') 
+      .eq('payment_status', 'pending')
       .order('created_at', { ascending: false });
-      
     if (data) setPendingOrders(data);
   };
 
-  // 3. FETCH BILL REQUESTS
   const fetchBillRequests = async (storeId: string) => {
     if (!isAuthed) return;
     const { data } = await supabase
       .from('bill_requests')
       .select('*')
       .eq('store_id', storeId)
-      .eq('status', 'pending') 
+      .eq('status', 'pending')
       .order('created_at', { ascending: true });
-      
     if (data) setBillRequests(data);
   };
 
@@ -119,53 +133,47 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
     if (!storeData?.id || !isAuthed) return;
     const interval = setInterval(() => {
       fetchLiveQueue(storeData.id);
-      fetchBillRequests(storeData.id); 
-    }, 3000); 
+      fetchBillRequests(storeData.id);
+    }, 3000);
     return () => clearInterval(interval);
   }, [storeData?.id, isAuthed]);
 
+  // ---------- POS LOGIC (unchanged) ----------
   const processScannedTag = async (tagId: string) => {
     if (!tagId) return;
     const tagUpper = tagId.trim().toUpperCase();
-
-    if (scannedItems.some(item => item.tag === tagUpper)) {
-      alert("Item conflict: This tag is already in the current checkout session.");
+    if (scannedItems.some((item) => item.tag === tagUpper)) {
+      alert('Item conflict: This tag is already in the current checkout session.');
       return;
     }
-
     setItemFetching(true);
     try {
       const { data, error } = await supabase
         .from('qr_tags')
         .select(`id, status, products ( id, name, price )`)
         .eq('id', tagUpper)
-        .eq('store_id', storeData.id) 
+        .eq('store_id', storeData.id)
         .single();
-
       if (error || !data || !data.products) {
-        alert("Invalid Tag: The scanned tag is either unregistered or empty.");
+        alert('Invalid Tag: The scanned tag is either unregistered or empty.');
         return;
       }
-
       if (data.status === 'sold') {
-        alert("Validation Failed: This item is marked as previously sold.");
+        alert('Validation Failed: This item is marked as previously sold.');
         return;
       }
-
       const productInfo: any = Array.isArray(data.products) ? data.products : data.products;
-
-      const newItem = { 
-        id: Date.now(), 
-        tag: data.id, 
-        name: productInfo.name, 
+      const newItem = {
+        id: Date.now(),
+        tag: data.id,
+        name: productInfo.name,
         price: productInfo.price,
-        product_id: productInfo.id 
-      }; 
-      
-      setScannedItems(prev => [newItem, ...prev]);
+        product_id: productInfo.id,
+      };
+      setScannedItems((prev) => [newItem, ...prev]);
     } catch (err) {
-      console.error("Data Fetch Error:", err);
-      alert("Network timeout. Please verify your connection and try again.");
+      console.error('Data Fetch Error:', err);
+      alert('Network timeout. Please verify your connection and try again.');
     } finally {
       setItemFetching(false);
     }
@@ -175,32 +183,37 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
     e.preventDefault();
     if (!manualTagId.trim()) return;
     await processScannedTag(manualTagId);
-    setManualTagId(''); 
+    setManualTagId('');
   };
 
+  // Scanner
   useEffect(() => {
     let html5QrCode: Html5Qrcode;
-
     if (isScannerOpen) {
       setTimeout(() => {
-        html5QrCode = new Html5Qrcode("admin-reader"); 
-        
-        html5QrCode.start(
-          { facingMode: "environment" },
-          { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
-          async (decodedText: string) => {
-            const scannedTag = decodeURIComponent(decodedText.split('/').pop() || '').toUpperCase().trim(); 
-            if (scannedTag) {
-              html5QrCode.pause(); 
-              await processScannedTag(scannedTag);
-              html5QrCode.stop().then(() => setIsScannerOpen(false)).catch(console.error);
-            }
-          },
-          (errorMessage: any) => {}
-        ).catch((err: any) => console.error("Camera Initialization Error:", err));
+        html5QrCode = new Html5Qrcode('admin-reader');
+        html5QrCode
+          .start(
+            { facingMode: 'environment' },
+            { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
+            async (decodedText: string) => {
+              const scannedTag = decodeURIComponent(decodedText.split('/').pop() || '')
+                .toUpperCase()
+                .trim();
+              if (scannedTag) {
+                html5QrCode.pause();
+                await processScannedTag(scannedTag);
+                html5QrCode
+                  .stop()
+                  .then(() => setIsScannerOpen(false))
+                  .catch(console.error);
+              }
+            },
+            () => {}
+          )
+          .catch((err: any) => console.error('Camera Initialization Error:', err));
       }, 100);
     }
-
     return () => {
       if (html5QrCode && html5QrCode.isScanning) {
         html5QrCode.stop().catch(console.error);
@@ -209,94 +222,88 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
   }, [isScannerOpen]);
 
   const handleCreateManualBill = async () => {
-    if (scannedItems.length === 0) return alert("Operation Failed: Please add at least one item to proceed.");
+    if (scannedItems.length === 0) return alert('Operation Failed: Please add at least one item to proceed.');
     setLoading(true);
-    
     const totalAmount = scannedItems.reduce((acc, item) => acc + item.price, 0);
     const cartId = `CART${Math.floor(1000 + Math.random() * 9000)}`;
-
     const { error } = await supabase.from('sales').insert({
-      cart_id: cartId, store_id: storeData.id, total_amount: totalAmount,
-      items_count: scannedItems.length, payment_status: 'completed', payment_method: 'CASH',
-      customer_phone: customerPhone, purchased_items: scannedItems 
+      cart_id: cartId,
+      store_id: storeData.id,
+      total_amount: totalAmount,
+      items_count: scannedItems.length,
+      payment_status: 'completed',
+      payment_method: 'CASH',
+      customer_phone: customerPhone,
+      purchased_items: scannedItems,
     });
-
     if (!error) {
       const tagIdsToFree = scannedItems.map((item: any) => item.tag);
       await supabase.from('qr_tags').update({ status: 'free', product_id: null }).in('id', tagIdsToFree);
-      alert("Invoice successfully generated.");
-      setScannedItems([]); setCustomerPhone('');
+      alert('Invoice successfully generated.');
+      setScannedItems([]);
+      setCustomerPhone('');
     } else {
-       alert("Transaction Error: Unable to finalize the bill.");
+      alert('Transaction Error: Unable to finalize the bill.');
     }
     setLoading(false);
   };
 
   const handleApprovePayment = async (order: any) => {
-    setPendingOrders(prev => prev.filter(o => o.id !== order.id));
-    
+    setPendingOrders((prev) => prev.filter((o) => o.id !== order.id));
     try {
       await supabase.from('sales').update({ payment_status: 'completed' }).eq('id', order.id);
       if (order.purchased_items && Array.isArray(order.purchased_items)) {
         const tagIdsToFree = order.purchased_items.map((item: any) => item.id);
         if (tagIdsToFree.length > 0) {
-          await supabase.from('qr_tags').update({ status: 'free', product_id: null }).in('id', tagIdsToFree); 
+          await supabase.from('qr_tags').update({ status: 'free', product_id: null }).in('id', tagIdsToFree);
         }
       }
       setIsViewModalOpen(false);
       setViewingOrder(null);
     } catch (err) {
-      console.error("Transaction Approval Error:", err);
+      console.error('Transaction Approval Error:', err);
     }
   };
 
   const handleRejectOrder = async (order: any) => {
     const confirmReject = confirm(`Are you sure you want to reject ${order.cart_id}?`);
     if (!confirmReject) return;
-
-    setPendingOrders(prev => prev.filter(o => o.id !== order.id));
-    
+    setPendingOrders((prev) => prev.filter((o) => o.id !== order.id));
     try {
       await supabase.from('sales').update({ payment_status: 'rejected' }).eq('id', order.id);
-      
       if (order.purchased_items && Array.isArray(order.purchased_items)) {
         const tagIdsToRevert = order.purchased_items.map((item: any) => item.id);
         if (tagIdsToRevert.length > 0) {
-          await supabase.from('qr_tags').update({ status: 'active' }).in('id', tagIdsToRevert); 
+          await supabase.from('qr_tags').update({ status: 'active' }).in('id', tagIdsToRevert);
         }
       }
     } catch (err) {
-      console.error("Order Rejection Error:", err);
+      console.error('Order Rejection Error:', err);
     }
   };
 
   const handleDispatchBill = async (request: any) => {
-    setBillRequests(prev => prev.filter(r => r.id !== request.id));
-
-    const storeName = storeData?.store_name || "our store";
-    const billUrl = `${window.location.origin}/${safeStoreSlug}/bill/${request.cart_id}`; 
-    const message = encodeURIComponent(`Hi! Thank you for shopping at ${storeName}. You can view and download your digital bill here: \n\n${billUrl}`);
-    
+    setBillRequests((prev) => prev.filter((r) => r.id !== request.id));
+    const storeName = storeData?.store_name || 'our store';
+    const billUrl = `${window.location.origin}/${safeStoreSlug}/bill/${request.cart_id}`;
+    const message = encodeURIComponent(
+      `Hi! Thank you for shopping at ${storeName}. You can view and download your digital bill here: \n\n${billUrl}`
+    );
     let phone = request.customer_phone.replace(/\D/g, '');
     if (phone.length === 10) phone = `91${phone}`;
-
     const waLink = `https://wa.me/${phone}?text=${message}`;
-
     try {
       await supabase.from('bill_requests').update({ status: 'completed' }).eq('id', request.id);
       window.open(waLink, '_blank');
     } catch (err) {
-      console.error("Error dispatching bill:", err);
+      console.error('Error dispatching bill:', err);
     }
   };
 
-  // MANUAL APPROVE SUBMIT
   const handleManualApproveSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualApproveCartId.trim()) return;
-
     const targetCartId = manualApproveCartId.trim().toUpperCase();
-    
     try {
       const { data: order, error } = await supabase
         .from('sales')
@@ -304,97 +311,103 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
         .eq('cart_id', targetCartId)
         .eq('store_id', storeData.id)
         .single();
-
       if (error || !order) {
-        alert("Order not found. Please verify the CART ID.");
+        alert('Order not found. Please verify the CART ID.');
         return;
       }
-
       if (order.payment_status === 'completed') {
-        alert("This order is already approved.");
+        alert('This order is already approved.');
         setManualApproveCartId('');
         return;
       }
-
       await handleApprovePayment(order);
       setManualApproveCartId('');
       alert(`Successfully approved ${targetCartId}!`);
     } catch (err) {
       console.error(err);
-      alert("Error approving order manually.");
+      alert('Error approving order manually.');
     }
   };
 
-  // MANUAL BILL SUBMIT
   const handleManualBillSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualBillCartId.trim() || manualBillPhone.length < 10) {
-      alert("Please enter a valid CART ID and a 10-digit Phone Number.");
+      alert('Please enter a valid CART ID and a 10-digit Phone Number.');
       return;
     }
-
     const targetCartId = manualBillCartId.trim().toUpperCase();
     let phone = manualBillPhone.replace(/\D/g, '');
     if (phone.length === 10) phone = `91${phone}`;
-
-    const storeName = storeData?.store_name || "our store";
-    const billUrl = `${window.location.origin}/${safeStoreSlug}/bill/${targetCartId}`; 
-    const message = encodeURIComponent(`Hi! Thank you for shopping at ${storeName}. You can view and download your digital bill here: \n\n${billUrl}`);
-    
+    const storeName = storeData?.store_name || 'our store';
+    const billUrl = `${window.location.origin}/${safeStoreSlug}/bill/${targetCartId}`;
+    const message = encodeURIComponent(
+      `Hi! Thank you for shopping at ${storeName}. You can view and download your digital bill here: \n\n${billUrl}`
+    );
     const waLink = `https://wa.me/${phone}?text=${message}`;
     window.open(waLink, '_blank');
-    
     setManualBillCartId('');
     setManualBillPhone('');
   };
 
   const themeColor = storeData?.theme_color || '#10b981';
 
-  // ⏳ INITIALIZATION SCREEN
-  if (loading || authChecking) return <div className="min-h-screen bg-[#050505] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin" style={{ color: themeColor }} /></div>;
-
-  // Agar galti se render ho jaye par authed na ho (halaki redirect ho jayega)
+  if (loading || authChecking)
+    return (
+      <div className="min-h-screen bg-[#020202] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: themeColor }} />
+      </div>
+    );
   if (!isAuthed) return null;
 
-  // 🔓 COMMAND CENTER (AUTHENTICATED)
   return (
-    <div className="min-h-screen bg-[#050505] text-white font-sans pb-16 relative">
-      
-      {/* GLOBAL HEADER */}
-      <header className="bg-[#0A0A0A]/80 backdrop-blur-xl border-b border-white/5 sticky top-0 z-40 px-6 py-4 flex items-center justify-between">
+    <div className={`min-h-screen ${style.bg} ${style.text} font-sans pb-16`}>
+      {/* ── HEADER ── */}
+      <header className="bg-black/80 backdrop-blur-xl border-b border-white/5 sticky top-0 z-40 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center border border-white/10" style={{ backgroundColor: `${themeColor}15` }}>
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center border border-white/10"
+            style={{ backgroundColor: `${themeColor}15` }}
+          >
             <Store className="w-5 h-5" style={{ color: themeColor }} />
           </div>
           <div>
-            <h1 className="font-black text-lg tracking-tight leading-none">{storeData?.store_name}</h1>
-            <p className="text-[9px] text-zinc-500 uppercase font-bold mt-1 tracking-widest">Command Center</p>
+            <h1 className="text-lg font-semibold tracking-tight">{storeData?.store_name}</h1>
+            <p className="text-[10px] text-[#555] uppercase font-semibold tracking-[0.2em] mt-0.5">
+              Command Center
+            </p>
           </div>
         </div>
-        <Link href={`/admin/${safeStoreSlug}/inventory`} className="px-4 py-2 bg-[#111] border border-white/10 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-white/5 transition-colors">
+        <Link
+          href={`/admin/${safeStoreSlug}/inventory`}
+          className={`${style.headerBtn} px-4 py-2 flex items-center gap-2`}
+        >
           <Package className="w-4 h-4" style={{ color: themeColor }} /> Inventory
         </Link>
       </header>
 
-      <main className="max-w-4xl mx-auto px-6 py-8 flex flex-col gap-10">
-
-        {/* 1. REAL-TIME ACTION QUEUE */}
-        <div>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
+      <main className="max-w-4xl mx-auto px-6 py-10 flex flex-col gap-12">
+        {/* ── 1. LIVE QUEUE ── */}
+        <section>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
             <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-black tracking-tight">Live Queue</h2>
-              <span className="text-xs font-bold bg-white/5 border border-white/10 px-4 py-1.5 rounded-full text-zinc-400">{pendingOrders.length} Waiting</span>
+              <h2 className="text-2xl font-semibold tracking-tight">Live Queue</h2>
+              <span className="text-xs font-semibold bg-white/5 border border-white/10 px-4 py-1.5 rounded-full text-[#777]">
+                {pendingOrders.length} Waiting
+              </span>
             </div>
-            
             <form onSubmit={handleManualApproveSubmit} className="flex w-full sm:w-auto">
-              <input 
-                type="text" 
-                placeholder="Enter CART ID..." 
+              <input
+                type="text"
+                placeholder="CART ID"
                 value={manualApproveCartId}
                 onChange={(e) => setManualApproveCartId(e.target.value.toUpperCase())}
-                className="w-full sm:w-40 bg-[#111] border border-white/10 rounded-l-xl py-2 pl-4 pr-2 text-xs font-bold focus:outline-none focus:border-white/30 placeholder:normal-case placeholder:font-medium"
+                className="w-full sm:w-40 bg-[#111] border border-white/10 rounded-l-xl py-2.5 pl-4 pr-2 text-xs font-semibold focus:outline-none focus:border-white/20 placeholder:normal-case placeholder:font-medium"
               />
-              <button type="submit" disabled={!manualApproveCartId} className="px-4 bg-white/10 hover:bg-white/20 text-white rounded-r-xl font-black text-xs active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center border border-white/10 border-l-0">
+              <button
+                type="submit"
+                disabled={!manualApproveCartId}
+                className="px-4 bg-white text-black rounded-r-xl font-semibold text-xs active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center border border-white/10 border-l-0"
+              >
                 Approve
               </button>
             </form>
@@ -403,254 +416,327 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
           <div className="grid grid-cols-1 gap-4">
             <AnimatePresence>
               {pendingOrders.length === 0 ? (
-                 <div className="bg-[#0A0A0A] border border-white/5 rounded-[2rem] p-10 flex flex-col items-center justify-center text-center opacity-50">
-                    <Clock className="w-10 h-10 text-zinc-600 mb-3" />
-                    <p className="font-bold text-zinc-400">Queue is currently empty</p>
-                    <p className="text-xs text-zinc-600 mt-1">Incoming digital carts will be listed here.</p>
-                 </div>
+                <div className={`${style.card} p-10 flex flex-col items-center justify-center text-center opacity-60`}>
+                  <Clock className="w-8 h-8 text-[#555] mb-3" />
+                  <p className="font-semibold text-[#777]">Queue is empty</p>
+                  <p className="text-xs text-[#555] mt-1">Incoming digital carts will appear here.</p>
+                </div>
               ) : (
                 pendingOrders.map((order) => (
-                  <motion.div key={order.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
-                    className="bg-[#0A0A0A] border border-white/10 rounded-[2rem] p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 relative group shadow-lg"
+                  <motion.div
+                    key={order.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className={`${style.card} p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 relative`}
                   >
-                    <div className="absolute left-0 top-6 bottom-6 w-1 rounded-r-full animate-pulse" style={{ backgroundColor: themeColor }} />
+                    <div className="absolute left-0 top-6 bottom-6 w-1 rounded-r-full" style={{ backgroundColor: themeColor }} />
                     <div>
                       <div className="flex items-center gap-3 mb-2">
-                         <span className={`text-[9px] font-black px-2 py-0.5 rounded tracking-widest ${order.payment_method === 'ONLINE' ? 'bg-blue-500/20 text-blue-400' : 'bg-amber-500/20 text-amber-400'}`}>{order.payment_method}</span>
-                         <span className="text-xs text-zinc-400 font-mono font-bold">{order.customer_phone}</span>
+                        <span
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded uppercase tracking-wide ${
+                            order.payment_method === 'ONLINE'
+                              ? 'bg-blue-500/10 text-blue-400'
+                              : 'bg-amber-500/10 text-amber-400'
+                          }`}
+                        >
+                          {order.payment_method}
+                        </span>
+                        <span className="text-xs text-[#777] font-mono font-semibold">{order.customer_phone}</span>
                       </div>
-                      <h3 className="text-3xl font-black tracking-tighter text-white">{order.cart_id}</h3>
-                      <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mt-1">{order.items_count} items • Pending Authorization</p>
+                      <h3 className="text-2xl font-semibold tracking-tight">{order.cart_id}</h3>
+                      <p className="text-[10px] uppercase tracking-[0.15em] text-[#555] font-semibold mt-1">
+                        {order.items_count} items · Pending Authorization
+                      </p>
                     </div>
 
-                    <div className="flex items-center justify-between md:justify-end gap-4 border-t border-white/5 md:border-t-0 pt-4 md:pt-0">
-                      <div className="mr-4">
-                        <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-0.5">Total</p>
-                        <p className="text-2xl font-black flex items-center gap-1">₹{order.total_amount}</p>
+                    <div className="flex items-center justify-between md:justify-end gap-6 border-t border-white/5 md:border-t-0 pt-4 md:pt-0">
+                      <div>
+                        <p className="text-[10px] font-semibold text-[#555] uppercase tracking-wider mb-0.5">Total</p>
+                        <p className="text-2xl font-semibold">₹{order.total_amount}</p>
                       </div>
-                      
-                      <button 
-                        onClick={() => { setViewingOrder(order); setIsViewModalOpen(true); }} 
-                        className="px-4 py-3 rounded-2xl text-xs font-black text-white bg-white/10 hover:bg-white/20 active:scale-95 transition-all flex items-center gap-2"
-                      >
-                        <Eye className="w-4 h-4" /> View
-                      </button>
-
-                      <button 
-                        onClick={() => handleRejectOrder(order)} 
-                        className="px-4 py-3 rounded-2xl text-xs font-black text-red-500 bg-red-500/10 hover:bg-red-500/20 active:scale-95 transition-all flex items-center gap-2"
-                      >
-                        <XCircle className="w-4 h-4" /> Reject
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => { setViewingOrder(order); setIsViewModalOpen(true); }}
+                          className={`${style.secondaryBtn} px-4 py-3 rounded-xl text-xs flex items-center gap-2`}
+                        >
+                          <Eye className="w-4 h-4" /> View
+                        </button>
+                        <button
+                          onClick={() => handleRejectOrder(order)}
+                          className={`${style.dangerBtn} px-4 py-3 rounded-xl text-xs flex items-center gap-2`}
+                        >
+                          <XCircle className="w-4 h-4" /> Reject
+                        </button>
+                      </div>
                     </div>
                   </motion.div>
                 ))
               )}
             </AnimatePresence>
           </div>
-        </div>
+        </section>
 
-        {/* 2. DIGITAL BILL DISPATCHER */}
-        <div>
+        {/* ── 2. BILL REQUESTS ── */}
+        <section>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
-            <h2 className="text-xl font-black tracking-tight flex items-center gap-2">
-              <MessageCircle className="w-5 h-5 text-[#25D366]" /> Bill Requests
+            <h2 className="text-xl font-semibold tracking-tight flex items-center gap-2">
+              <MessageCircle className="w-5 h-5 text-green-400" /> Bill Requests
             </h2>
-            
-            <form onSubmit={handleManualBillSubmit} className="flex w-full sm:w-auto relative">
-              <input 
-                type="text" 
-                placeholder="CART ID" 
+            <form onSubmit={handleManualBillSubmit} className="flex w-full sm:w-auto">
+              <input
+                type="text"
+                placeholder="CART ID"
                 value={manualBillCartId}
                 onChange={(e) => setManualBillCartId(e.target.value.toUpperCase())}
-                className="w-28 sm:w-28 bg-[#111] border border-white/10 rounded-l-xl py-2 px-3 text-xs font-bold focus:outline-none focus:border-white/30 border-r-0 placeholder:normal-case placeholder:font-medium"
+                className="w-28 sm:w-28 bg-[#111] border border-white/10 rounded-l-xl py-2.5 px-3 text-xs font-semibold focus:outline-none focus:border-white/20 border-r-0 placeholder:normal-case placeholder:font-medium"
               />
-              <input 
-                type="tel" 
+              <input
+                type="tel"
                 maxLength={10}
-                placeholder="Phone No." 
+                placeholder="Phone"
                 value={manualBillPhone}
                 onChange={(e) => setManualBillPhone(e.target.value.replace(/\D/g, ''))}
-                className="w-32 sm:w-36 bg-[#111] border border-white/10 py-2 px-3 text-xs font-bold focus:outline-none focus:border-white/30 placeholder:normal-case placeholder:font-medium border-x-0"
+                className="w-32 sm:w-36 bg-[#111] border border-white/10 py-2.5 px-3 text-xs font-semibold focus:outline-none focus:border-white/20 border-x-0 placeholder:normal-case placeholder:font-medium"
               />
-              <button type="submit" disabled={!manualBillCartId || manualBillPhone.length < 10} className="px-3 bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366]/20 rounded-r-xl font-black disabled:opacity-50 active:scale-95 transition-all flex items-center justify-center border border-[#25D366]/20 border-l-0">
+              <button
+                type="submit"
+                disabled={!manualBillCartId || manualBillPhone.length < 10}
+                className="px-3 bg-green-400/10 text-green-400 hover:bg-green-400/20 rounded-r-xl font-semibold disabled:opacity-50 active:scale-95 transition-all flex items-center justify-center border border-green-400/20 border-l-0"
+              >
                 <Send className="w-3 h-3" />
               </button>
             </form>
           </div>
-          
+
           <div className="grid grid-cols-1 gap-3">
             <AnimatePresence>
               {billRequests.length === 0 ? (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="bg-[#0A0A0A] border border-white/5 rounded-[1.5rem] p-6 text-center opacity-50 flex items-center justify-center gap-3">
-                   <p className="text-xs font-bold text-zinc-500">No active digital bill requests.</p>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className={`${style.cardInner} p-5 text-center opacity-60 flex items-center justify-center gap-3`}
+                >
+                  <p className="text-xs font-semibold text-[#777]">No active digital bill requests.</p>
                 </motion.div>
               ) : (
                 billRequests.map((request) => (
-                  <motion.div key={request.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, scale: 0.9 }} className="bg-[#111] border border-white/5 rounded-2xl p-4 flex items-center justify-between shadow-md">
-                     <div>
-                       <p className="text-sm font-black text-white">{request.cart_id}</p>
-                       <p className="text-[10px] text-zinc-500 font-bold tracking-widest uppercase">{request.customer_phone}</p>
-                     </div>
-                     <button 
-                        onClick={() => handleDispatchBill(request)}
-                        className="bg-[#25D366]/10 text-[#25D366] border border-[#25D366]/20 px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 hover:bg-[#25D366]/20 active:scale-95 transition-all"
-                     >
-                       <Send className="w-3 h-3" /> Dispatch PDF
-                     </button>
-                  </motion.div>
-                ))
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-
-        {/* 3. TERMINAL: QUICK CHECKOUT */}
-        <div className="bg-[#0A0A0A] border border-white/10 rounded-[2.5rem] overflow-hidden flex flex-col h-[550px] shadow-2xl mt-4 relative">
-          
-          <AnimatePresence>
-            {itemFetching && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-10 bg-black/50 backdrop-blur-sm flex items-center justify-center rounded-[2.5rem]">
-                <Loader2 className="w-8 h-8 animate-spin" style={{ color: themeColor }} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <div className="p-6 border-b border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 whitespace-nowrap" style={{ color: themeColor }}>
-              <Zap className="w-4 h-4" /> POS Terminal
-            </h3>
-            
-            <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
-              <button onClick={() => setIsScannerOpen(true)} className="w-full sm:w-auto px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-black text-xs flex items-center justify-center gap-2 active:scale-95 transition-all">
-                <QrCode className="w-4 h-4" /> Scan
-              </button>
-              <div className="text-zinc-600 text-xs font-black uppercase hidden sm:block">OR</div>
-              <form onSubmit={handleManualTagSubmit} className="flex w-full sm:w-auto relative">
-                <input 
-                  type="text" 
-                  value={manualTagId} 
-                  onChange={(e) => setManualTagId(e.target.value)} 
-                  placeholder="Enter TAG ID..." 
-                  className="w-full sm:w-40 bg-[#111] border border-white/10 rounded-l-xl py-3 pl-4 pr-2 text-xs font-bold uppercase focus:outline-none focus:border-white/30"
-                />
-                <button type="submit" disabled={itemFetching || !manualTagId} className="px-3 bg-white text-black rounded-r-xl font-black active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center border border-white border-l-0">
-                  <Plus className="w-4 h-4" />
-                </button>
-              </form>
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2 bg-[#050505]/50">
-            <AnimatePresence>
-              {scannedItems.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center opacity-20">
-                  <Package className="w-12 h-12 mb-2" />
-                  <p className="text-xs font-bold uppercase tracking-widest">Cart is Empty</p>
-                </div>
-              ) : (
-                scannedItems.map((item) => (
-                  <motion.div key={item.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, scale: 0.9 }} className="bg-[#111] p-4 rounded-2xl border border-white/5 flex items-center justify-between">
+                  <motion.div
+                    key={request.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    className={`${style.cardInner} p-4 flex items-center justify-between`}
+                  >
                     <div>
-                      <p className="text-[10px] font-black text-zinc-500 uppercase">{item.tag}</p>
-                      <p className="font-bold text-sm">{item.name}</p>
+                      <p className="text-sm font-semibold">{request.cart_id}</p>
+                      <p className="text-[10px] text-[#555] font-semibold tracking-wide uppercase">
+                        {request.customer_phone}
+                      </p>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <p className="font-black text-lg">₹{item.price}</p>
-                      <button onClick={() => setScannedItems(prev => prev.filter(i => i.id !== item.id))} className="text-red-500/50 hover:text-red-500 bg-red-500/10 p-2 rounded-xl transition-colors">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => handleDispatchBill(request)}
+                      className="bg-green-400/10 text-green-400 border border-green-400/20 px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 hover:bg-green-400/20 active:scale-95 transition-all"
+                    >
+                      <Send className="w-3 h-3" /> Dispatch PDF
+                    </button>
                   </motion.div>
                 ))
               )}
             </AnimatePresence>
           </div>
+        </section>
 
-          <div className="p-6 bg-[#0A0A0A] border-t border-white/5 flex flex-col gap-4">
-            <div className="relative">
-              <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-              <input 
-                type="tel" placeholder="Customer Phone Number (Optional)" 
-                value={customerPhone} onChange={e => setCustomerPhone(e.target.value.replace(/\D/g, ''))}
-                className="w-full bg-[#111] border border-white/10 rounded-xl py-4 pl-12 pr-4 text-sm focus:outline-none focus:border-white/20 font-bold"
-              />
+        {/* ── 3. POS TERMINAL ── */}
+        <section>
+          <div className={`${style.card} overflow-hidden flex flex-col h-[550px] relative`}>
+            <AnimatePresence>
+              {itemFetching && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 z-10 bg-black/50 backdrop-blur-sm flex items-center justify-center rounded-3xl"
+                >
+                  <Loader2 className="w-8 h-8 animate-spin" style={{ color: themeColor }} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <div className="p-6 border-b border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.15em] flex items-center gap-2" style={{ color: themeColor }}>
+                <Zap className="w-4 h-4" /> POS Terminal
+              </h3>
+              <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+                <button
+                  onClick={() => setIsScannerOpen(true)}
+                  className="w-full sm:w-auto px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-semibold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all"
+                >
+                  <QrCode className="w-4 h-4" /> Scan
+                </button>
+                <div className="text-[#555] text-xs font-semibold uppercase hidden sm:block">OR</div>
+                <form onSubmit={handleManualTagSubmit} className="flex w-full sm:w-auto">
+                  <input
+                    type="text"
+                    value={manualTagId}
+                    onChange={(e) => setManualTagId(e.target.value)}
+                    placeholder="Enter TAG ID..."
+                    className="w-full sm:w-40 bg-[#111] border border-white/10 rounded-l-xl py-3 pl-4 pr-2 text-xs font-semibold uppercase focus:outline-none focus:border-white/20"
+                  />
+                  <button
+                    type="submit"
+                    disabled={itemFetching || !manualTagId}
+                    className="px-3 bg-white text-black rounded-r-xl font-semibold active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center border border-white border-l-0"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </form>
+              </div>
             </div>
-            <button 
-              onClick={handleCreateManualBill}
-              className="w-full bg-white text-black font-black py-4 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all shadow-xl disabled:opacity-50"
-              disabled={scannedItems.length === 0}
-            >
-              <CheckCircle2 className="w-5 h-5" /> Process Checkout (₹{scannedItems.reduce((a, b) => a + b.price, 0)})
-            </button>
-          </div>
-        </div>
 
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2 bg-[#020202]/50">
+              <AnimatePresence>
+                {scannedItems.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center opacity-20">
+                    <Package className="w-12 h-12 mb-2" />
+                    <p className="text-xs font-semibold uppercase tracking-widest">Cart is empty</p>
+                  </div>
+                ) : (
+                  scannedItems.map((item) => (
+                    <motion.div
+                      key={item.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      className={`${style.cardInner} p-4 flex items-center justify-between`}
+                    >
+                      <div>
+                        <p className="text-[10px] font-semibold text-[#555] uppercase">{item.tag}</p>
+                        <p className="font-semibold text-sm">{item.name}</p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <p className="font-semibold text-lg">₹{item.price}</p>
+                        <button
+                          onClick={() => setScannedItems((prev) => prev.filter((i) => i.id !== item.id))}
+                          className="text-red-400/60 hover:text-red-400 bg-red-400/10 p-2 rounded-xl transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </motion.div>
+                  ))
+                )}
+              </AnimatePresence>
+            </div>
+
+            <div className="p-6 bg-[#0A0A0A] border-t border-white/5 flex flex-col gap-4">
+              <div className="relative">
+                <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#555]" />
+                <input
+                  type="tel"
+                  placeholder="Customer Phone (Optional)"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value.replace(/\D/g, ''))}
+                  className={`${style.input} pl-12`}
+                />
+              </div>
+              <button
+                onClick={handleCreateManualBill}
+                className={`${style.primaryBtn} w-full py-4 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 font-semibold`}
+                disabled={scannedItems.length === 0}
+              >
+                <CheckCircle2 className="w-5 h-5" /> Process Checkout (₹{scannedItems.reduce((a, b) => a + b.price, 0)})
+              </button>
+            </div>
+          </div>
+        </section>
       </main>
 
-      {/* 🔍 VIEW ORDER DETAILS MODAL */}
+      {/* ── VIEW ORDER MODAL ── */}
       <AnimatePresence>
         {isViewModalOpen && viewingOrder && (
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-6"
           >
-            <motion.div 
-              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 28 }}
-              className="bg-[#0A0A0A] w-full sm:max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] border border-white/10 p-6 sm:p-8 relative max-h-[90vh] flex flex-col shadow-2xl"
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28 }}
+              className={`${style.card} w-full sm:max-w-md rounded-t-[2.5rem] sm:rounded-3xl p-6 sm:p-8 relative max-h-[90vh] flex flex-col`}
             >
-              <button onClick={() => { setIsViewModalOpen(false); setViewingOrder(null); }} className="absolute top-6 right-6 p-2 bg-white/5 rounded-full hover:bg-white/10 transition-colors z-10">
-                <X className="w-5 h-5 text-zinc-400" />
+              <button
+                onClick={() => {
+                  setIsViewModalOpen(false);
+                  setViewingOrder(null);
+                }}
+                className="absolute top-6 right-6 p-2 bg-white/5 rounded-full hover:bg-white/10 transition-colors z-10"
+              >
+                <X className="w-5 h-5 text-[#777]" />
               </button>
-              
+
               <div className="mb-6 border-b border-white/5 pb-6">
                 <div className="flex items-center gap-2 mb-1">
                   <Package className="w-5 h-5" style={{ color: themeColor }} />
-                  <span className="text-[10px] font-black tracking-widest uppercase text-zinc-400">Order Details</span>
+                  <span className="text-[10px] font-semibold tracking-[0.2em] uppercase text-[#555]">Order Details</span>
                 </div>
-                <h2 className="text-3xl font-black tracking-tighter mt-2 mb-1">{viewingOrder.cart_id}</h2>
+                <h2 className="text-3xl font-semibold tracking-tight mt-2 mb-1">{viewingOrder.cart_id}</h2>
                 <div className="flex items-center gap-3">
-                  <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-widest ${viewingOrder.payment_method === 'ONLINE' ? 'bg-blue-500/20 text-blue-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                  <span
+                    className={`text-[10px] font-semibold px-2 py-0.5 rounded uppercase tracking-wide ${
+                      viewingOrder.payment_method === 'ONLINE'
+                        ? 'bg-blue-500/10 text-blue-400'
+                        : 'bg-amber-500/10 text-amber-400'
+                    }`}
+                  >
                     {viewingOrder.payment_method}
                   </span>
-                  <span className="text-xs text-zinc-500 font-bold">{viewingOrder.customer_phone || 'No Phone Provided'}</span>
+                  <span className="text-xs text-[#777] font-semibold">{viewingOrder.customer_phone || 'No Phone'}</span>
                 </div>
               </div>
 
-              {/* Scrollable Items List */}
               <div className="flex-1 overflow-y-auto pr-2 mb-6 flex flex-col gap-3 custom-scrollbar">
-                {viewingOrder.purchased_items && viewingOrder.purchased_items.map((item: any, idx: number) => (
-                  <div key={idx} className="bg-[#111] border border-white/5 rounded-2xl p-3 flex items-center gap-4 relative overflow-hidden group">
-                    <div className="w-16 h-16 bg-black rounded-xl overflow-hidden shrink-0 border border-white/10 relative">
-                      {item.products?.image_url ? (
-                        <img src={item.products.image_url} alt={item.products?.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-zinc-900">
-                          <ImageIcon className="w-5 h-5 text-zinc-700" />
-                        </div>
-                      )}
+                {viewingOrder.purchased_items &&
+                  viewingOrder.purchased_items.map((item: any, idx: number) => (
+                    <div key={idx} className={`${style.cardInner} p-3 flex items-center gap-4`}>
+                      <div className="w-16 h-16 bg-black rounded-xl overflow-hidden shrink-0 border border-white/10 relative">
+                        {item.products?.image_url ? (
+                          <img
+                            src={item.products.image_url}
+                            alt={item.products?.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-zinc-900">
+                            <ImageIcon className="w-5 h-5 text-zinc-700" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-sm leading-tight mb-1">
+                          {item.products?.name || 'Item'}
+                        </h4>
+                        <span className="text-[9px] font-mono font-semibold uppercase tracking-widest text-[#555] bg-white/5 px-2 py-0.5 rounded">
+                          {item.id}
+                        </span>
+                      </div>
+                      <div className="font-semibold text-lg">₹{item.products?.price}</div>
                     </div>
-                    <div className="flex-1">
-                      <h4 className="font-bold text-sm leading-tight text-white mb-1">{item.products?.name || 'Item'}</h4>
-                      <span className="text-[9px] font-mono font-black uppercase tracking-widest text-zinc-500 bg-white/5 px-2 py-0.5 rounded">{item.id}</span>
-                    </div>
-                    <div className="font-black text-lg">
-                      ₹{item.products?.price}
-                    </div>
-                  </div>
-                ))}
+                  ))}
               </div>
 
-              {/* Modal Footer with Total & Final Action */}
               <div className="border-t border-white/5 pt-6 mt-auto">
                 <div className="flex items-center justify-between mb-4">
-                  <span className="text-zinc-500 font-bold text-sm">Grand Total</span>
-                  <span className="text-3xl font-black">₹{viewingOrder.total_amount}</span>
+                  <span className="text-[#777] font-semibold text-sm">Grand Total</span>
+                  <span className="text-3xl font-semibold">₹{viewingOrder.total_amount}</span>
                 </div>
-                <button 
+                <button
                   onClick={() => handleApprovePayment(viewingOrder)}
-                  className="w-full py-4 rounded-2xl font-black text-black active:scale-95 transition-all flex items-center justify-center gap-2 shadow-[0_10px_30px_rgba(0,0,0,0.3)]"
-                  style={{ backgroundColor: themeColor }}
+                  className={`${style.primaryBtn} w-full py-4 rounded-2xl flex items-center justify-center gap-2`}
                 >
                   <CheckCircle2 className="w-5 h-5" /> Approve & Complete Sale
                 </button>
@@ -660,32 +746,31 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
         )}
       </AnimatePresence>
 
-      {/* 📸 OPTICAL SCANNER MODAL (ADMIN INTERFACE) */}
+      {/* ── SCANNER MODAL ── */}
       <AnimatePresence>
         {isScannerOpen && (
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z- bg-[#050505] flex flex-col items-center justify-center p-6"
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-[#020202] flex flex-col items-center justify-center p-6"
           >
             <div className="w-full max-w-sm aspect-square rounded-[2rem] overflow-hidden border-2 border-dashed border-white/20 relative shadow-[0_0_50px_rgba(0,0,0,0.5)]">
               <div id="admin-reader" className="w-full h-full bg-[#111]"></div>
               <div className="absolute inset-10 border-2 border-white/10 rounded-2xl pointer-events-none animate-pulse"></div>
             </div>
-            
-            <p className="mt-8 text-zinc-400 font-mono text-xs tracking-widest uppercase text-center">
+            <p className="mt-8 text-[#777] font-mono text-xs tracking-widest uppercase text-center">
               Position the QR code within the frame to add
             </p>
-
-            <button 
+            <button
               onClick={() => setIsScannerOpen(false)}
-              className="mt-12 px-8 py-4 bg-white/10 text-white rounded-full font-black tracking-widest uppercase text-xs flex items-center gap-3 hover:bg-white/20 active:scale-95 transition-all border border-white/5"
+              className="mt-12 px-8 py-4 bg-white/10 text-white rounded-full font-semibold tracking-wider uppercase text-xs flex items-center gap-3 hover:bg-white/20 active:scale-95 transition-all border border-white/5"
             >
               <X className="w-5 h-5" /> Cancel Scan
             </button>
           </motion.div>
         )}
       </AnimatePresence>
-
     </div>
   );
 }
