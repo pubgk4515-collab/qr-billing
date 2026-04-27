@@ -335,7 +335,6 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
 
   return (
     <>
-      {/* MAIN UI (hidden when printing) */}
       <div className={`min-h-screen ${theme.bg} ${theme.text} pb-24 font-sans relative print:hidden ${inter.variable}`}
         style={{ fontFamily: 'var(--font-inter), sans-serif' }}
       >
@@ -466,7 +465,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
             </div>
           </div>
 
-          {/* INVENTORY LIST - CHUNK 2 & 3: Z-INDEX & POPLAYOUT IMPLEMENTED */}
+          {/* INVENTORY LIST */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <AnimatePresence mode="popLayout">
               {filteredInventory.map((item) => (
@@ -485,22 +484,32 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
                       : `${theme.card} ${theme.borderLight}`
                   }`}
                 >
-                  {/* CHUNK 1: REVERTED TO OLD IMAGE STYLE (NO BLUR, CLEAN FADE) */}
+                  {/* 🖼️ THE PHYSICAL IMAGE LAYER */}
                   {(item.status === 'active' || item.status === 'in_cart') ? (
                     item.products?.image_url ? (
                       <div className="absolute right-0 top-0 bottom-0 w-[55%] pointer-events-none z-0 overflow-hidden rounded-r-[2rem]">
+                        
+                        {/* Core Image with depth transforms & smooth hover fade */}
                         <img
                           src={item.products.image_url}
                           alt=""
-                          className="w-full h-full object-cover opacity-40 group-hover:opacity-60 transition-opacity duration-500"
+                          className="w-full h-full object-cover opacity-40 group-hover:opacity-[0.45] transform scale-[1.06] translate-x-[6px] group-hover:scale-110 transition-all duration-[400ms] ease-out"
                           style={{
-                            maskImage: 'linear-gradient(to right, transparent 0%, black 50%)',
-                            WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 50%)',
+                            maskImage: 'linear-gradient(to right, transparent 0%, black 70%, black 100%)',
+                            WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 70%, black 100%)',
                           }}
                         />
-                        {/* Status Tints over image */}
+
+                        {/* Inner Shadow for realistic depth inside the container */}
+                        <div className="absolute inset-0 shadow-[inset_0_0_60px_rgba(0,0,0,0.25)] pointer-events-none" />
+
+                        {/* Invisible Separation Gradient for crisp text readability */}
+                        <div className={`absolute inset-0 bg-gradient-to-r ${isDark ? 'from-[rgba(0,0,0,0.6)]' : 'from-[rgba(255,255,255,0.7)]'} to-transparent pointer-events-none`} />
+
+                        {/* Natural Status Overlays (Reduced intensity, no artificial glows) */}
                         {item.status === 'active' && <div className="absolute inset-0 bg-emerald-500/5 mix-blend-overlay" />}
-                        {item.status === 'in_cart' && <div className="absolute inset-0 bg-amber-500/10 mix-blend-overlay" />}
+                        {item.status === 'in_cart' && <div className="absolute inset-0 bg-amber-500/[0.07] mix-blend-overlay" />}
+                        
                       </div>
                     ) : (
                       <div className="absolute right-4 top-1/2 -translate-y-1/2 w-24 h-24 rounded-full flex items-center justify-center opacity-5 z-0 pointer-events-none">
@@ -513,7 +522,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
                     </div>
                   )}
 
-                  {/* CARD CONTENT - LOCKED TO Z-10 FOR CLICK SAFETY */}
+                  {/* 🎮 CONTENT LAYER (Locked to Z-10 to prevent unclickable buttons) */}
                   <div className="relative z-10 flex flex-col h-full">
                     {/* Top: Tag ID + Actions */}
                     <div className="flex justify-between items-start mb-6">
@@ -643,7 +652,6 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
       </div>
 
       {/* ── MODALS ── */}
-      {/* 1. ADD PRODUCT MODAL */}
       <AnimatePresence>
         {isAddModalOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-md sm:p-4">
@@ -688,7 +696,6 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         )}
       </AnimatePresence>
 
-      {/* 2. GENERATE TAG MODAL */}
       <AnimatePresence>
         {isGenerateModalOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-md sm:p-4">
@@ -718,7 +725,6 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         )}
       </AnimatePresence>
 
-      {/* 3. PRINT MODAL */}
       <AnimatePresence>
         {isPrintModalOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-md sm:p-4">
@@ -754,7 +760,6 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         )}
       </AnimatePresence>
 
-      {/* 4. QR DOWNLOAD MODAL */}
       <AnimatePresence>
         {isQrModalOpen && selectedTagItem && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-6">
@@ -777,7 +782,6 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         )}
       </AnimatePresence>
 
-      {/* 5. EDIT PRODUCT MODAL */}
       <AnimatePresence>
         {isEditModalOpen && selectedTagItem && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-md sm:p-4">
