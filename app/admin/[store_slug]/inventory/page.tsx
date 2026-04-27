@@ -19,7 +19,7 @@ const inter = Inter({
   variable: '--font-inter',
 });
 
-/* ── Theme helpers (unchanged) ── */
+/* ── Theme helpers ── */
 const THEME_KEY = 'qrebill-theme';
 
 function getSystemTheme(): boolean {
@@ -67,7 +67,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
     localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
   }, [isDark]);
 
-  // --- STATE MANAGEMENT (unchanged) ---
+  // --- STATE MANAGEMENT ---
   const [storeData, setStoreData] = useState<any>(null);
   const [inventory, setInventory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,7 +102,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
   const addFileInputRef = useRef<HTMLInputElement>(null);
   const qrRef = useRef<HTMLDivElement>(null);
 
-  // --- FETCH & REFRESH (unchanged) ---
+  // --- FETCH & REFRESH ---
   useEffect(() => {
     if (!safeStoreSlug) return;
     async function fetchInitialData() {
@@ -155,7 +155,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
     }
   };
 
-  // --- ACTIONS (unchanged) ---
+  // --- ACTIONS ---
   const handleGenerateTags = async () => {
     if (generateCount <= 0 || !storeData) return;
     setActionLoading(true);
@@ -192,7 +192,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         const numB = parseInt(b.id.replace('TAG', ''), 10) || 0;
         return numA - numB;
       });
-      targetTagToBind = freeTags[0];
+      targetTagToBind = freeTags;
     }
     if (!targetTagToBind) return alert("Tag not found!");
     setActionLoading(true);
@@ -295,7 +295,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
     chunkedTags.push(tagsToPrint.slice(i, i + 16));
   }
 
-  // ═══ REACTIVE THEME (unchanged) ═══
+  // ═══ REACTIVE THEME ═══
   const theme = {
     bg: isDark ? 'bg-[#000000]' : 'bg-white',
     surface: isDark ? 'bg-[#0A0A0A]' : 'bg-[#F5F5F7]',
@@ -339,33 +339,33 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
       <div className={`min-h-screen ${theme.bg} ${theme.text} pb-24 font-sans relative print:hidden ${inter.variable}`}
         style={{ fontFamily: 'var(--font-inter), sans-serif' }}
       >
-        {/* HEADER – slightly larger, more spacious */}
-        <header className={`sticky top-0 z-30 px-6 py-4 border-b ${theme.nav}`}>
+        {/* HEADER */}
+        <header className={`sticky top-0 z-30 px-6 py-3 border-b ${theme.nav}`}>
           <div className="max-w-5xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <button
                 onClick={() => router.push(`/admin/${safeStoreSlug}`)}
-                className={`p-2.5 rounded-full transition-colors ${theme.secondaryBtn}`}
+                className={`p-2 rounded-full transition-colors ${theme.secondaryBtn}`}
               >
-                <ArrowLeft className="w-5 h-5" />
+                <ArrowLeft className="w-4 h-4" />
               </button>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center shadow-inner"
+                  className="w-8 h-8 rounded-lg flex items-center justify-center"
                   style={{ backgroundColor: `${themeColor}20`, color: themeColor }}
                 >
-                  <Package className="w-5 h-5" />
+                  <Package className="w-4 h-4" />
                 </div>
                 <div>
-                  <h1 className="font-semibold text-base leading-none">{storeData?.store_name || 'Inventory'}</h1>
-                  <p className="text-[11px] text-zinc-500 font-medium mt-1">Tag & Product Manager</p>
+                  <h1 className="font-semibold text-sm tracking-tight leading-none">Inventory</h1>
+                  <p className="text-[10px] text-zinc-500 font-medium mt-0.5">Tags & Stock</p>
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setIsDark(!isDark)}
-                className={`p-2.5 rounded-full transition-all duration-200 ${theme.secondaryBtn} ${pressable}`}
+                className={`p-2 rounded-full transition-all duration-200 ${theme.secondaryBtn} ${pressable}`}
                 aria-label="Toggle theme"
               >
                 <AnimatePresence mode="wait">
@@ -382,190 +382,199 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
               </button>
               <button
                 onClick={() => router.push(`/admin/${safeStoreSlug}/inventory/worker-mode`)}
-                className={`px-5 py-2.5 rounded-full text-sm font-semibold flex items-center gap-2 transition-all shadow-sm ${pressable} ${theme.primaryBtn}`}
+                className={`px-4 py-2 rounded-full text-xs font-semibold flex items-center gap-2 transition-all ${theme.primaryBtn}`}
               >
-                <Package className="w-4 h-4 hidden sm:block" /> Bulk Add
+                <Package className="w-3.5 h-3.5 hidden sm:block" /> Bulk Add
               </button>
             </div>
           </div>
         </header>
 
-        <main className="max-w-5xl mx-auto px-6 py-10 flex flex-col gap-8">
-          {/* STATS ROW – larger & more elegant */}
+        <main className="max-w-5xl mx-auto px-6 py-8 flex flex-col gap-10 mt-4">
+          {/* STATS ROW */}
           <div className="grid grid-cols-3 gap-4">
             {[
               { label: 'Total Tags', value: totalTags, icon: Hash, color: '#ffffff' },
               { label: 'Active', value: activeTags, icon: CheckCircle, color: themeColor },
               { label: 'Free Tags', value: freeTagsCount, icon: Clock, color: '#f59e0b' },
             ].map((stat, idx) => (
-              <div key={idx} className={`${theme.card} border ${theme.border} p-5 rounded-[2rem] flex flex-col gap-2 shadow-sm`}>
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${stat.color}15` }}>
-                  <stat.icon className="w-5 h-5" style={{ color: stat.color }} />
-                </div>
-                <p className="text-[10px] sm:text-[11px] uppercase font-semibold tracking-widest text-zinc-400">{stat.label}</p>
-                <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight tabular-nums">{stat.value}</h2>
+              <div key={idx} className={`${theme.card} border ${theme.border} p-4 sm:p-5 rounded-[2rem] flex flex-col gap-1`}>
+                <stat.icon className="w-5 h-5 mb-1" style={{ color: stat.color }} />
+                <p className={`text-[9px] sm:text-[10px] uppercase font-semibold tracking-widest ${theme.textMuted}`}>{stat.label}</p>
+                <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight">{stat.value}</h2>
               </div>
             ))}
           </div>
 
-          {/* QUICK ACTIONS – bigger, with subtle glow */}
-          <div className="grid grid-cols-3 gap-4">
+          {/* QUICK ACTIONS */}
+          <div className="grid grid-cols-3 gap-3">
             <button
               onClick={() => setIsGenerateModalOpen(true)}
-              className={`${theme.card} border ${theme.border} py-6 px-3 rounded-[2rem] flex flex-col items-center justify-center gap-3 transition-all ${pressable} hover:shadow-md`}
+              className={`${theme.card} border ${theme.border} py-5 px-2 rounded-[1.5rem] flex flex-col items-center justify-center gap-2 transition-all ${pressable} hover:border-white/20`}
             >
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ backgroundColor: `${themeColor}15` }}>
-                <QrCode className="w-6 h-6" style={{ color: themeColor }} />
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${themeColor}15` }}>
+                <QrCode className="w-5 h-5" style={{ color: themeColor }} />
               </div>
-              <span className="text-xs font-semibold tracking-wide">Generate Tags</span>
+              <span className="text-xs font-semibold text-center leading-tight">Generate</span>
             </button>
             <button
               onClick={() => { setBindingTagId(null); setIsAddModalOpen(true); }}
-              className={`py-6 px-3 rounded-[2rem] flex flex-col items-center justify-center gap-3 transition-all ${pressable} shadow-md ${theme.primaryBtn}`}
+              className={`py-5 px-2 rounded-[1.5rem] flex flex-col items-center justify-center gap-2 transition-all ${pressable} ${theme.primaryBtn}`}
             >
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-black/10">
-                <Plus className="w-6 h-6" />
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-black/10">
+                <Plus className="w-5 h-5" />
               </div>
-              <span className="text-xs font-semibold tracking-wide">New Product</span>
+              <span className="text-xs font-semibold text-center leading-tight">Add Item</span>
             </button>
             <button
               onClick={() => setIsPrintModalOpen(true)}
-              className={`${theme.card} border ${theme.border} py-6 px-3 rounded-[2rem] flex flex-col items-center justify-center gap-3 transition-all ${pressable} hover:shadow-md`}
+              className={`${theme.card} border ${theme.border} py-5 px-2 rounded-[1.5rem] flex flex-col items-center justify-center gap-2 transition-all ${pressable} hover:border-white/20`}
             >
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ backgroundColor: `${themeColor}10` }}>
-                <Printer className="w-6 h-6" style={{ color: themeColor }} />
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${themeColor}10` }}>
+                <Printer className="w-5 h-5" style={{ color: themeColor }} />
               </div>
-              <span className="text-xs font-semibold tracking-wide">Print PDF</span>
+              <span className="text-xs font-semibold text-center leading-tight">Print PDF</span>
             </button>
           </div>
 
-          {/* SEARCH & FILTERS – refined pill bar */}
-          <div className="flex flex-col gap-5">
+          {/* SEARCH & FILTERS */}
+          <div className="flex flex-col gap-4">
             <div className="relative">
-              <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
               <input
                 type="text"
-                placeholder="Search tags or products…"
+                placeholder="Search by Tag or Name…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className={`w-full rounded-2xl py-4 pl-14 pr-4 text-base font-medium border ${theme.input} bg-white/5 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-white/10 ${theme.placeholder}`}
+                className={`w-full rounded-2xl py-3.5 pl-12 pr-4 text-sm font-medium border ${theme.input} ${theme.placeholder} focus:outline-none`}
               />
             </div>
-
-            <div className="flex items-center gap-1.5 p-1 rounded-full border border-white/10 backdrop-blur-sm bg-white/5 overflow-x-auto whitespace-nowrap">
+            <div className={`flex gap-2 p-1.5 rounded-2xl border ${theme.border} overflow-x-auto`}>
               {['all', 'active', 'in_cart', 'sold', 'free'].map((f) => (
                 <button
                   key={f}
                   onClick={() => setActiveFilter(f)}
-                  className={`px-5 py-2.5 rounded-full text-xs font-semibold uppercase tracking-wider transition-all duration-200 ${
+                  className={`flex-1 min-w-[65px] py-2.5 rounded-xl text-[10px] font-semibold uppercase tracking-widest transition-all ${
                     activeFilter === f
-                      ? 'bg-white text-black shadow-lg'
-                      : 'text-zinc-400 hover:text-white'
+                      ? theme.primaryBtn + ' shadow-sm'
+                      : `${theme.textMuted} hover:${theme.text}`
                   }`}
                 >
-                  {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1).replace('_', ' ')}
+                  {f.replace('_', ' ')}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* INVENTORY LIST – refined cards with polished product image overlay */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <AnimatePresence>
+          {/* INVENTORY LIST - CHUNK 2 & 3: Z-INDEX & POPLAYOUT IMPLEMENTED */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <AnimatePresence mode="popLayout">
               {filteredInventory.map((item) => (
                 <motion.div
                   key={item.id}
                   layout
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.97 }}
-                  className={`group relative p-5 sm:p-6 rounded-[2.5rem] border transition-all duration-300 ${
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ duration: 0.3 }}
+                  className={`group relative p-5 rounded-[2rem] border overflow-hidden transition-all duration-300 ${
                     (item.status === 'free' || item.status === 'sold')
                       ? `border-dashed ${theme.borderDashed} bg-transparent`
                       : item.status === 'in_cart'
-                      ? `border-amber-500/20 ${theme.card} shadow-[0_4px_20px_rgba(245,158,11,0.05)]`
-                      : `${theme.card} ${theme.borderLight} shadow-sm hover:shadow-md`
+                      ? `border-amber-500/20 ${theme.card}`
+                      : `${theme.card} ${theme.borderLight}`
                   }`}
                 >
-                  {/* Product image overlay (right side) – larger, softer, with elegant mask */}
+                  {/* CHUNK 1: REVERTED TO OLD IMAGE STYLE (NO BLUR, CLEAN FADE) */}
                   {(item.status === 'active' || item.status === 'in_cart') ? (
                     item.products?.image_url ? (
-                      <div className="absolute right-0 top-1/2 -translate-y-1/2 w-56 h-56 pointer-events-none overflow-hidden rounded-full opacity-25 group-hover:opacity-35 transition-opacity duration-500">
+                      <div className="absolute right-0 top-0 bottom-0 w-[55%] pointer-events-none z-0 overflow-hidden rounded-r-[2rem]">
                         <img
                           src={item.products.image_url}
                           alt=""
-                          className="w-full h-full object-cover rounded-full"
+                          className="w-full h-full object-cover opacity-40 group-hover:opacity-60 transition-opacity duration-500"
                           style={{
-                            filter: 'blur(3px)',
-                            maskImage: 'linear-gradient(to left, black 50%, transparent 100%)',
-                            WebkitMaskImage: 'linear-gradient(to left, black 50%, transparent 100%)',
+                            maskImage: 'linear-gradient(to right, transparent 0%, black 50%)',
+                            WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 50%)',
                           }}
                         />
-                        <div className={`absolute inset-0 rounded-full ${item.status === 'active' ? 'bg-emerald-500/5' : 'bg-amber-500/5'}`} />
+                        {/* Status Tints over image */}
+                        {item.status === 'active' && <div className="absolute inset-0 bg-emerald-500/5 mix-blend-overlay" />}
+                        {item.status === 'in_cart' && <div className="absolute inset-0 bg-amber-500/10 mix-blend-overlay" />}
                       </div>
                     ) : (
-                      <div className="absolute right-4 top-1/2 -translate-y-1/2 w-28 h-28 rounded-full flex items-center justify-center opacity-10">
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 w-24 h-24 rounded-full flex items-center justify-center opacity-5 z-0 pointer-events-none">
                         <Package className="w-16 h-16" />
                       </div>
                     )
                   ) : (
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 w-28 h-28 rounded-full border-2 border-dashed border-white/10 flex items-center justify-center opacity-20">
-                      <QrCode className="w-10 h-10 text-white/40" />
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 w-24 h-24 rounded-full border-2 border-dashed border-white/10 flex items-center justify-center opacity-10 z-0 pointer-events-none">
+                      <QrCode className="w-8 h-8 text-white" />
                     </div>
                   )}
 
-                  {/* Card content */}
-                  <div className="relative z-10">
-                    {/* Top row: Tag ID + actions */}
-                    <div className="flex justify-between items-start mb-5">
+                  {/* CARD CONTENT - LOCKED TO Z-10 FOR CLICK SAFETY */}
+                  <div className="relative z-10 flex flex-col h-full">
+                    {/* Top: Tag ID + Actions */}
+                    <div className="flex justify-between items-start mb-6">
                       <div>
                         <span
-                          className={`inline-block text-xs font-bold tracking-widest uppercase px-2 py-0.5 rounded-full mb-2 ${
+                          className={`text-[11px] font-semibold tracking-widest uppercase ${
                             item.status === 'active'
-                              ? 'bg-emerald-500/10 text-emerald-400'
+                              ? 'text-emerald-400'
                               : item.status === 'in_cart'
-                              ? 'bg-amber-500/10 text-amber-400'
-                              : 'bg-white/5 text-zinc-500'
+                              ? 'text-amber-400'
+                              : theme.textFaint
                           }`}
+                          style={item.status === 'active' ? { color: themeColor } : {}}
                         >
                           {item.id}
                         </span>
-                        <h3 className="text-xl font-semibold leading-tight">
+                        <h3 className="text-lg font-semibold tracking-tight mt-0.5">
                           {(item.status === 'active' || item.status === 'in_cart')
                             ? item.products?.name
                             : 'Empty Tag'}
                         </h3>
                       </div>
-                      <div className="flex gap-1.5">
-                        <button onClick={() => openQrModal(item)} className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${pressable} ${theme.secondaryBtn} border ${theme.borderLight}`}>
-                          <QrCode className="w-4.5 h-4.5" />
+                      <div className="flex gap-1.5 relative z-20">
+                        <button
+                          onClick={() => openQrModal(item)}
+                          className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${pressable} ${theme.secondaryBtn} border ${theme.borderLight}`}
+                        >
+                          <QrCode className="w-4 h-4" />
                         </button>
                         {(item.status === 'active' || item.status === 'in_cart') && (
                           <>
-                            <button onClick={() => openEditModal(item)} className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${pressable} ${theme.secondaryBtn} border ${theme.borderLight}`}>
-                              <Edit2 className="w-4 h-4" />
+                            <button
+                              onClick={() => openEditModal(item)}
+                              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${pressable} ${theme.secondaryBtn} border ${theme.borderLight}`}
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
                             </button>
-                            <button onClick={() => handleUnbindItem(item.id)} className="w-11 h-11 bg-red-500/10 text-red-400 rounded-full flex items-center justify-center hover:bg-red-500/20 transition-all">
-                              <Trash2 className="w-4 h-4" />
+                            <button
+                              onClick={() => handleUnbindItem(item.id)}
+                              className="w-10 h-10 bg-red-500/10 text-red-400 rounded-full flex items-center justify-center hover:bg-red-500/20 transition-all"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </>
                         )}
                       </div>
                     </div>
 
-                    {/* Bottom: price + status */}
-                    <div className="flex items-center justify-between">
+                    {/* Bottom: Price + Status / Action */}
+                    <div className="flex items-center justify-between mt-auto relative z-20">
                       {(item.status === 'active' || item.status === 'in_cart') ? (
                         <>
-                          <div className="text-2xl font-bold">₹{item.products?.price}</div>
+                          <div className="text-2xl font-semibold">₹{item.products?.price}</div>
                           {item.status === 'in_cart' ? (
-                            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 border border-amber-500/20">
-                              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                              <span className="text-xs font-semibold uppercase tracking-widest text-amber-400">In Bag</span>
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                              <span className="text-[9px] font-semibold uppercase tracking-widest text-amber-400">In Bag</span>
                             </div>
                           ) : (
                             <div
-                              className="px-4 py-2 rounded-full text-xs font-semibold uppercase tracking-widest"
+                              className="text-[9px] font-semibold px-3 py-1.5 rounded-full uppercase tracking-widest"
                               style={{ backgroundColor: `${themeColor}15`, color: themeColor }}
                             >
                               Active
@@ -574,12 +583,12 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
                         </>
                       ) : (
                         <>
-                          <span className="text-sm font-medium text-zinc-500">Ready to bind</span>
+                          <span className={`text-xs font-medium ${theme.textFaint}`}>Ready to bind</span>
                           <button
                             onClick={() => openAddModalForSpecificTag(item.id)}
-                            className={`px-6 py-2.5 rounded-full text-sm font-semibold transition-all ${pressable} ${theme.primaryBtn}`}
+                            className={`px-5 py-2.5 rounded-xl text-xs font-semibold transition-all ${pressable} ${theme.primaryBtn}`}
                           >
-                            Link Product
+                            Link Item
                           </button>
                         </>
                       )}
@@ -591,11 +600,11 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
           </div>
         </main>
 
-        {/* FLOATING BUTTONS (unchanged) */}
+        {/* FLOATING BUTTONS */}
         <div className="fixed bottom-6 right-6 sm:bottom-10 sm:right-10 z-40 flex flex-col items-end gap-3">
           <button
             onClick={() => router.push(`/admin/${safeStoreSlug}/analytics`)}
-            className="px-5 py-3 rounded-full flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-xl"
+            className="px-4 py-3 rounded-full flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-lg"
             style={{ backgroundColor: themeColor, color: '#000' }}
           >
             <BarChart3 className="w-4 h-4" />
@@ -603,15 +612,15 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
           </button>
           <button
             onClick={() => router.push(`/admin/${safeStoreSlug}`)}
-            className={`px-5 py-3 rounded-full flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-xl border ${theme.card} ${theme.borderLight}`}
+            className={`px-4 py-3 rounded-full flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-lg border ${theme.card} ${theme.borderLight}`}
           >
             <Settings className="w-4 h-4" style={{ color: themeColor }} />
-            <span className="text-xs font-semibold hidden sm:block">Dashboard</span>
+            <span className={`text-xs font-semibold hidden sm:block ${theme.textMuted}`}>Dashboard</span>
           </button>
         </div>
       </div>
 
-      {/* PRINTABLE SHEET (unchanged) */}
+      {/* PRINTABLE SHEET */}
       <div className="hidden print:flex bg-white w-full text-black justify-center">
         <style dangerouslySetInnerHTML={{ __html: `
           @media print {
@@ -633,8 +642,8 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         </div>
       </div>
 
-      {/* ── MODALS (unchanged, already elegant) ── */}
-      {/* (Same modal code as previous version) */}
+      {/* ── MODALS ── */}
+      {/* 1. ADD PRODUCT MODAL */}
       <AnimatePresence>
         {isAddModalOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-md sm:p-4">
@@ -679,6 +688,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         )}
       </AnimatePresence>
 
+      {/* 2. GENERATE TAG MODAL */}
       <AnimatePresence>
         {isGenerateModalOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-md sm:p-4">
@@ -708,6 +718,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         )}
       </AnimatePresence>
 
+      {/* 3. PRINT MODAL */}
       <AnimatePresence>
         {isPrintModalOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-md sm:p-4">
@@ -743,6 +754,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         )}
       </AnimatePresence>
 
+      {/* 4. QR DOWNLOAD MODAL */}
       <AnimatePresence>
         {isQrModalOpen && selectedTagItem && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-6">
@@ -765,6 +777,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         )}
       </AnimatePresence>
 
+      {/* 5. EDIT PRODUCT MODAL */}
       <AnimatePresence>
         {isEditModalOpen && selectedTagItem && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-md sm:p-4">
