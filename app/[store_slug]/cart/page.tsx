@@ -3,7 +3,7 @@
 import { use, useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ShoppingBag, Loader2, Trash2, QrCode, CreditCard, Store, ChevronLeft, X, ShieldCheck, Smartphone, CheckCircle2, Send, AlertCircle, Sparkles, ChevronRight } from 'lucide-react';
-import { supabase } from '../../lib/supabase'; 
+import { supabase } from '../../lib/supabase';
 import { motion, AnimatePresence, useMotionValue, animate as fmAnimate } from 'framer-motion';
 import { Html5Qrcode } from 'html5-qrcode';
 
@@ -81,7 +81,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
   const [isDiscountDrawerOpen, setIsDiscountDrawerOpen] = useState(false);
   const [discountState, setDiscountState] = useState<'initial' | 'spinning' | 'revealed' | 'applied'>('initial');
   const [tickerValue, setTickerValue] = useState<number>(0);
-  const spinIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
   const hapticIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Slot reel motion value
@@ -152,7 +152,6 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
 
     loadCartAndStore();
     return () => {
-      if (spinIntervalRef.current) clearInterval(spinIntervalRef.current);
       if (hapticIntervalRef.current) clearInterval(hapticIntervalRef.current);
     };
   }, [safeStoreSlug]);
@@ -270,23 +269,20 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     return base;
   };
 
-  // 🎰 SLOT-MACHINE REEL ANIMATION
+  // 🎰 NEW SLOT-MACHINE REEL ANIMATION
   const startPremiumSpin = () => {
     triggerHaptic(50);
     setDiscountState('spinning');
-    if (spinIntervalRef.current) clearInterval(spinIntervalRef.current);
     if (hapticIntervalRef.current) clearInterval(hapticIntervalRef.current);
 
     const targetValue = discountData?.offeredDiscount || 0;
-    const itemHeight = 48;
-    const containerHeight = 144;
-    const centerOffset = (containerHeight - itemHeight) / 2; // 48px
+    const itemHeight = 48; // height of each number
+    const containerHeight = 140; // visible area height
+    const centerOffset = (containerHeight - itemHeight) / 2; // 46px
     const finalPosition = -(targetValue * itemHeight) + centerOffset;
 
-    // Start from a position well above (lower numbers), scroll down to target
-    const startPosition = finalPosition + 600; // Start 600px above target
-
-    // Set initial position immediately
+    // Start from a position well above
+    const startPosition = finalPosition + 600;
     reelY.set(startPosition);
 
     // Light haptic ticks during spin
@@ -295,16 +291,17 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     }, 150);
 
     // Animate the reel
-    const controls = fmAnimate(reelY, finalPosition, {
+    fmAnimate(reelY, finalPosition, {
       duration: 1.5,
-      ease: [0.22, 1, 0.36, 1], // cubic-bezier ease-out
+      ease: [0.22, 1, 0.36, 1], // ease-out cubic
       onComplete: () => {
         if (hapticIntervalRef.current) clearInterval(hapticIntervalRef.current);
+        // Set final value
         setTickerValue(targetValue);
         setDiscountState('revealed');
-        triggerHaptic(60); // Strong snap haptic
+        triggerHaptic(60);
 
-        // Quick settle bounce
+        // Slight bounce
         fmAnimate(reelY, finalPosition - 4, {
           duration: 0.15,
           ease: 'easeOut',
@@ -329,10 +326,10 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
   const displayName = storeData?.store_name || storeData?.name || 'Premium Store';
   const displayInitials = displayName.split(' ').filter(Boolean).map((w: string) => w).join('').substring(0, 2).toUpperCase();
 
-  // Generate reel numbers 0–40
-  const reelNumbers = Array.from({ length: 41 }, (_, i) => i);
+  // Reel data
+  const reelNumbers = Array.from({ length: 41 }, (_, i) => i); // 0 to 40
   const itemHeight = 48;
-  const containerHeight = 144;
+  const containerHeight = 140;
   const targetValue = discountData?.offeredDiscount || 0;
   const centerOffset = (containerHeight - itemHeight) / 2;
   const settledPosition = -(targetValue * itemHeight) + centerOffset;
@@ -429,7 +426,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         </motion.div>
       )}
 
-      {/* 🎰 SLOT-MACHINE PRICE OPTIMIZATION DRAWER */}
+      {/* 🎰 COMPLETELY NEW SLOT-MACHINE PRICE OPTIMIZATION DRAWER */}
       <AnimatePresence>
         {isDiscountDrawerOpen && (
           <>
@@ -447,7 +444,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
               transition={{ type: "spring", damping: 28, stiffness: 200 }}
               className="fixed bottom-0 left-0 right-0 z-50 bg-[#0A0A0A] border-t border-white/10 rounded-t-[3rem] shadow-[0_-30px_80px_rgba(0,0,0,0.9)] flex flex-col items-center pt-8 pb-10 px-6 overflow-hidden"
             >
-              {/* Close Button (only when not animating) */}
+              {/* Close Button */}
               {(discountState === 'initial' || discountState === 'applied') && (
                 <button
                   onClick={() => setIsDiscountDrawerOpen(false)}
@@ -457,49 +454,43 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                 </button>
               )}
 
-              {/* ── SLOT REEL DISPLAY ── */}
-              <div className="relative w-full flex flex-col items-center mb-10 mt-6">
-                {/* Reel container */}
+              {/* ── SLOT REEL (CLEAN) ── */}
+              <div className="relative flex flex-col items-center mb-8 mt-4 w-full">
                 <div
-                  className="relative w-40 overflow-hidden rounded-2xl border border-white/10 shadow-inner"
+                  className="relative overflow-hidden rounded-2xl border border-white/10"
                   style={{
+                    width: 160,
                     height: containerHeight,
                     backgroundColor: '#111',
-                    boxShadow: discountState !== 'initial'
-                      ? `0 0 60px ${themeColor}15, inset 0 0 30px rgba(0,0,0,0.5)`
-                      : 'inset 0 0 30px rgba(0,0,0,0.5)',
+                    boxShadow: 'inset 0 0 30px rgba(0,0,0,0.6)',
                   }}
                 >
                   {/* Top gradient mask */}
                   <div
                     className="absolute top-0 left-0 right-0 z-10 pointer-events-none"
-                    style={{
-                      height: 48,
-                      background: `linear-gradient(to bottom, #111, transparent)`,
-                    }}
+                    style={{ height: 48, background: 'linear-gradient(to bottom, #111, transparent)' }}
                   />
                   {/* Bottom gradient mask */}
                   <div
                     className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none"
-                    style={{
-                      height: 48,
-                      background: `linear-gradient(to top, #111, transparent)`,
-                    }}
+                    style={{ height: 48, background: 'linear-gradient(to top, #111, transparent)' }}
                   />
 
-                  {/* Center highlight line */}
-                  <div className="absolute top-1/2 left-0 right-0 h-[48px] -translate-y-1/2 pointer-events-none z-5"
+                  {/* Center highlight */}
+                  <div
+                    className="absolute top-1/2 left-0 right-0 -translate-y-1/2 pointer-events-none"
                     style={{
-                      background: `linear-gradient(to bottom, ${themeColor}05, ${themeColor}10, ${themeColor}05)`,
+                      height: 48,
+                      background: `linear-gradient(to bottom, ${themeColor}03, ${themeColor}08, ${themeColor}03)`,
                       borderTop: `1px solid ${themeColor}15`,
                       borderBottom: `1px solid ${themeColor}15`,
                     }}
                   />
 
-                  {/* Reel strip */}
+                  {/* Reel strip (only visible when not initial) */}
                   {discountState === 'initial' ? (
                     <div className="w-full h-full flex items-center justify-center">
-                      <Sparkles className="w-10 h-10" style={{ color: themeColor, opacity: 0.6 }} />
+                      <Sparkles className="w-10 h-10 opacity-40" style={{ color: themeColor }} />
                     </div>
                   ) : (
                     <motion.div
@@ -549,49 +540,29 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
               </div>
 
               {/* ── TITLE & DESCRIPTION ── */}
-              <div className="text-center w-full mb-10 h-16 flex items-center justify-center">
+              <div className="text-center w-full mb-8 h-16 flex items-center justify-center">
                 <AnimatePresence mode="wait">
                   {discountState === 'initial' && (
-                    <motion.div
-                      key="initial"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                    >
-                      <h3 className="text-2xl font-semibold mb-1 text-white">Check for a better price</h3>
+                    <motion.div key="initial" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                      <h3 className="text-2xl font-semibold mb-1">Check for a better price</h3>
                       <p className="text-sm text-zinc-400">Takes a second</p>
                     </motion.div>
                   )}
                   {discountState === 'spinning' && (
-                    <motion.div
-                      key="spinning"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                    >
-                      <h3 className="text-2xl font-semibold mb-1 text-white">Evaluating your cart</h3>
+                    <motion.div key="spinning" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                      <h3 className="text-2xl font-semibold mb-1">Evaluating your cart</h3>
                       <p className="text-sm text-zinc-400">Finding the best possible price</p>
                     </motion.div>
                   )}
                   {discountState === 'revealed' && (
-                    <motion.div
-                      key="revealed"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                    >
-                      <h3 className="text-2xl font-semibold mb-1 text-white">Better price found</h3>
+                    <motion.div key="revealed" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                      <h3 className="text-2xl font-semibold mb-1">Better price found</h3>
                       <p className="text-sm text-zinc-400">This is your optimized price</p>
                     </motion.div>
                   )}
                   {discountState === 'applied' && (
-                    <motion.div
-                      key="applied"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                    >
-                      <h3 className="text-2xl font-semibold mb-1 text-white">Applied to your total</h3>
+                    <motion.div key="applied" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                      <h3 className="text-2xl font-semibold mb-1">Applied to your total</h3>
                       <p className="text-sm text-zinc-400">You saved {discountData?.offeredDiscount}% on this order</p>
                     </motion.div>
                   )}
@@ -599,14 +570,13 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
               </div>
 
               {/* ── BILL & ACTION ── */}
-              <div className="w-full bg-[#111] rounded-[2rem] p-6 border border-white/5 relative overflow-hidden flex items-center justify-between shadow-inner">
-                {/* Bill Section */}
-                <div className="flex flex-col relative z-10">
+              <div className="w-full bg-[#111] rounded-[2rem] p-6 border border-white/5 flex items-center justify-between shadow-inner">
+                <div className="flex flex-col">
                   <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 mb-1">Total Bill</span>
                   <div className="flex items-end gap-3">
                     <AnimatePresence>
                       {discountState === 'applied' && (
-                        <motion.span 
+                        <motion.span
                           initial={{ opacity: 0, width: 0 }}
                           animate={{ opacity: 1, width: 'auto' }}
                           transition={{ duration: 0.4, ease: "easeOut" }}
@@ -628,11 +598,10 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                   </div>
                 </div>
 
-                {/* Action Button */}
-                <div className="relative z-10">
+                <div>
                   <AnimatePresence mode="wait">
                     {discountState === 'initial' && (
-                      <motion.button 
+                      <motion.button
                         key="btn-reveal"
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
@@ -645,29 +614,15 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                       </motion.button>
                     )}
                     {discountState === 'spinning' && (
-                      <motion.div
-                        key="btn-loading"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="px-8 py-5 flex items-center gap-2"
-                      >
+                      <motion.div key="btn-spinning" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="px-8 py-5 flex items-center gap-2">
                         <Loader2 className="w-5 h-5 animate-spin text-zinc-400" />
                       </motion.div>
                     )}
                     {discountState === 'revealed' && (
-                      <motion.div
-                        key="btn-wait"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="px-8 py-5 flex items-center gap-2"
-                      >
-                        <Loader2 className="w-5 h-5 animate-spin text-zinc-400" />
-                      </motion.div>
+                      <motion.div key="btn-revealed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="px-8 py-5" />
                     )}
                     {discountState === 'applied' && (
-                      <motion.button 
+                      <motion.button
                         key="btn-continue"
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
