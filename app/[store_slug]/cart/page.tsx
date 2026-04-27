@@ -2,10 +2,61 @@
 
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShoppingBag, Loader2, Trash2, QrCode, CreditCard, Store, ChevronLeft, X, ShieldCheck, Smartphone, CheckCircle2, Send, AlertCircle } from 'lucide-react';
+import { ShoppingBag, Loader2, Trash2, QrCode, CreditCard, Store, ChevronLeft, X, ShieldCheck, Smartphone, CheckCircle2, Send, AlertCircle, Sparkles } from 'lucide-react';
 import { supabase } from '../../lib/supabase'; 
 import { motion, AnimatePresence } from 'framer-motion';
 import { Html5Qrcode } from 'html5-qrcode';
+
+// ⚙️ THE GOD LEVEL DISCOUNT ENGINE (Injected directly for bulletproof execution)
+function calculateGodLevelDiscount(signals: { productScans: number; productSales: number; daysInInventory: number; isNewCustomer: boolean; cartValue: number; isSlowHour: boolean; }) {
+  let score = 0;
+  const conversionRate = signals.productScans === 0 ? 1 : signals.productSales / signals.productScans;
+  
+  if (signals.productScans > 3 && signals.productSales === 0) score += 4;
+  else if (conversionRate < 0.2) score += 3;
+  else if (conversionRate > 0.5) score -= 3;
+
+  if (signals.daysInInventory > 60) score += 3;
+  else if (signals.daysInInventory > 30) score += 1;
+
+  if (signals.isNewCustomer) score += 2;
+
+  if (signals.cartValue > 10000) score -= 2;
+  if (signals.isSlowHour) score += 1;
+
+  if (conversionRate >= 0.7 && signals.productSales > 5) {
+    return { shouldShow: false, score, offeredDiscount: 0, message: "Fast moving item." };
+  }
+
+  const pickWeighted = (options: { value: number; weight: number }[]) => {
+    const totalWeight = options.reduce((acc, curr) => acc + curr.weight, 0);
+    let random = Math.random() * totalWeight;
+    for (const option of options) {
+      if (random < option.weight) return option.value;
+      random -= option.weight;
+    }
+    return options[0].value;
+  };
+
+  let offeredDiscount = 0;
+  let shouldShow = false;
+
+  if (score <= 2) {
+    shouldShow = false;
+  } else if (score >= 3 && score <= 5) {
+    shouldShow = true;
+    offeredDiscount = pickWeighted([{ value: 5, weight: 60 }, { value: 8, weight: 30 }, { value: 10, weight: 10 }]);
+  } else if (score >= 6 && score <= 8) {
+    shouldShow = true;
+    offeredDiscount = pickWeighted([{ value: 12, weight: 60 }, { value: 15, weight: 30 }, { value: 20, weight: 10 }]);
+  } else if (score >= 9) {
+    shouldShow = true;
+    offeredDiscount = pickWeighted([{ value: 25, weight: 60 }, { value: 30, weight: 30 }, { value: 35, weight: 10 }]);
+  }
+
+  return { shouldShow, score, offeredDiscount };
+}
+
 
 export default function CartPage({ params }: { params: Promise<{ store_slug: string }> }) {
   const router = useRouter();
@@ -25,6 +76,11 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
   const [duplicateTag, setDuplicateTag] = useState<string | null>(null);
   const [customAlert, setCustomAlert] = useState<{title: string, message: string, isError: boolean} | null>(null);
 
+  // 🎲 DISCOUNT ENGINE STATES
+  const [discountData, setDiscountData] = useState<{shouldShow: boolean, offeredDiscount: number} | null>(null);
+  const [discountState, setDiscountState] = useState<'hidden' | 'available' | 'spinning' | 'applied'>('hidden');
+  const [tickerValue, setTickerValue] = useState<number>(0);
+
   const safeStoreSlug = decodeURIComponent(store_slug || '').toLowerCase().trim();
 
   useEffect(() => {
@@ -32,26 +88,70 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
 
     async function loadCartAndStore() {
       try {
-        // 🔥 FIX 1: Fetching all columns to ensure 'name' or 'store_name' both are captured
         const { data: store, error: storeError } = await supabase
           .from('stores')
           .select('*') 
           .ilike('slug', safeStoreSlug)
           .single();
 
-        if (storeError || !store) {
-          console.error("Store not found");
-          setLoading(false);
-          return;
-        }
+        if (storeError || !store) return;
         setStoreData(store);
 
         const cartKey = `cart_${safeStoreSlug}`;
         const savedCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
         setCartItems(savedCart);
 
+        // 🔥 INTELLIGENCE LAYER: Evaluate Cart for Discounts
+        if (savedCart.length > 0) {
+          const productIds = savedCart.map((i: any) => i.product_id);
+          
+          // Try to fetch live metrics (safely falls back if columns missing)
+          const { data: liveProducts, error } = await supabase
+           .from('products')
+           .select('id, scan_count, created_at')
+           .in('id', productIds);
+
+          if (error) {
+              console.error(error);
+              } 
+
+          let maxScans = 0;
+          let oldestDays = 0;
+
+          if (liveProducts && liveProducts.length > 0) {
+            liveProducts.forEach(p => {
+              if (p.scan_count && p.scan_count > maxScans) maxScans = p.scan_count;
+              if (p.created_at) {
+                const days = (Date.now() - new Date(p.created_at).getTime()) / (1000 * 60 * 60 * 24);
+                if (days > oldestDays) oldestDays = days;
+              }
+            });
+          }
+
+          // Gather Context Signals
+          const isNewCustomer = localStorage.getItem('has_bought_before') !== 'true';
+          const currentHour = new Date().getHours();
+          const isSlowHour = currentHour < 12 || (currentHour >= 14 && currentHour <= 17);
+          const rawCartValue = savedCart.reduce((total: number, item: any) => total + (Number(item.price) || 0), 0);
+
+          // Run Engine
+          const engineResult = calculateGodLevelDiscount({
+            productScans: maxScans,
+            productSales: 0, 
+            daysInInventory: oldestDays,
+            isNewCustomer,
+            cartValue: rawCartValue,
+            isSlowHour
+          });
+
+          if (engineResult.shouldShow && engineResult.offeredDiscount > 0) {
+            setDiscountData(engineResult);
+            setDiscountState('available');
+          }
+        }
+
       } catch (err: any) {
-        console.error("Error loading cart:", err.message);
+        console.error("Initialization Error:", err.message);
       } finally {
         setLoading(false);
       }
@@ -89,10 +189,8 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
               });
             }
           },
-          (errorMessage: any) => { /* Ignore background noise */ }
-        ).catch((err: any) => {
-          console.error("Camera error:", err);
-        });
+          (errorMessage: any) => { }
+        ).catch(console.error);
       }, 100);
     }
 
@@ -109,15 +207,13 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     setCartItems(updatedCart);
     localStorage.setItem(cartKey, JSON.stringify(updatedCart));
 
+    // If cart is empty, hide discount
+    if (updatedCart.length === 0) setDiscountState('hidden');
+
     if (storeData?.id) {
       try {
-        await supabase.from('qr_tags')
-          .update({ status: 'active' })
-          .eq('id', tagIdToRemove)
-          .eq('store_id', storeData.id); 
-      } catch (err) {
-        console.error("Failed to release tag", err);
-      }
+        await supabase.from('qr_tags').update({ status: 'active' }).eq('id', tagIdToRemove).eq('store_id', storeData.id); 
+      } catch (err) {}
     }
   };
 
@@ -181,50 +277,60 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
 
           const purchasedTagIds = cartItems.map(item => item.tag_id);
           if (purchasedTagIds.length > 0) {
-            await supabase.from('qr_tags')
-              .update({ status: 'sold' })
-              .in('id', purchasedTagIds)
-              .eq('store_id', storeData.id); 
+            await supabase.from('qr_tags').update({ status: 'sold' }).in('id', purchasedTagIds).eq('store_id', storeData.id); 
           }
           
           localStorage.removeItem(`cart_${safeStoreSlug}`);
+          localStorage.setItem('has_bought_before', 'true'); // Flag them as repeat for future
           setIsCheckoutOpen(false); 
           router.push(`/${safeStoreSlug}/success/${cartId}`);
 
         } else if (saleData?.payment_status === 'rejected') {
           clearInterval(checkPaymentStatus);
-          setCustomAlert({
-            title: 'Payment Rejected',
-            message: 'Your payment request was rejected by the store counter. You can try again.',
-            isError: true
-          });
+          setCustomAlert({ title: 'Payment Rejected', message: 'Your payment request was rejected by the store counter. You can try again.', isError: true });
           setCartId(`CART${Math.floor(1000 + Math.random() * 9000)}`);
           setCheckoutStep('payment'); 
         }
       }, 2000); 
 
     } catch (error) {
-      console.error("Order creation failed:", error);
       setCustomAlert({ title: 'Network Error', message: 'Failed to process checkout. Please try again.', isError: true });
       setCheckoutStep('payment'); 
     }
   };
 
+  const getBaseTotal = () => cartItems.reduce((total, item) => total + (Number(item.price) || 0), 0);
+  
   const calculateTotal = () => {
-    return cartItems.reduce((total, item) => total + (Number(item.price) || 0), 0);
+    const base = getBaseTotal();
+    if (discountState === 'applied' && discountData) {
+      return Math.floor(base * (1 - discountData.offeredDiscount / 100));
+    }
+    return base;
+  };
+
+  // 🎲 THE WHEEL TRIGGER LOGIC
+  const startSpin = () => {
+    setDiscountState('spinning');
+    let ticks = 0;
+    const tickOptions = [5, 8, 10];
+    
+    const interval = setInterval(() => {
+      setTickerValue(tickOptions[Math.floor(Math.random() * tickOptions.length)]);
+      ticks++;
+      
+      if (ticks > 25) { // 2.5 seconds of fake suspense
+        clearInterval(interval);
+        setTickerValue(discountData?.offeredDiscount || 0);
+        setDiscountState('applied');
+      }
+    }, 100);
   };
 
   const themeColor = storeData?.theme_color || '#10b981';
   
-  // 🔥 FIX 2: Bulletproof Name & Initials Extraction
   const displayName = storeData?.store_name || storeData?.name || 'Premium Store';
-  const displayInitials = displayName
-    .split(' ')
-    .filter(Boolean)
-    .map((word: string) => word) // Added to extract only the first letter of each word
-    .join('')
-    .substring(0, 2)
-    .toUpperCase();
+  const displayInitials = displayName.split(' ').filter(Boolean).map((w: string) => w).join('').substring(0, 2).toUpperCase();
 
   if (loading) {
     return (
@@ -237,13 +343,13 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
   }
 
   return (
-    <main className="min-h-screen bg-[#050505] text-white flex flex-col relative font-sans selection:bg-white/10 pb-40">
+    <main className="min-h-screen bg-[#050505] text-white flex flex-col relative font-sans selection:bg-white/10 pb-48">
       
       <motion.header 
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
-        className="sticky top-0 z-50 bg-[#050505]/80 backdrop-blur-xl border-b border-white/5 px-6 py-4 flex items-center justify-between"
+        className="sticky top-0 z-40 bg-[#050505]/80 backdrop-blur-xl border-b border-white/5 px-6 py-4 flex items-center justify-between"
       >
         <button onClick={() => router.back()} className="p-2 -ml-2 rounded-full hover:bg-white/10 transition-colors">
           <ChevronLeft className="w-5 h-5 text-zinc-400" />
@@ -279,13 +385,13 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         <p className="text-sm text-zinc-500 mt-3 font-medium">Review your items before secure checkout.</p>
       </motion.div>
 
-      <div className="px-6 flex flex-col gap-5">
+      <div className="px-6 flex flex-col gap-4">
         <AnimatePresence>
           {cartItems.length === 0 ? (
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="flex flex-col items-center justify-center text-center mt-12 p-10 bg-white/[0.02] rounded-[2rem] border border-white/5"
+              className="flex flex-col items-center justify-center text-center mt-12 p-10 bg-white/[0.02] rounded-[2.5rem] border border-white/5"
             >
               <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6 shadow-[0_0_50px_rgba(255,255,255,0.05)]" style={{ backgroundColor: `${themeColor}15` }}>
                 <ShoppingBag className="w-8 h-8" style={{ color: themeColor }} />
@@ -346,6 +452,68 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         </AnimatePresence>
       </div>
 
+      {/* 🎁 THE CALCULATED RANDOMNESS (RIGGED CASINO) TRIGGER */}
+      <AnimatePresence>
+        {(discountState === 'available' || discountState === 'spinning') && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="mx-6 mt-6 p-1 rounded-[2rem] bg-gradient-to-r p-[1px]"
+            style={{ backgroundImage: `linear-gradient(to right, transparent, ${themeColor}50, transparent)` }}
+          >
+            <div className="bg-[#111] rounded-[2rem] p-6 flex flex-col items-center text-center relative overflow-hidden shadow-[0_0_40px_rgba(0,0,0,0.8)]">
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-white/5 to-transparent pointer-events-none" />
+              
+              <div className="w-12 h-12 rounded-full mb-4 flex items-center justify-center shadow-[0_0_20px_rgba(255,255,255,0.1)]" style={{ backgroundColor: `${themeColor}15` }}>
+                <Sparkles className="w-5 h-5" style={{ color: themeColor }} />
+              </div>
+              
+              <h3 className="text-xl font-black mb-1">Unlock Mystery Offer</h3>
+              <p className="text-xs text-zinc-400 mb-6 px-4">You have a hidden offer waiting for this cart. Tap to reveal your discount.</p>
+
+              {discountState === 'available' ? (
+                <button 
+                  onClick={startSpin}
+                  className="w-full py-4 rounded-full font-black text-black active:scale-95 transition-all shadow-lg"
+                  style={{ backgroundColor: themeColor }}
+                >
+                  Reveal Offer
+                </button>
+              ) : (
+                <div className="w-full py-4 rounded-full font-black text-white bg-black border border-white/10 flex items-center justify-center gap-1 font-mono text-2xl overflow-hidden">
+                  <motion.div
+                    animate={{ y: [0, -10, 10, 0] }}
+                    transition={{ duration: 0.1, repeat: Infinity }}
+                  >
+                    {tickerValue}
+                  </motion.div>
+                  <span>%</span>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        {discountState === 'applied' && discountData && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="mx-6 mt-6 p-5 rounded-[2rem] border border-white/10 flex items-center justify-between"
+            style={{ backgroundColor: `${themeColor}10` }}
+          >
+            <div>
+              <p className="text-[10px] uppercase font-black tracking-widest text-zinc-400 mb-1">Offer Applied</p>
+              <p className="text-2xl font-black" style={{ color: themeColor }}>{discountData.offeredDiscount}% OFF</p>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-[#111] border border-white/10 flex items-center justify-center">
+              <CheckCircle2 className="w-5 h-5" style={{ color: themeColor }} />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* FIXED CHECKOUT BOTTOM BAR */}
       {cartItems.length > 0 && !isCheckoutOpen && (
         <motion.div 
           initial={{ y: 100, opacity: 0 }}
@@ -363,9 +531,16 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
               <QrCode className="w-7 h-7 text-black" strokeWidth={2.5} />
             </button>
             
-            <div className="flex flex-col items-center justify-center">
+            <div className="flex flex-col items-center justify-center px-4">
               <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-[0.2em] mb-0.5">Grand Total</span>
-              <span className="text-2xl font-black text-white leading-none tracking-tight">₹{calculateTotal()}</span>
+              {discountState === 'applied' ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-zinc-500 line-through decoration-red-500/50">₹{getBaseTotal()}</span>
+                  <span className="text-2xl font-black text-white leading-none tracking-tight">₹{calculateTotal()}</span>
+                </div>
+              ) : (
+                <span className="text-2xl font-black text-white leading-none tracking-tight">₹{calculateTotal()}</span>
+              )}
             </div>
             
             <button 
@@ -383,15 +558,10 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
       <AnimatePresence>
         {isScannerOpen && (
           <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center p-6"
           >
-            <button 
-              onClick={() => setIsScannerOpen(false)}
-              className="absolute top-8 right-8 p-3 bg-white/10 rounded-full text-white z-50"
-            >
+            <button onClick={() => setIsScannerOpen(false)} className="absolute top-8 right-8 p-3 bg-white/10 rounded-full text-white z-50">
               <X className="w-6 h-6" />
             </button>
 
@@ -400,9 +570,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
               <div className="absolute inset-10 border-2 border-white/10 rounded-2xl pointer-events-none animate-pulse"></div>
             </div>
             
-            <p className="mt-8 text-zinc-400 font-mono text-xs tracking-widest uppercase">
-              Align QR Code inside the frame
-            </p>
+            <p className="mt-8 text-zinc-400 font-mono text-xs tracking-widest uppercase">Align QR Code inside the frame</p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -411,15 +579,11 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
       <AnimatePresence>
         {duplicateTag && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-6"
           >
             <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0 }}
               className="bg-[#111] border border-white/10 rounded-[2.5rem] p-8 w-full max-w-xs shadow-[0_30px_60px_rgba(0,0,0,0.9)] flex flex-col items-center text-center relative overflow-hidden"
             >
               <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mb-6 border border-white/10 relative">
@@ -449,15 +613,11 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
       <AnimatePresence>
         {customAlert && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-6"
           >
             <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0 }}
               className="bg-[#111] border border-white/10 rounded-[2.5rem] p-8 w-full max-w-xs shadow-[0_30px_60px_rgba(0,0,0,0.9)] flex flex-col items-center text-center relative overflow-hidden"
             >
               <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-6 border ${customAlert.isError ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-white/5 border-white/10 text-white'}`}>
@@ -483,17 +643,13 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         {isCheckoutOpen && (
           <>
             <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => checkoutStep !== 'polling' && setIsCheckoutOpen(false)}
               className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
             />
 
             <motion.div 
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
+              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
               className="fixed bottom-0 left-0 right-0 z-50 bg-[#0A0A0A] border-t border-white/10 rounded-t-[2.5rem] p-6 shadow-[0_-20px_60px_rgba(0,0,0,0.8)]"
             >
@@ -516,9 +672,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                     <div className="relative">
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-zinc-400">+91</span>
                       <input 
-                        type="tel" 
-                        maxLength={10}
-                        value={whatsappNumber}
+                        type="tel" maxLength={10} value={whatsappNumber}
                         onChange={(e) => setWhatsappNumber(e.target.value.replace(/\D/g, ''))}
                         placeholder="WhatsApp Number"
                         className="w-full bg-[#141414] border border-white/10 rounded-2xl py-4 pl-14 pr-4 font-black text-lg focus:outline-none focus:ring-2 transition-all placeholder:font-medium placeholder:text-zinc-600"
@@ -527,8 +681,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                       />
                     </div>
                     <button 
-                      type="submit"
-                      disabled={whatsappNumber.length !== 10}
+                      type="submit" disabled={whatsappNumber.length !== 10}
                       className="w-full py-4 rounded-2xl font-black text-black flex justify-center items-center gap-2 mt-2 disabled:opacity-50 transition-all"
                       style={{ backgroundColor: themeColor, boxShadow: whatsappNumber.length === 10 ? `0 10px 30px -10px ${themeColor}` : 'none' }}
                     >
