@@ -7,7 +7,7 @@ import { supabase } from '../../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Html5Qrcode } from 'html5-qrcode';
 
-// ⚙️ THE GOD LEVEL DISCOUNT ENGINE
+// ⚙️ THE GOD LEVEL DISCOUNT ENGINE (V2 - Fixed Types & Guaranteed Dopamine)
 function calculateGodLevelDiscount(signals: { productScans: number; productSales: number; daysInInventory: number; isNewCustomer: boolean; cartValue: number; isSlowHour: boolean; }) {
   let score = 0;
   const conversionRate = signals.productScans === 0 ? 1 : signals.productSales / signals.productScans;
@@ -24,41 +24,62 @@ function calculateGodLevelDiscount(signals: { productScans: number; productSales
   if (signals.cartValue > 10000) score -= 2;
   if (signals.isSlowHour) score += 1;
 
+  // Always show the wheel for dopamine, but adjust the score if it's a fast-moving item.
   if (conversionRate >= 0.7 && signals.productSales > 5) {
-    return { shouldShow: false, score, offeredDiscount: 0, message: "Fast moving item." };
+      score = 0; // Force into the lowest bracket instead of hiding
   }
 
-  const pickWeighted = (options: { value: number; weight: number }[]) => {
+  type DiscountOption = { value: number; weight: number };
+
+  const pickWeighted = (options: DiscountOption[]): number => {
     const totalWeight = options.reduce((acc, curr) => acc + curr.weight, 0);
     let random = Math.random() * totalWeight;
     for (const option of options) {
       if (random < option.weight) return option.value;
       random -= option.weight;
     }
-    return options[0].value;
+    // Fallback to the first option's value to ensure a valid number is returned.
+    return options?.[0]?.value ?? 0; 
   };
 
   let offeredDiscount = 0;
-  let shouldShow = false;
+  const shouldShow = true; // 🔥 ALWAYS SHOW FOR DOPAMINE
 
   if (score <= 2) {
-    shouldShow = false;
+    // Bucket 1: Score 0-2 (The "Better Luck" Trap - Fast moving / frequent buyer)
+    offeredDiscount = pickWeighted([
+        { value: 0, weight: 80 },  // 80% chance of no discount (Better luck)
+        { value: 5, weight: 20 }   // 20% chance of a tiny 5% to keep hope alive
+    ]);
   } else if (score >= 3 && score <= 5) {
-    shouldShow = true;
-    offeredDiscount = pickWeighted([{ value: 5, weight: 60 }, { value: 8, weight: 30 }, { value: 10, weight: 10 }]);
+    // Bucket 2: Score 3-5 (Small Sweetener)
+    offeredDiscount = pickWeighted([
+        { value: 5, weight: 60 }, 
+        { value: 8, weight: 30 }, 
+        { value: 10, weight: 10 }
+    ]);
   } else if (score >= 6 && score <= 8) {
-    shouldShow = true;
-    offeredDiscount = pickWeighted([{ value: 12, weight: 60 }, { value: 15, weight: 30 }, { value: 20, weight: 10 }]);
+    // Bucket 3: Score 6-8 (Mid-tier push)
+    offeredDiscount = pickWeighted([
+        { value: 12, weight: 60 }, 
+        { value: 15, weight: 30 }, 
+        { value: 20, weight: 10 }
+    ]);
   } else if (score >= 9) {
-    shouldShow = true;
-    offeredDiscount = pickWeighted([{ value: 25, weight: 60 }, { value: 30, weight: 30 }, { value: 35, weight: 10 }]);
+    // Bucket 4: Score 9+ (Dead stock / Desperation push)
+    offeredDiscount = pickWeighted([
+        { value: 25, weight: 60 }, 
+        { value: 30, weight: 30 }, 
+        { value: 35, weight: 10 }
+    ]);
   }
 
   return { shouldShow, score, offeredDiscount };
 }
 
-// 🎰 WHEEL CONFIGURATION (Optimized GPU Array)
+// 🎰 WHEEL CONFIGURATION (Optimized GPU Array) - Added 0 for "Better Luck"
 const WHEEL_SEGMENTS = [
+  { label: '0%', value: 0, color: '#333333' }, // Better Luck segment
   { label: '5%', value: 5, color: '#FF3366' },
   { label: '8%', value: 8, color: '#FF6B35' },
   { label: '10%', value: 10, color: '#FFD740' },
@@ -69,10 +90,8 @@ const WHEEL_SEGMENTS = [
   { label: '30%', value: 30, color: '#FF8C00' },
   { label: '35%', value: 35, color: '#00BFFF' },
   { label: '40%', value: 40, color: '#B44DFF' },
-  { label: '50%', value: 50, color: '#2ECC71' },
-  { label: '60%', value: 60, color: '#E74C3C' }
+  { label: '50%', value: 50, color: '#2ECC71' }
 ];
-
 
 export default function CartPage({ params }: { params: Promise<{ store_slug: string }> }) {
   const router = useRouter();
@@ -123,8 +142,11 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
 
         if (savedCart.length > 0) {
           const productIds = savedCart.map((i: any) => i.product_id);
-          const { data: liveProducts } = await supabase.from('products').select('id, scan_count, created_at').in('id', productIds).catch((err) => { console.error('Fetch products error:', err); return { data: [] }; }); 
+          const { data: liveProducts, error } = await supabase.from('products').select('id, scan_count, created_at').in('id', productIds);if (error) {
+            console.error(error);
+          }
 
+          // Calculate Cart Intelligence (Focusing on the most "dead" item to encourage clearing it)
           let maxScans = 0; let oldestDays = 0;
           if (liveProducts && liveProducts.length > 0) {
             liveProducts.forEach(p => {
@@ -145,13 +167,11 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
             productScans: maxScans, productSales: 0, daysInInventory: oldestDays, isNewCustomer, cartValue: rawCartValue, isSlowHour
           });
 
-          if (engineResult.shouldShow && engineResult.offeredDiscount > 0) {
+          if (engineResult.shouldShow) {
             setDiscountData(engineResult);
           }
         }
-      } catch (err) {
-        console.error('Error loading cart data:', err);
-      } finally { setLoading(false); }
+      } catch (err) { } finally { setLoading(false); }
     }
     loadCartAndStore();
   }, [safeStoreSlug]);
@@ -173,7 +193,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
               }
               html5QrCode.stop().then(() => { setIsScannerOpen(false); router.push(`/${safeStoreSlug}/${scannedTag}`); });
             }
-          }, (err) => { console.warn("QR scanner warning:", err); }
+          }, () => { }
         ).catch(console.error);
       }, 100);
     }
@@ -191,13 +211,11 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         setDiscountState('initial');
     }
     if (storeData?.id) {
-      try { await supabase.from('qr_tags').update({ status: 'active' }).eq('id', tagIdToRemove).eq('store_id', storeData.id); } catch (err) {
-        console.error('Error removing item tag:', err);
-      }
+      try { await supabase.from('qr_tags').update({ status: 'active' }).eq('id', tagIdToRemove).eq('store_id', storeData.id); } catch (err) {}
     }
   };
 
-  // 🔥 PROCEED LOGIC
+  // 🔥 PROCEED LOGIC (Now Always Opens Drawer)
   const handleProceedClick = () => {
     triggerHaptic(50);
     if (discountData?.shouldShow && discountState !== 'applied') {
@@ -255,7 +273,6 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         }
       }, 2000); 
     } catch (error) {
-      console.error('Payment processing error:', error);
       setCustomAlert({ title: 'Network Error', message: 'Failed to process.', isError: true });
       setCheckoutStep('payment'); 
     }
@@ -265,7 +282,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
   
   const calculateTotal = () => {
     const base = getBaseTotal();
-    if (discountState === 'applied' && discountData) {
+    if (discountState === 'applied' && discountData && discountData.offeredDiscount > 0) {
       return Math.floor(base * (1 - discountData.offeredDiscount / 100));
     }
     return base;
@@ -276,47 +293,38 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     triggerHaptic(50);
     setDiscountState('spinning');
     
-    const targetValue = discountData?.offeredDiscount || 5;
+    const targetValue = discountData?.offeredDiscount ?? 0;
     
-    // Find target segment index (safeguard if exact value not found, picks nearest)
     let targetIndex = WHEEL_SEGMENTS.findIndex(s => s.value === targetValue);
     if (targetIndex === -1) targetIndex = 0;
 
-    // Calculate rotation to land exactly on the target segment
-    // Segment angle is 30deg (360/12). Array starts from top-right.
     const segmentAngle = 360 / WHEEL_SEGMENTS.length;
     const centerOffset = segmentAngle / 2;
     const baseAngle = -(targetIndex * segmentAngle + centerOffset);
-    
-    // Add 8 full spins (2880 degrees) for dramatic effect
     const totalSpin = baseAngle - (360 * 8);
 
     setWheelRotation(totalSpin);
 
-    // Sequence Choreography using timeouts for low-end device sync
     setTimeout(() => {
-        triggerHaptic(); // Success lock haptic
+        triggerHaptic(); 
         setDiscountState('revealed');
         
         setTimeout(() => {
             setDiscountState('animating_firecracker');
             
-            // Wait for missile flight time to hit the bill
             setTimeout(() => {
-                triggerHaptic(); // Heavy impact shake
+                triggerHaptic(); 
                 setBillImpact(true);
                 setDiscountState('applied');
                 
-                // Clear the shake effect class after animation
                 setTimeout(() => setBillImpact(false), 500);
             }, 800); 
 
-        }, 1200); // Wait 1.2s on reveal before launching
-    }, 3000); // 3 Seconds wheel spinning
+        }, 1200); 
+    }, 3000); 
   };
 
-  // Generate Conic Gradient for the Wheel
-  const wheelGradient = `conic-gradient(from -90deg, ${WHEEL_SEGMENTS.map((s, i) => `${s.color} ${i * 30}deg ${(i + 1) * 30}deg`).join(', ')})`;
+  const wheelGradient = `conic-gradient(from -90deg, ${WHEEL_SEGMENTS.map((s, i) => `${s.color} ${i * (360/WHEEL_SEGMENTS.length)}deg ${(i + 1) * (360/WHEEL_SEGMENTS.length)}deg`).join(', ')})`;
 
   const themeColor = storeData?.theme_color || '#10b981';
   const displayName = storeData?.store_name || storeData?.name || 'Premium Store';
@@ -368,7 +376,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                 <ShoppingBag className="w-8 h-8" style={{ color: themeColor }} />
               </div>
               <h2 className="text-2xl font-bold mb-2 text-white">Your bag is empty</h2>
-              <p className="text-sm text-zinc-500 mb-8">Scan a product&apos;s QR code in the store to add it to your bag.</p>
+              <p className="text-sm text-zinc-500 mb-8">Scan a product's QR code in the store to add it to your bag.</p>
               <button onClick={() => setIsScannerOpen(true)} className="px-8 py-4 rounded-full font-black text-black flex items-center gap-3 hover:scale-105 active:scale-95 transition-all" style={{ backgroundColor: themeColor, boxShadow: `0 10px 30px -10px ${themeColor}` }}>
                 <QrCode className="w-5 h-5" strokeWidth={2.5} /> Scan Product
               </button>
@@ -420,7 +428,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
           <>
             <motion.div 
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setIsDiscountDrawerOpen(false)} 
+              onClick={() => {}} 
               className="fixed inset-0 z-40 bg-black/80 backdrop-blur-md"
             />
             <motion.div 
@@ -463,7 +471,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                     <div 
                       key={index}
                       className="absolute inset-0 flex justify-center items-start pt-[12%]"
-                      style={{ transform: `rotate(${index * 30 + 15}deg)` }}
+                      style={{ transform: `rotate(${index * (360/WHEEL_SEGMENTS.length) + (360/WHEEL_SEGMENTS.length)/2}deg)` }}
                     >
                        <span className="text-white font-black text-sm sm:text-base drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] transform -rotate-0">
                          {segment.label}
@@ -483,9 +491,9 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                     <motion.div
                       initial={{ opacity: 0, y: 0, x: 0, scale: 0.2 }}
                       animate={{ 
-                      opacity: [0, 1, 0], 
+                        opacity: [0, 1, 1], 
                         y: [0, -40, 220], 
-                      x: 0, 
+                        x: [0, 10, -10], 
                         scale: [0.5, 1.8, 0.8],
                         rotate: [0, 15, -10]
                       }}
@@ -493,7 +501,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                       className="absolute z-50 font-black text-5xl whitespace-nowrap"
                       style={{ color: themeColor, textShadow: `0 0 30px ${themeColor}, 0 0 60px ${themeColor}` }}
                     >
-                      {discountData?.offeredDiscount}% OFF
+                      {discountData?.offeredDiscount === 0 ? 'Better Luck!' : `-${discountData?.offeredDiscount}% OFF`}
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -512,9 +520,14 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                               <h3 className="text-2xl font-black tracking-tight mb-1 animate-pulse" style={{ color: themeColor }}>Calculating Best Price...</h3>
                           </motion.div>
                       )}
-                      {discountState === 'applied' && (
+                      {discountState === 'applied' && discountData?.offeredDiscount !== 0 && (
                           <motion.div key="applied" initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }}>
                               <h3 className="text-3xl font-black tracking-tight mb-1 text-white">Offer Applied!</h3>
+                          </motion.div>
+                      )}
+                      {discountState === 'applied' && discountData?.offeredDiscount === 0 && (
+                          <motion.div key="applied-zero" initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }}>
+                              <h3 className="text-3xl font-black tracking-tight mb-1 text-white">No Discount This Time!</h3>
                           </motion.div>
                       )}
                   </AnimatePresence>
@@ -530,7 +543,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                     <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 mb-1">Total Bill</span>
                     <div className="flex items-end gap-3">
                         <AnimatePresence>
-                            {discountState === 'applied' && (
+                            {discountState === 'applied' && discountData?.offeredDiscount !== 0 && (
                                 <motion.span 
                                     initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} 
                                     className="text-xl font-medium text-zinc-600 line-through decoration-red-500/50"
@@ -540,7 +553,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                             )}
                         </AnimatePresence>
                         <motion.span 
-                            animate={discountState === 'applied' ? { scale: [1, 1.3, 1], color: [themeColor, '#ffffff'] } : {}}
+                            animate={discountState === 'applied' && discountData?.offeredDiscount !== 0 ? { scale: [1, 1.3, 1], color: [themeColor, '#ffffff'] } : {}}
                             transition={{ duration: 0.6 }}
                             className="text-4xl font-black tracking-tight leading-none"
                         >
