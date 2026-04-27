@@ -48,7 +48,6 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
   const { store_slug } = resolvedParams;
   const safeStoreSlug = decodeURIComponent(store_slug || '').toLowerCase().trim();
 
-  /* ── Theme state ── */
   const [isDark, setIsDark] = useState(loadThemeFromStorage);
 
   useLayoutEffect(() => {
@@ -477,7 +476,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
-                  className={`p-5 rounded-[2rem] border transition-all ${
+                  className={`group relative p-5 rounded-[2rem] border transition-all ${
                     (item.status === 'free' || item.status === 'sold')
                       ? `border-dashed ${theme.borderDashed} bg-transparent`
                       : item.status === 'in_cart'
@@ -485,83 +484,120 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
                       : `${theme.card} ${theme.borderLight}`
                   }`}
                 >
-                  {/* Top: Tag ID + Actions */}
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <span
-                        className={`text-[11px] font-semibold tracking-widest uppercase ${
-                          item.status === 'active'
-                            ? 'text-emerald-400'
-                            : item.status === 'in_cart'
-                            ? 'text-amber-400'
-                            : theme.textFaint
-                        }`}
-                        style={item.status === 'active' ? { color: themeColor } : {}}
-                      >
-                        {item.id}
-                      </span>
-                      <h3 className="text-lg font-semibold tracking-tight mt-0.5">
-                        {(item.status === 'active' || item.status === 'in_cart')
-                          ? item.products?.name
-                          : 'Empty Tag'}
-                      </h3>
+                  {/* 🖼️ Product image overlay (RIGHT SIDE) */}
+                  {(item.status === 'active' || item.status === 'in_cart') ? (
+                    item.products?.image_url ? (
+                      <div className="absolute right-0 top-1/2 -translate-y-1/2 w-48 h-48 pointer-events-none overflow-hidden rounded-full">
+                        <img
+                          src={item.products.image_url}
+                          alt=""
+                          className="w-full h-full object-cover rounded-full opacity-30 group-hover:opacity-40 group-hover:scale-105 transition-all duration-500"
+                          style={{
+                            filter: 'blur(2px)',
+                            maskImage: 'linear-gradient(to left, black 60%, transparent 100%)',
+                            WebkitMaskImage: 'linear-gradient(to left, black 60%, transparent 100%)',
+                          }}
+                        />
+                        {/* State tint */}
+                        {item.status === 'active' && (
+                          <div className="absolute inset-0 rounded-full bg-emerald-500/5" />
+                        )}
+                        {item.status === 'in_cart' && (
+                          <div className="absolute inset-0 rounded-full bg-amber-500/5" />
+                        )}
+                      </div>
+                    ) : (
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 w-32 h-32 rounded-full flex items-center justify-center opacity-10">
+                        <Package className="w-20 h-20" />
+                      </div>
+                    )
+                  ) : (
+                    /* Empty tag placeholder */
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 w-32 h-32 rounded-full border-2 border-dashed border-white/10 flex items-center justify-center opacity-20">
+                      <QrCode className="w-10 h-10 text-white/40" />
                     </div>
-                    <div className="flex gap-1.5">
-                      <button
-                        onClick={() => openQrModal(item)}
-                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${pressable} ${theme.secondaryBtn} border ${theme.borderLight}`}
-                      >
-                        <QrCode className="w-4 h-4" />
-                      </button>
-                      {(item.status === 'active' || item.status === 'in_cart') && (
+                  )}
+
+                  {/* Card content (text + actions) */}
+                  <div className="relative z-10">
+                    {/* Top: Tag ID + Actions */}
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <span
+                          className={`text-[11px] font-semibold tracking-widest uppercase ${
+                            item.status === 'active'
+                              ? 'text-emerald-400'
+                              : item.status === 'in_cart'
+                              ? 'text-amber-400'
+                              : theme.textFaint
+                          }`}
+                          style={item.status === 'active' ? { color: themeColor } : {}}
+                        >
+                          {item.id}
+                        </span>
+                        <h3 className="text-lg font-semibold tracking-tight mt-0.5">
+                          {(item.status === 'active' || item.status === 'in_cart')
+                            ? item.products?.name
+                            : 'Empty Tag'}
+                        </h3>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => openQrModal(item)}
+                          className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${pressable} ${theme.secondaryBtn} border ${theme.borderLight}`}
+                        >
+                          <QrCode className="w-4 h-4" />
+                        </button>
+                        {(item.status === 'active' || item.status === 'in_cart') && (
+                          <>
+                            <button
+                              onClick={() => openEditModal(item)}
+                              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${pressable} ${theme.secondaryBtn} border ${theme.borderLight}`}
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleUnbindItem(item.id)}
+                              className="w-10 h-10 bg-red-500/10 text-red-400 rounded-full flex items-center justify-center hover:bg-red-500/20 transition-all"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Bottom: Price + Status / Action */}
+                    <div className="flex items-center justify-between">
+                      {(item.status === 'active' || item.status === 'in_cart') ? (
                         <>
+                          <div className="text-xl font-semibold">₹{item.products?.price}</div>
+                          {item.status === 'in_cart' ? (
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                              <span className="text-[9px] font-semibold uppercase tracking-widest text-amber-400">In Bag</span>
+                            </div>
+                          ) : (
+                            <div
+                              className="text-[9px] font-semibold px-3 py-1.5 rounded-full uppercase tracking-widest"
+                              style={{ backgroundColor: `${themeColor}15`, color: themeColor }}
+                            >
+                              Active
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <span className={`text-xs font-medium ${theme.textFaint}`}>Ready to bind</span>
                           <button
-                            onClick={() => openEditModal(item)}
-                            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${pressable} ${theme.secondaryBtn} border ${theme.borderLight}`}
+                            onClick={() => openAddModalForSpecificTag(item.id)}
+                            className={`px-5 py-2.5 rounded-xl text-xs font-semibold transition-all ${pressable} ${theme.primaryBtn}`}
                           >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleUnbindItem(item.id)}
-                            className="w-10 h-10 bg-red-500/10 text-red-400 rounded-full flex items-center justify-center hover:bg-red-500/20 transition-all"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            Link Item
                           </button>
                         </>
                       )}
                     </div>
-                  </div>
-
-                  {/* Bottom: Price + Status / Action */}
-                  <div className="flex items-center justify-between">
-                    {(item.status === 'active' || item.status === 'in_cart') ? (
-                      <>
-                        <div className="text-xl font-semibold">₹{item.products?.price}</div>
-                        {item.status === 'in_cart' ? (
-                          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                            <span className="text-[9px] font-semibold uppercase tracking-widest text-amber-400">In Bag</span>
-                          </div>
-                        ) : (
-                          <div
-                            className="text-[9px] font-semibold px-3 py-1.5 rounded-full uppercase tracking-widest"
-                            style={{ backgroundColor: `${themeColor}15`, color: themeColor }}
-                          >
-                            Active
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        <span className={`text-xs font-medium ${theme.textFaint}`}>Ready to bind</span>
-                        <button
-                          onClick={() => openAddModalForSpecificTag(item.id)}
-                          className={`px-5 py-2.5 rounded-xl text-xs font-semibold transition-all ${pressable} ${theme.primaryBtn}`}
-                        >
-                          Link Item
-                        </button>
-                      </>
-                    )}
                   </div>
                 </motion.div>
               ))}
@@ -589,7 +625,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         </div>
       </div>
 
-      {/* PRINTABLE SHEET (unchanged except background fix) */}
+      {/* PRINTABLE SHEET (unchanged) */}
       <div className="hidden print:flex bg-white w-full text-black justify-center">
         <style dangerouslySetInnerHTML={{ __html: `
           @media print {
@@ -611,8 +647,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
         </div>
       </div>
 
-      {/* ── MODALS ── */}
-
+      {/* ── MODALS (unchanged, using the same compact style as previous final version) ── */}
       {/* 1. ADD PRODUCT MODAL */}
       <AnimatePresence>
         {isAddModalOpen && (
