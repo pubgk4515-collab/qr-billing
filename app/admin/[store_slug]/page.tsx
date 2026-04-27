@@ -200,7 +200,8 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
         { id: Date.now(), tag: data.id, name: productInfo.name, price: productInfo.price, product_id: productInfo.id },
         ...prev,
       ]);
-    } catch {
+  } catch (err) {
+    console.error('Scan error:', err);
       alert('Network error.');
     } finally {
       setItemFetching(false);
@@ -342,7 +343,8 @@ export default function AdminDashboard({ params }: { params: Promise<{ store_slu
       await handleApprovePayment(order);
       setManualApproveCartId('');
       alert(`Approved ${targetCartId}!`);
-    } catch {
+  } catch (err) {
+    console.error('Approval error:', err);
       alert('Error approving.');
     }
   };

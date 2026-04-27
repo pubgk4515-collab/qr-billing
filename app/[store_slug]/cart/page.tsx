@@ -3,8 +3,8 @@
 import { use, useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ShoppingBag, Loader2, Trash2, QrCode, CreditCard, Store, ChevronLeft, X, ShieldCheck, Smartphone, CheckCircle2, Send, AlertCircle, Sparkles, ChevronRight } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
-import { motion, AnimatePresence, useMotionValue, animate as fmAnimate } from 'framer-motion';
+import { supabase } from '../../lib/supabase'; 
+import { motion, AnimatePresence } from 'framer-motion';
 import { Html5Qrcode } from 'html5-qrcode';
 
 // ⚙️ THE GOD LEVEL DISCOUNT ENGINE
@@ -57,6 +57,22 @@ function calculateGodLevelDiscount(signals: { productScans: number; productSales
   return { shouldShow, score, offeredDiscount };
 }
 
+// 🎰 WHEEL CONFIGURATION (Optimized GPU Array)
+const WHEEL_SEGMENTS = [
+  { label: '5%', value: 5, color: '#FF3366' },
+  { label: '8%', value: 8, color: '#FF6B35' },
+  { label: '10%', value: 10, color: '#FFD740' },
+  { label: '12%', value: 12, color: '#00E5FF' },
+  { label: '15%', value: 15, color: '#7B2FFF' },
+  { label: '20%', value: 20, color: '#00FF88' },
+  { label: '25%', value: 25, color: '#FF1493' },
+  { label: '30%', value: 30, color: '#FF8C00' },
+  { label: '35%', value: 35, color: '#00BFFF' },
+  { label: '40%', value: 40, color: '#B44DFF' },
+  { label: '50%', value: 50, color: '#2ECC71' },
+  { label: '60%', value: 60, color: '#E74C3C' }
+];
+
 
 export default function CartPage({ params }: { params: Promise<{ store_slug: string }> }) {
   const router = useRouter();
@@ -79,17 +95,14 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
   // 🎲 PREMIUM DISCOUNT DRAWER STATES
   const [discountData, setDiscountData] = useState<{shouldShow: boolean, offeredDiscount: number} | null>(null);
   const [isDiscountDrawerOpen, setIsDiscountDrawerOpen] = useState(false);
-  const [discountState, setDiscountState] = useState<'initial' | 'spinning' | 'revealed' | 'applied'>('initial');
-  const [tickerValue, setTickerValue] = useState<number>(0);
   
-  const hapticIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Slot reel motion value
-  const reelY = useMotionValue(0);
+  // Animation Sequence States
+  const [discountState, setDiscountState] = useState<'initial' | 'spinning' | 'revealed' | 'animating_firecracker' | 'applied'>('initial');
+  const [wheelRotation, setWheelRotation] = useState(0);
+  const [billImpact, setBillImpact] = useState(false);
 
   const safeStoreSlug = decodeURIComponent(store_slug || '').toLowerCase().trim();
 
-  // Helper for Haptic Feedback
   const triggerHaptic = (pattern: number | number[] = 50) => {
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
       navigator.vibrate(pattern);
@@ -98,15 +111,9 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
 
   useEffect(() => {
     if (!safeStoreSlug) return;
-
     async function loadCartAndStore() {
       try {
-        const { data: store, error: storeError } = await supabase
-          .from('stores')
-          .select('*') 
-          .ilike('slug', safeStoreSlug)
-          .single();
-
+        const { data: store, error: storeError } = await supabase.from('stores').select('*').ilike('slug', safeStoreSlug).single();
         if (storeError || !store) return;
         setStoreData(store);
 
@@ -116,14 +123,9 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
 
         if (savedCart.length > 0) {
           const productIds = savedCart.map((i: any) => i.product_id);
-          const { data: liveProducts, error } = await supabase.from('products').select('id, scan_count, created_at').in('id', productIds);
-        if (error) {
-        console.error(error);
-        }
+          const { data: liveProducts } = await supabase.from('products').select('id, scan_count, created_at').in('id', productIds).catch((err) => { console.error('Fetch products error:', err); return { data: [] }; }); 
 
-          let maxScans = 0;
-          let oldestDays = 0;
-
+          let maxScans = 0; let oldestDays = 0;
           if (liveProducts && liveProducts.length > 0) {
             liveProducts.forEach(p => {
               if (p.scan_count && p.scan_count > maxScans) maxScans = p.scan_count;
@@ -147,13 +149,11 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
             setDiscountData(engineResult);
           }
         }
-      } catch (err) { } finally { setLoading(false); }
+      } catch (err) {
+        console.error('Error loading cart data:', err);
+      } finally { setLoading(false); }
     }
-
     loadCartAndStore();
-    return () => {
-      if (hapticIntervalRef.current) clearInterval(hapticIntervalRef.current);
-    };
   }, [safeStoreSlug]);
 
   useEffect(() => {
@@ -173,7 +173,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
               }
               html5QrCode.stop().then(() => { setIsScannerOpen(false); router.push(`/${safeStoreSlug}/${scannedTag}`); });
             }
-          }, () => { }
+          }, (err) => { console.warn("QR scanner warning:", err); }
         ).catch(console.error);
       }, 100);
     }
@@ -190,9 +190,10 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         setIsDiscountDrawerOpen(false);
         setDiscountState('initial');
     }
-
     if (storeData?.id) {
-      try { await supabase.from('qr_tags').update({ status: 'active' }).eq('id', tagIdToRemove).eq('store_id', storeData.id); } catch (err) {}
+      try { await supabase.from('qr_tags').update({ status: 'active' }).eq('id', tagIdToRemove).eq('store_id', storeData.id); } catch (err) {
+        console.error('Error removing item tag:', err);
+      }
     }
   };
 
@@ -254,6 +255,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         }
       }, 2000); 
     } catch (error) {
+      console.error('Payment processing error:', error);
       setCustomAlert({ title: 'Network Error', message: 'Failed to process.', isError: true });
       setCheckoutStep('payment'); 
     }
@@ -269,70 +271,56 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     return base;
   };
 
-  // 🎰 NEW SLOT-MACHINE REEL ANIMATION
+  // 🎰 GPU-ACCELERATED WHEEL ANIMATION LOGIC
   const startPremiumSpin = () => {
     triggerHaptic(50);
     setDiscountState('spinning');
-    if (hapticIntervalRef.current) clearInterval(hapticIntervalRef.current);
+    
+    const targetValue = discountData?.offeredDiscount || 5;
+    
+    // Find target segment index (safeguard if exact value not found, picks nearest)
+    let targetIndex = WHEEL_SEGMENTS.findIndex(s => s.value === targetValue);
+    if (targetIndex === -1) targetIndex = 0;
 
-    const targetValue = discountData?.offeredDiscount || 0;
-    const itemHeight = 48; // height of each number
-    const containerHeight = 140; // visible area height
-    const centerOffset = (containerHeight - itemHeight) / 2; // 46px
-    const finalPosition = -(targetValue * itemHeight) + centerOffset;
+    // Calculate rotation to land exactly on the target segment
+    // Segment angle is 30deg (360/12). Array starts from top-right.
+    const segmentAngle = 360 / WHEEL_SEGMENTS.length;
+    const centerOffset = segmentAngle / 2;
+    const baseAngle = -(targetIndex * segmentAngle + centerOffset);
+    
+    // Add 8 full spins (2880 degrees) for dramatic effect
+    const totalSpin = baseAngle - (360 * 8);
 
-    // Start from a position well above
-    const startPosition = finalPosition + 600;
-    reelY.set(startPosition);
+    setWheelRotation(totalSpin);
 
-    // Light haptic ticks during spin
-    hapticIntervalRef.current = setInterval(() => {
-      triggerHaptic(8);
-    }, 150);
-
-    // Animate the reel
-    fmAnimate(reelY, finalPosition, {
-      duration: 1.5,
-      ease: [0.22, 1, 0.36, 1], // ease-out cubic
-      onComplete: () => {
-        if (hapticIntervalRef.current) clearInterval(hapticIntervalRef.current);
-        // Set final value
-        setTickerValue(targetValue);
+    // Sequence Choreography using timeouts for low-end device sync
+    setTimeout(() => {
+        triggerHaptic(); // Success lock haptic
         setDiscountState('revealed');
-        triggerHaptic(60);
-
-        // Slight bounce
-        fmAnimate(reelY, finalPosition - 4, {
-          duration: 0.15,
-          ease: 'easeOut',
-          onComplete: () => {
-            fmAnimate(reelY, finalPosition, {
-              duration: 0.25,
-              ease: [0.22, 1, 0.36, 1],
-            });
-          },
-        });
-
-        // Pause, then apply to bill
+        
         setTimeout(() => {
-          triggerHaptic(100);
-          setDiscountState('applied');
-        }, 900);
-      },
-    });
+            setDiscountState('animating_firecracker');
+            
+            // Wait for missile flight time to hit the bill
+            setTimeout(() => {
+                triggerHaptic(); // Heavy impact shake
+                setBillImpact(true);
+                setDiscountState('applied');
+                
+                // Clear the shake effect class after animation
+                setTimeout(() => setBillImpact(false), 500);
+            }, 800); 
+
+        }, 1200); // Wait 1.2s on reveal before launching
+    }, 3000); // 3 Seconds wheel spinning
   };
+
+  // Generate Conic Gradient for the Wheel
+  const wheelGradient = `conic-gradient(from -90deg, ${WHEEL_SEGMENTS.map((s, i) => `${s.color} ${i * 30}deg ${(i + 1) * 30}deg`).join(', ')})`;
 
   const themeColor = storeData?.theme_color || '#10b981';
   const displayName = storeData?.store_name || storeData?.name || 'Premium Store';
   const displayInitials = displayName.split(' ').filter(Boolean).map((w: string) => w).join('').substring(0, 2).toUpperCase();
-
-  // Reel data
-  const reelNumbers = Array.from({ length: 41 }, (_, i) => i); // 0 to 40
-  const itemHeight = 48;
-  const containerHeight = 140;
-  const targetValue = discountData?.offeredDiscount || 0;
-  const centerOffset = (containerHeight - itemHeight) / 2;
-  const settledPosition = -(targetValue * itemHeight) + centerOffset;
 
   if (loading) {
     return (
@@ -380,7 +368,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                 <ShoppingBag className="w-8 h-8" style={{ color: themeColor }} />
               </div>
               <h2 className="text-2xl font-bold mb-2 text-white">Your bag is empty</h2>
-              <p className="text-sm text-zinc-500 mb-8">Scan a product's QR code in the store to add it to your bag.</p>
+              <p className="text-sm text-zinc-500 mb-8">Scan a product&apos;s QR code in the store to add it to your bag.</p>
               <button onClick={() => setIsScannerOpen(true)} className="px-8 py-4 rounded-full font-black text-black flex items-center gap-3 hover:scale-105 active:scale-95 transition-all" style={{ backgroundColor: themeColor, boxShadow: `0 10px 30px -10px ${themeColor}` }}>
                 <QrCode className="w-5 h-5" strokeWidth={2.5} /> Scan Product
               </button>
@@ -405,7 +393,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         </AnimatePresence>
       </div>
 
-      {/* 🚀 FIXED BOTTOM BAR - PROCEED TO PREMIUM CHECKOUT */}
+      {/* 🚀 FIXED BOTTOM BAR - PROCEED TO CHECKOUT */}
       {cartItems.length > 0 && !isCheckoutOpen && !isDiscountDrawerOpen && (
         <motion.div initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.6, type: "spring", bounce: 0.3 }} className="fixed bottom-6 left-4 right-4 z-40">
           <div className="bg-[#161616]/95 backdrop-blur-2xl border border-white/10 p-3 rounded-[2.5rem] flex items-center justify-between shadow-[0_30px_60px_rgba(0,0,0,0.9),inset_0_1px_0_rgba(255,255,255,0.1)]">
@@ -426,17 +414,13 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         </motion.div>
       )}
 
-      {/* 🎰 COMPLETELY NEW SLOT-MACHINE PRICE OPTIMIZATION DRAWER */}
+      {/* 🎰 LUXURY HTML5 CANVAS-STYLE WHEEL DRAWER */}
       <AnimatePresence>
         {isDiscountDrawerOpen && (
           <>
             <motion.div 
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => {
-                if (discountState === 'initial' || discountState === 'applied') {
-                  setIsDiscountDrawerOpen(false);
-                }
-              }}
+              onClick={() => setIsDiscountDrawerOpen(false)} 
               className="fixed inset-0 z-40 bg-black/80 backdrop-blur-md"
             />
             <motion.div 
@@ -444,198 +428,158 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
               transition={{ type: "spring", damping: 28, stiffness: 200 }}
               className="fixed bottom-0 left-0 right-0 z-50 bg-[#0A0A0A] border-t border-white/10 rounded-t-[3rem] shadow-[0_-30px_80px_rgba(0,0,0,0.9)] flex flex-col items-center pt-8 pb-10 px-6 overflow-hidden"
             >
-              {/* Close Button */}
               {(discountState === 'initial' || discountState === 'applied') && (
-                <button
-                  onClick={() => setIsDiscountDrawerOpen(false)}
-                  className="absolute top-6 right-6 p-3 bg-white/5 rounded-full text-white z-50 active:scale-90 transition-all"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                  <button onClick={() => setIsDiscountDrawerOpen(false)} className="absolute top-6 right-6 p-3 bg-white/5 rounded-full text-white z-50 active:scale-90 transition-all">
+                    <X className="w-5 h-5" />
+                  </button>
               )}
 
-              {/* ── SLOT REEL (CLEAN) ── */}
-              <div className="relative flex flex-col items-center mb-8 mt-4 w-full">
-                <div
-                  className="relative overflow-hidden rounded-2xl border border-white/10"
-                  style={{
-                    width: 160,
-                    height: containerHeight,
-                    backgroundColor: '#111',
-                    boxShadow: 'inset 0 0 30px rgba(0,0,0,0.6)',
-                  }}
-                >
-                  {/* Top gradient mask */}
-                  <div
-                    className="absolute top-0 left-0 right-0 z-10 pointer-events-none"
-                    style={{ height: 48, background: 'linear-gradient(to bottom, #111, transparent)' }}
-                  />
-                  {/* Bottom gradient mask */}
-                  <div
-                    className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none"
-                    style={{ height: 48, background: 'linear-gradient(to top, #111, transparent)' }}
-                  />
-
-                  {/* Center highlight */}
-                  <div
-                    className="absolute top-1/2 left-0 right-0 -translate-y-1/2 pointer-events-none"
-                    style={{
-                      height: 48,
-                      background: `linear-gradient(to bottom, ${themeColor}03, ${themeColor}08, ${themeColor}03)`,
-                      borderTop: `1px solid ${themeColor}15`,
-                      borderBottom: `1px solid ${themeColor}15`,
-                    }}
-                  />
-
-                  {/* Reel strip (only visible when not initial) */}
-                  {discountState === 'initial' ? (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Sparkles className="w-10 h-10 opacity-40" style={{ color: themeColor }} />
-                    </div>
-                  ) : (
-                    <motion.div
-                      style={{
-                        translateY: discountState === 'spinning' ? reelY : settledPosition,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                      }}
-                      animate={
-                        discountState === 'revealed'
-                          ? { translateY: [settledPosition, settledPosition - 4, settledPosition] }
-                          : discountState === 'applied'
-                          ? { translateY: settledPosition }
-                          : undefined
-                      }
-                      transition={
-                        discountState === 'revealed'
-                          ? { duration: 0.4, times: [0, 0.4, 1], ease: [0.22, 1, 0.36, 1] }
-                          : undefined
-                      }
-                    >
-                      {reelNumbers.map((num) => {
-                        const distanceFromTarget = Math.abs(num - targetValue);
-                        const isCenter = num === targetValue;
-                        return (
-                          <div
-                            key={num}
-                            className="flex items-center justify-center font-mono tracking-tighter"
-                            style={{
-                              height: itemHeight,
-                              fontSize: isCenter ? '2.5rem' : distanceFromTarget <= 2 ? '1.5rem' : '1.1rem',
-                              fontWeight: isCenter ? 700 : 500,
-                              color: isCenter ? themeColor : `rgba(255,255,255,${Math.max(0.08, 0.5 - distanceFromTarget * 0.18)})`,
-                              filter: isCenter ? 'none' : `blur(${Math.min(3, distanceFromTarget * 0.8)}px)`,
-                              opacity: isCenter ? 1 : Math.max(0.12, 1 - distanceFromTarget * 0.25),
-                              transition: 'all 0.3s ease',
-                            }}
-                          >
-                            {num}%
-                          </div>
-                        );
-                      })}
-                    </motion.div>
-                  )}
+              {/* WHEEL CONTAINER */}
+              <div className="relative w-[280px] h-[280px] sm:w-[320px] sm:h-[320px] flex items-center justify-center mb-8 mt-2">
+                
+                {/* Pointer / Needle */}
+                <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-20 drop-shadow-[0_0_15px_rgba(255,255,255,0.8)]">
+                  <div className="w-0 h-0 border-l-[16px] border-r-[16px] border-t-[28px] border-l-transparent border-r-transparent border-t-white relative z-10" />
+                  <div className="w-4 h-4 bg-white rounded-full absolute -top-[14px] left-1/2 -translate-x-1/2 shadow-inner" />
                 </div>
-              </div>
 
-              {/* ── TITLE & DESCRIPTION ── */}
-              <div className="text-center w-full mb-8 h-16 flex items-center justify-center">
-                <AnimatePresence mode="wait">
-                  {discountState === 'initial' && (
-                    <motion.div key="initial" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-                      <h3 className="text-2xl font-semibold mb-1">Check for a better price</h3>
-                      <p className="text-sm text-zinc-400">Takes a second</p>
-                    </motion.div>
-                  )}
-                  {discountState === 'spinning' && (
-                    <motion.div key="spinning" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-                      <h3 className="text-2xl font-semibold mb-1">Evaluating your cart</h3>
-                      <p className="text-sm text-zinc-400">Finding the best possible price</p>
-                    </motion.div>
-                  )}
-                  {discountState === 'revealed' && (
-                    <motion.div key="revealed" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-                      <h3 className="text-2xl font-semibold mb-1">Better price found</h3>
-                      <p className="text-sm text-zinc-400">This is your optimized price</p>
-                    </motion.div>
-                  )}
-                  {discountState === 'applied' && (
-                    <motion.div key="applied" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-                      <h3 className="text-2xl font-semibold mb-1">Applied to your total</h3>
-                      <p className="text-sm text-zinc-400">You saved {discountData?.offeredDiscount}% on this order</p>
+                {/* Outer Glow Ring */}
+                <motion.div 
+                   animate={discountState === 'spinning' ? { opacity: [0.5, 1, 0.5], scale: [1, 1.02, 1] } : { opacity: 0.5 }}
+                   transition={{ duration: 1.5, repeat: Infinity }}
+                   className="absolute inset-[-10px] rounded-full blur-[20px] z-0"
+                   style={{ background: `conic-gradient(from 0deg, ${themeColor}, #FF3366, #00E5FF, ${themeColor})` }}
+                />
+
+                {/* THE ROTATING WHEEL (GPU Accelerated) */}
+                <motion.div 
+                  animate={{ rotate: wheelRotation }}
+                  transition={{ duration: 3, ease: [0.1, 0.8, 0.1, 1] }}
+                  className="w-full h-full rounded-full border-[4px] border-[#1a1a2e] relative overflow-hidden z-10 shadow-[0_10px_30px_rgba(0,0,0,0.8)]"
+                  style={{ background: wheelGradient }}
+                >
+                  {/* Segments Text Mapping */}
+                  {WHEEL_SEGMENTS.map((segment, index) => (
+                    <div 
+                      key={index}
+                      className="absolute inset-0 flex justify-center items-start pt-[12%]"
+                      style={{ transform: `rotate(${index * 30 + 15}deg)` }}
+                    >
+                       <span className="text-white font-black text-sm sm:text-base drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] transform -rotate-0">
+                         {segment.label}
+                       </span>
+                    </div>
+                  ))}
+                  
+                  {/* Center Hub */}
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-[#1a1a2e] rounded-full border-[3px] border-white/20 shadow-[inset_0_5px_15px_rgba(0,0,0,0.5)] flex items-center justify-center">
+                     <div className="w-6 h-6 rounded-full bg-gradient-to-br from-white/40 to-transparent" />
+                  </div>
+                </motion.div>
+
+                {/* 💥 THE PREMIUM FIRECRACKER MISSILE */}
+                <AnimatePresence>
+                  {discountState === 'animating_firecracker' && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 0, x: 0, scale: 0.2 }}
+                      animate={{ 
+                      opacity: [0, 1, 0], 
+                        y: [0, -40, 220], 
+                      x: 0, 
+                        scale: [0.5, 1.8, 0.8],
+                        rotate: [0, 15, -10]
+                      }}
+                      transition={{ duration: 0.8, ease: "easeInOut" }}
+                      className="absolute z-50 font-black text-5xl whitespace-nowrap"
+                      style={{ color: themeColor, textShadow: `0 0 30px ${themeColor}, 0 0 60px ${themeColor}` }}
+                    >
+                      {discountData?.offeredDiscount}% OFF
                     </motion.div>
                   )}
                 </AnimatePresence>
               </div>
 
-              {/* ── BILL & ACTION ── */}
-              <div className="w-full bg-[#111] rounded-[2rem] p-6 border border-white/5 flex items-center justify-between shadow-inner">
-                <div className="flex flex-col">
-                  <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 mb-1">Total Bill</span>
-                  <div className="flex items-end gap-3">
-                    <AnimatePresence>
-                      {discountState === 'applied' && (
-                        <motion.span
-                          initial={{ opacity: 0, width: 0 }}
-                          animate={{ opacity: 1, width: 'auto' }}
-                          transition={{ duration: 0.4, ease: "easeOut" }}
-                          className="text-xl font-medium text-zinc-500 line-through decoration-zinc-600"
-                        >
-                          ₹{getBaseTotal()}
-                        </motion.span>
-                      )}
-                    </AnimatePresence>
-                    <motion.span
-                      key={calculateTotal()}
-                      initial={discountState === 'applied' ? { scale: 1.15, color: themeColor } : {}}
-                      animate={{ scale: 1, color: discountState === 'applied' ? '#ffffff' : '#ffffff' }}
-                      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-                      className="text-4xl font-semibold tracking-tight leading-none"
-                    >
-                      ₹{calculateTotal()}
-                    </motion.span>
-                  </div>
-                </div>
-
-                <div>
+              {/* Title & Status */}
+              <div className="text-center w-full mb-10 h-12 flex items-center justify-center">
                   <AnimatePresence mode="wait">
-                    {discountState === 'initial' && (
-                      <motion.button
-                        key="btn-reveal"
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        onClick={startPremiumSpin}
-                        className="px-8 py-5 rounded-2xl font-semibold text-black transition-all active:scale-95"
-                        style={{ backgroundColor: themeColor }}
-                      >
-                        Reveal Price
-                      </motion.button>
-                    )}
-                    {discountState === 'spinning' && (
-                      <motion.div key="btn-spinning" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="px-8 py-5 flex items-center gap-2">
-                        <Loader2 className="w-5 h-5 animate-spin text-zinc-400" />
-                      </motion.div>
-                    )}
-                    {discountState === 'revealed' && (
-                      <motion.div key="btn-revealed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="px-8 py-5" />
-                    )}
-                    {discountState === 'applied' && (
-                      <motion.button
-                        key="btn-continue"
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        onClick={handleCheckoutClick}
-                        className="px-8 py-5 rounded-2xl font-semibold text-black bg-white active:scale-95 transition-all flex items-center gap-2"
-                      >
-                        Continue to Pay <CreditCard className="w-5 h-5" />
-                      </motion.button>
-                    )}
+                      {discountState === 'initial' && (
+                          <motion.div key="initial" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                              <h3 className="text-2xl font-black tracking-tight mb-1">Mystery Offer</h3>
+                          </motion.div>
+                      )}
+                      {(discountState === 'spinning' || discountState === 'revealed' || discountState === 'animating_firecracker') && (
+                          <motion.div key="spinning" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                              <h3 className="text-2xl font-black tracking-tight mb-1 animate-pulse" style={{ color: themeColor }}>Calculating Best Price...</h3>
+                          </motion.div>
+                      )}
+                      {discountState === 'applied' && (
+                          <motion.div key="applied" initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }}>
+                              <h3 className="text-3xl font-black tracking-tight mb-1 text-white">Offer Applied!</h3>
+                          </motion.div>
+                      )}
                   </AnimatePresence>
-                </div>
               </div>
+
+              {/* THE BILL CARD & BUTTON */}
+              <motion.div 
+                animate={billImpact ? { x: [-10, 10, -8, 8, 0], scale: [1, 1.05, 1], backgroundColor: [`${themeColor}30`, '#111'] } : {}}
+                transition={{ duration: 0.4 }}
+                className="w-full bg-[#111] rounded-[2.5rem] p-6 border border-white/5 relative overflow-hidden flex items-center justify-between shadow-inner"
+              >
+                 <div className="flex flex-col relative z-10">
+                    <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 mb-1">Total Bill</span>
+                    <div className="flex items-end gap-3">
+                        <AnimatePresence>
+                            {discountState === 'applied' && (
+                                <motion.span 
+                                    initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} 
+                                    className="text-xl font-medium text-zinc-600 line-through decoration-red-500/50"
+                                >
+                                    ₹{getBaseTotal()}
+                                </motion.span>
+                            )}
+                        </AnimatePresence>
+                        <motion.span 
+                            animate={discountState === 'applied' ? { scale: [1, 1.3, 1], color: [themeColor, '#ffffff'] } : {}}
+                            transition={{ duration: 0.6 }}
+                            className="text-4xl font-black tracking-tight leading-none"
+                        >
+                            ₹{calculateTotal()}
+                        </motion.span>
+                    </div>
+                 </div>
+
+                 <div className="relative z-10">
+                     <AnimatePresence mode="wait">
+                         {discountState === 'initial' && (
+                             <motion.button 
+                                key="btn-spin"
+                                initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
+                                onClick={startPremiumSpin}
+                                className="px-8 py-5 rounded-2xl font-black text-black shadow-[0_10px_30px_rgba(0,0,0,0.5)] hover:scale-105 active:scale-95 transition-all"
+                                style={{ backgroundColor: themeColor }}
+                             >
+                                SPIN NOW
+                             </motion.button>
+                         )}
+                         {(discountState === 'spinning' || discountState === 'revealed' || discountState === 'animating_firecracker') && (
+                             <motion.div key="btn-wait" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="px-8 py-5">
+                                 <Loader2 className="w-8 h-8 animate-spin text-zinc-600" />
+                             </motion.div>
+                         )}
+                         {discountState === 'applied' && (
+                             <motion.button 
+                                key="btn-pay"
+                                initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
+                                onClick={handleCheckoutClick}
+                                className="px-8 py-5 rounded-2xl font-black text-black bg-white shadow-[0_10px_40px_rgba(255,255,255,0.2)] hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                             >
+                                PAY <CreditCard className="w-5 h-5" />
+                             </motion.button>
+                         )}
+                     </AnimatePresence>
+                 </div>
+              </motion.div>
             </motion.div>
           </>
         )}

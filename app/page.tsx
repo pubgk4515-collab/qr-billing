@@ -217,6 +217,7 @@ function LandingContent() {
         setLoading(false);
       }
     } catch (err) {
+      console.error('Login error:', err);
       setError('Network error.');
       setLoading(false);
     }

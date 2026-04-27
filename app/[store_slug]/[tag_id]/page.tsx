@@ -108,6 +108,7 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
 
       router.push(`/${safeStoreSlug}/cart`);
     } catch (err) {
+      console.error('Add to cart error:', err);
       alert('Nahi ho paya! Shayad kisi aur ne pehle hi utha liya.');
     } finally {
       setIsAdding(false);

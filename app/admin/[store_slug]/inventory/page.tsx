@@ -175,7 +175,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
       await fetchRealInventory(storeData.id, true);
       setIsGenerateModalOpen(false);
       setGenerateCount(10);
-    } catch (err) { alert("Error generating tags."); }
+    } catch (err) { console.error("Generate error:", err); alert("Error generating tags."); }
     finally { setActionLoading(false); }
   };
 
@@ -212,7 +212,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
       setIsAddModalOpen(false);
       setNewItemName(''); setNewItemPrice(''); setNewItemSize('');
       setAddUploadProgress(0); setBindingTagId(null);
-    } catch (err) { alert("Error adding product."); }
+    } catch (err) { console.error("Add error:", err); alert("Error adding product."); }
     finally { setActionLoading(false); }
   };
 
@@ -230,7 +230,7 @@ export default function InventoryPage({ params }: { params: Promise<{ store_slug
       await fetchRealInventory(storeData.id, true);
       setIsEditModalOpen(false);
       setSelectedTagItem(null);
-    } catch (error) { alert("Error editing product."); }
+    } catch (error) { console.error("Edit error:", error); alert("Error editing product."); }
     finally { setActionLoading(false); setUploadProgress(0); }
   };
 
