@@ -265,36 +265,37 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
     return base;
   };
 
-  // 🎰 PREMIUM WHEEL ANIMATION CHOREOGRAPHY
+  // 🎰 PREMIUM PRICE UNLOCK — CALM SYSTEM REVEAL
   const startPremiumSpin = () => {
     triggerHaptic(50);
     setDiscountState('spinning');
-    let ticks = 0;
-    const tickOptions =[5, 8, 10, 12, 15, 20, 25, 30]; // Possible discount values for visual effect
-    
-    spinIntervalRef.current = setInterval(() => {
-      setTickerValue(tickOptions[Math.floor(Math.random() * tickOptions.length)]);
-      triggerHaptic(10); // Light tick haptic
-      ticks++;
-      
-      if (ticks > 20) { // 2 Seconds of spinning
-        if (spinIntervalRef.current) clearInterval(spinIntervalRef.current);
-        setTickerValue(discountData?.offeredDiscount || 0);
-        setDiscountState('revealed');
-        triggerHaptic(); // Success pattern
+    if (spinIntervalRef.current) clearInterval(spinIntervalRef.current);
 
-        // Wait 1 second, then launch firecracker
+    const totalDuration = 1600; // 1.6 seconds of smooth calculation
+    const startTime = Date.now();
+    const targetValue = discountData?.offeredDiscount || 0;
+
+    spinIntervalRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / totalDuration, 1);
+      // Eased progress (cubic ease-out)
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const displayValue = Math.round(eased * targetValue);
+      setTickerValue(displayValue);
+
+      if (progress >= 1) {
+        if (spinIntervalRef.current) clearInterval(spinIntervalRef.current);
+        setTickerValue(targetValue);
+        setDiscountState('revealed');
+        triggerHaptic();
+
+        // Gentle pause, then apply to bill
         setTimeout(() => {
-            setDiscountState('animating_firecracker');
-            
-            // Wait for flight (0.6s), then apply to bill
-            setTimeout(() => {
-                triggerHaptic(100); // Hit impact
-                setDiscountState('applied');
-            }, 600); 
-        }, 1000);
+          triggerHaptic(100);
+          setDiscountState('applied');
+        }, 900);
       }
-    }, 100);
+    }, 40);
   };
 
   const themeColor = storeData?.theme_color || '#10b981';
@@ -393,13 +394,17 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         </motion.div>
       )}
 
-      {/* 🎰 PREMIUM FLOATING UI (DISCOUNT SPINNER DRAWER) */}
+      {/* 🎰 PREMIUM PRICE OPTIMIZATION DRAWER */}
       <AnimatePresence>
         {isDiscountDrawerOpen && (
           <>
             <motion.div 
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => {}} // Disabled click outside to prevent accidental close during spin
+              onClick={() => {
+                if (discountState === 'initial' || discountState === 'applied') {
+                  setIsDiscountDrawerOpen(false);
+                }
+              }}
               className="fixed inset-0 z-40 bg-black/80 backdrop-blur-md"
             />
             <motion.div 
@@ -407,135 +412,202 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
               transition={{ type: "spring", damping: 28, stiffness: 200 }}
               className="fixed bottom-0 left-0 right-0 z-50 bg-[#0A0A0A] border-t border-white/10 rounded-t-[3rem] shadow-[0_-30px_80px_rgba(0,0,0,0.9)] flex flex-col items-center pt-8 pb-10 px-6 overflow-hidden"
             >
-              {/* Close Button (Hidden if spinning/animating) */}
+              {/* Close Button (only when not animating) */}
               {(discountState === 'initial' || discountState === 'applied') && (
-                  <button onClick={() => setIsDiscountDrawerOpen(false)} className="absolute top-6 right-6 p-3 bg-white/5 rounded-full text-white z-50 active:scale-90 transition-all">
-                    <X className="w-5 h-5" />
-                  </button>
+                <button
+                  onClick={() => setIsDiscountDrawerOpen(false)}
+                  className="absolute top-6 right-6 p-3 bg-white/5 rounded-full text-white z-50 active:scale-90 transition-all"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               )}
 
-              {/* Top: The Wheel / Ticker */}
+              {/* ── DISPLAY RING ── */}
               <div className="relative w-40 h-40 flex items-center justify-center mb-10 mt-6">
-                {/* Neon Glow Ring */}
+                {/* Subtle breathing ring */}
                 <motion.div 
-                  animate={discountState === 'spinning' ? { rotate: 360, scale: [1, 1.05, 1] } : {}}
-                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                  className="absolute inset-0 rounded-full border border-dashed border-white/20"
-                  style={{ boxShadow: discountState !== 'initial' ? `0 0 50px ${themeColor}40` : 'none' }}
+                  animate={
+                    discountState === 'spinning'
+                      ? { scale: [1, 1.04, 1], opacity: [0.6, 0.9, 0.6] }
+                      : discountState === 'revealed'
+                      ? { scale: [1, 1.06, 1], opacity: [0.8, 1, 0.8] }
+                      : {}
+                  }
+                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                  className="absolute inset-0 rounded-full border border-dashed border-white/15"
+                  style={{ boxShadow: discountState !== 'initial' ? `0 0 50px ${themeColor}25` : 'none' }}
                 />
                 
+                {/* Inner circle */}
                 <div className="absolute inset-2 bg-[#111] rounded-full border border-white/5 flex items-center justify-center shadow-inner overflow-hidden">
-                    {discountState === 'initial' ? (
-                        <Sparkles className="w-12 h-12" style={{ color: themeColor }} />
-                    ) : (
-                        <div className="flex items-center gap-1 font-mono text-4xl font-black tracking-tighter" style={{ color: discountState === 'applied' ? themeColor : 'white' }}>
-                            <motion.div animate={discountState === 'spinning' ? { y: [0, -20, 20, 0] } : {}} transition={{ duration: 0.1, repeat: Infinity }}>
-                                {tickerValue}
-                            </motion.div>
-                            <span className="text-2xl">%</span>
-                        </div>
-                    )}
-                </div>
-
-                {/* 💥 THE FIRECRACKER PARTICLE */}
-                <AnimatePresence>
-                  {discountState === 'animating_firecracker' && (
+                  {discountState === 'initial' ? (
+                    <Sparkles className="w-12 h-12" style={{ color: themeColor, opacity: 0.8 }} />
+                  ) : discountState === 'spinning' ? (
+                    <div className="flex flex-col items-center gap-1">
+                      <motion.div
+                        animate={{ opacity: [0.4, 1, 0.4] }}
+                        transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+                        className="text-3xl font-semibold tracking-tighter"
+                        style={{ color: themeColor }}
+                      >
+                        {tickerValue}%
+                      </motion.div>
+                    </div>
+                  ) : discountState === 'revealed' ? (
                     <motion.div
-                      initial={{ opacity: 0, y: 0, scale: 0.5 }}
-                      animate={{ opacity: 1, y: 150, scale: [1, 1.5, 0.5] }}
-                      transition={{ duration: 0.6, ease: "anticipate" }}
-                      className="absolute z-50 font-black text-4xl whitespace-nowrap"
-                      style={{ color: themeColor, textShadow: `0 0 20px ${themeColor}` }}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: [1, 1.06, 1] }}
+                      transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                      className="flex items-center gap-1 text-4xl font-semibold tracking-tighter"
+                      style={{ color: themeColor }}
                     >
-                      -{discountData?.offeredDiscount}% OFF
+                      {tickerValue}<span className="text-2xl">%</span>
+                    </motion.div>
+                  ) : discountState === 'applied' ? (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="flex items-center gap-1 text-4xl font-semibold tracking-tighter"
+                      style={{ color: themeColor }}
+                    >
+                      {tickerValue}<span className="text-2xl">%</span>
+                    </motion.div>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* ── TITLE & DESCRIPTION ── */}
+              <div className="text-center w-full mb-10 h-16 flex items-center justify-center">
+                <AnimatePresence mode="wait">
+                  {discountState === 'initial' && (
+                    <motion.div
+                      key="initial"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                    >
+                      <h3 className="text-2xl font-semibold mb-1 text-white">Unlock your price</h3>
+                      <p className="text-sm text-zinc-400">Tap to reveal your personalized discount.</p>
+                    </motion.div>
+                  )}
+                  {discountState === 'spinning' && (
+                    <motion.div
+                      key="spinning"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                    >
+                      <h3 className="text-2xl font-semibold mb-1 text-white">Calculating best price</h3>
+                      <p className="text-sm text-zinc-400">Analyzing your cart for savings…</p>
+                    </motion.div>
+                  )}
+                  {discountState === 'revealed' && (
+                    <motion.div
+                      key="revealed"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                    >
+                      <h3 className="text-2xl font-semibold mb-1 text-white">Price found</h3>
+                      <p className="text-sm text-zinc-400">Your discount is ready.</p>
+                    </motion.div>
+                  )}
+                  {discountState === 'applied' && (
+                    <motion.div
+                      key="applied"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                    >
+                      <h3 className="text-2xl font-semibold mb-1 text-white">Applied to your bill</h3>
+                      <p className="text-sm text-zinc-400">You saved {discountData?.offeredDiscount}% on your entire bag.</p>
                     </motion.div>
                   )}
                 </AnimatePresence>
               </div>
 
-              {/* Middle: Title & Action */}
-              <div className="text-center w-full mb-10 h-16 flex items-center justify-center">
-                  <AnimatePresence mode="wait">
-                      {discountState === 'initial' && (
-                          <motion.div key="initial" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-                              <h3 className="text-2xl font-black mb-1">Mystery Offer</h3>
-                              <p className="text-xs text-zinc-400">Spin the wheel to reveal your discount.</p>
-                          </motion.div>
-                      )}
-                      {(discountState === 'spinning' || discountState === 'revealed' || discountState === 'animating_firecracker') && (
-                          <motion.div key="spinning" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-                              <h3 className="text-2xl font-black mb-1" style={{ color: themeColor }}>Calculating...</h3>
-                              <p className="text-xs text-zinc-400">Locking in the best price for you.</p>
-                          </motion.div>
-                      )}
-                      {discountState === 'applied' && (
-                          <motion.div key="applied" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-                              <h3 className="text-2xl font-black mb-1 text-white">Offer Applied!</h3>
-                              <p className="text-xs text-zinc-400">You saved {discountData?.offeredDiscount}% on your entire bag.</p>
-                          </motion.div>
-                      )}
-                  </AnimatePresence>
-              </div>
-
-              {/* Bottom: The Bill & Primary Action */}
+              {/* ── BILL & ACTION ── */}
               <div className="w-full bg-[#111] rounded-[2rem] p-6 border border-white/5 relative overflow-hidden flex items-center justify-between shadow-inner">
-                 
-                 {/* Bill Section */}
-                 <div className="flex flex-col relative z-10">
-                    <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 mb-1">Total Bill</span>
-                    <div className="flex items-end gap-3">
-                        <AnimatePresence>
-                            {discountState === 'applied' && (
-                                <motion.span 
-                                    initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} 
-                                    className="text-xl font-medium text-zinc-600 line-through decoration-red-500/50"
-                                >
-                                    ₹{getBaseTotal()}
-                                </motion.span>
-                            )}
-                        </AnimatePresence>
+                {/* Bill Section */}
+                <div className="flex flex-col relative z-10">
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 mb-1">Total Bill</span>
+                  <div className="flex items-end gap-3">
+                    <AnimatePresence>
+                      {discountState === 'applied' && (
                         <motion.span 
-                            animate={discountState === 'applied' ? { scale: [1, 1.2, 1], color: [themeColor, '#ffffff'] } : {}}
-                            transition={{ duration: 0.5 }}
-                            className="text-4xl font-black tracking-tight leading-none"
+                          initial={{ opacity: 0, width: 0 }}
+                          animate={{ opacity: 1, width: 'auto' }}
+                          transition={{ duration: 0.4, ease: "easeOut" }}
+                          className="text-xl font-medium text-zinc-500 line-through decoration-zinc-600"
                         >
-                            ₹{calculateTotal()}
+                          ₹{getBaseTotal()}
                         </motion.span>
-                    </div>
-                 </div>
+                      )}
+                    </AnimatePresence>
+                    <motion.span
+                      key={calculateTotal()}
+                      initial={discountState === 'applied' ? { scale: 1.2, color: themeColor } : {}}
+                      animate={{ scale: 1, color: '#ffffff' }}
+                      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                      className="text-4xl font-semibold tracking-tight leading-none"
+                    >
+                      ₹{calculateTotal()}
+                    </motion.span>
+                  </div>
+                </div>
 
-                 {/* Action Button Section */}
-                 <div className="relative z-10">
-                     <AnimatePresence mode="wait">
-                         {discountState === 'initial' && (
-                             <motion.button 
-                                key="btn-spin"
-                                initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-                                onClick={startPremiumSpin}
-                                className="px-8 py-5 rounded-2xl font-black text-black shadow-[0_10px_30px_rgba(0,0,0,0.5)] hover:scale-105 active:scale-95 transition-all"
-                                style={{ backgroundColor: themeColor }}
-                             >
-                                SPIN
-                             </motion.button>
-                         )}
-                         {(discountState === 'spinning' || discountState === 'revealed' || discountState === 'animating_firecracker') && (
-                             <motion.div key="btn-wait" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="px-8 py-5">
-                                 <Loader2 className="w-6 h-6 animate-spin text-zinc-600" />
-                             </motion.div>
-                         )}
-                         {discountState === 'applied' && (
-                             <motion.button 
-                                key="btn-pay"
-                                initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-                                onClick={handleCheckoutClick}
-                                className="px-8 py-5 rounded-2xl font-black text-black bg-white shadow-[0_10px_30px_rgba(255,255,255,0.2)] hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
-                             >
-                                PAY <CreditCard className="w-5 h-5" />
-                             </motion.button>
-                         )}
-                     </AnimatePresence>
-                 </div>
-
+                {/* Action Button */}
+                <div className="relative z-10">
+                  <AnimatePresence mode="wait">
+                    {discountState === 'initial' && (
+                      <motion.button 
+                        key="btn-unlock"
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        onClick={startPremiumSpin}
+                        className="px-8 py-5 rounded-2xl font-semibold text-black transition-all active:scale-95"
+                        style={{ backgroundColor: themeColor }}
+                      >
+                        Unlock Price
+                      </motion.button>
+                    )}
+                    {discountState === 'spinning' && (
+                      <motion.div
+                        key="btn-loading"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="px-8 py-5 flex items-center gap-2"
+                      >
+                        <Loader2 className="w-5 h-5 animate-spin text-zinc-400" />
+                      </motion.div>
+                    )}
+                    {discountState === 'revealed' && (
+                      <motion.div
+                        key="btn-wait"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="px-8 py-5 flex items-center gap-2"
+                      >
+                        <Loader2 className="w-5 h-5 animate-spin text-zinc-400" />
+                      </motion.div>
+                    )}
+                    {discountState === 'applied' && (
+                      <motion.button 
+                        key="btn-continue"
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        onClick={handleCheckoutClick}
+                        className="px-8 py-5 rounded-2xl font-semibold text-black bg-white active:scale-95 transition-all flex items-center gap-2"
+                      >
+                        Continue to Pay <CreditCard className="w-5 h-5" />
+                      </motion.button>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
             </motion.div>
           </>
