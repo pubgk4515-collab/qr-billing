@@ -4,7 +4,7 @@ import { use, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   CheckCircle2, MapPin, Instagram, Facebook, Youtube, 
-  MessageCircle, ArrowRight, Loader2, Clock, Check 
+  MessageCircle, ArrowRight, Loader2, Clock, Check, Sparkles 
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase'; 
@@ -17,10 +17,14 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
   const [loading, setLoading] = useState(true);
   const [storeData, setStoreData] = useState<any>(null);
   
-  // States for Order & Bill Request
   const [orderStatus, setOrderStatus] = useState<string>('pending'); 
   const [customerPhone, setCustomerPhone] = useState<string>('');
   const [fetchedStoreId, setFetchedStoreId] = useState<string | null>(null); 
+  
+  // 🔥 NEW STATES FOR DISCOUNT REVEAL
+  const [totalPaid, setTotalPaid] = useState<number>(0);
+  const [discountSaved, setDiscountSaved] = useState<number>(0);
+  const [discountPercent, setDiscountPercent] = useState<number>(0);
   
   const [billRequested, setBillRequested] = useState(false);
   const [billRequestLoading, setBillRequestLoading] = useState(false);
@@ -28,17 +32,11 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
   const safeStoreSlug = decodeURIComponent(store_slug || '').toLowerCase().trim();
   const safeCartId = decodeURIComponent(cart_id || '').toUpperCase().trim();
 
-  // 1. Fetch Store Info (For UI Branding)
   useEffect(() => {
     if (!safeStoreSlug) return;
     async function fetchStore() {
       try {
-        // 🔥 FIX 1: Fetch all columns to catch both 'store_name' and 'name'
-        const { data } = await supabase
-          .from('stores')
-          .select('*') 
-          .ilike('slug', safeStoreSlug)
-          .single();
+        const { data } = await supabase.from('stores').select('*').ilike('slug', safeStoreSlug).single();
         if (data) setStoreData(data);
       } catch (err) {
         console.error("Error fetching store:", err);
@@ -47,15 +45,15 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
     fetchStore();
   }, [safeStoreSlug]);
 
-  // 2. SILENT LIVE POLLING
   useEffect(() => {
     if (!safeCartId) return;
 
     const checkOrderStatus = async () => {
       try {
+        // Fetch purchased items JSON to calculate raw total vs paid total
         const { data, error } = await supabase
           .from('sales') 
-          .select('payment_status, customer_phone, store_id') 
+          .select('payment_status, customer_phone, store_id, total_amount, purchased_items') 
           .eq('cart_id', safeCartId)
           .single();
 
@@ -63,8 +61,27 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
           setOrderStatus(data.payment_status);
           if (data.customer_phone) setCustomerPhone(data.customer_phone);
           if (data.store_id) setFetchedStoreId(data.store_id); 
+          if (data.total_amount) setTotalPaid(data.total_amount);
           
           if (data.payment_status === 'completed') {
+            
+             // 💸 DISCOUNT CALCULATION LOGIC
+             // Calculate the raw price from the purchased_items JSON
+             if (data.purchased_items && Array.isArray(data.purchased_items)) {
+                 const rawTotal = data.purchased_items.reduce((acc: number, item: any) => {
+                     return acc + (Number(item.products?.price) || 0);
+                 }, 0);
+                 
+                 const amountPaid = Number(data.total_amount) || 0;
+                 
+                 if (rawTotal > amountPaid && amountPaid > 0) {
+                     const saved = rawTotal - amountPaid;
+                     const percent = Math.round((saved / rawTotal) * 100);
+                     setDiscountSaved(saved);
+                     setDiscountPercent(percent);
+                 }
+             }
+
              localStorage.removeItem(`cart_${safeStoreSlug}`);
           }
         }
@@ -81,7 +98,6 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
     return () => clearInterval(intervalId); 
   }, [safeCartId, safeStoreSlug]);
 
-  // Request Bill Function
   const handleRequestBill = async () => {
     const finalStoreId = storeData?.id || fetchedStoreId;
 
@@ -101,7 +117,6 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
       });
 
       if (error) throw error;
-      
       setBillRequested(true);
     } catch (err) {
       console.error("Error requesting bill:", err);
@@ -112,13 +127,11 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
   };
 
   const themeColor = storeData?.theme_color || '#10b981'; 
-  
-  // 🔥 FIX 2: Bulletproof Name & Initials Extraction
   const displayName = storeData?.store_name || storeData?.name || 'Premium Store';
   const displayInitials = displayName
     .split(' ')
     .filter(Boolean)
-    .map((word: string) => word) // Added to extract initials correctly
+    .map((word: string) => word.charAt(0))
     .join('')
     .substring(0, 2)
     .toUpperCase();
@@ -133,7 +146,7 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
   }
 
   return (
-    <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-6 font-sans overflow-hidden relative">
+    <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-6 font-sans overflow-hidden relative selection:bg-white/10">
       
       <div 
         className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 blur-[120px] rounded-full pointer-events-none opacity-20 transition-colors duration-1000" 
@@ -187,9 +200,12 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
               className="w-full"
             >
-              <div className="bg-[#111]/80 backdrop-blur-xl border border-white/10 rounded-[3rem] p-8 text-center shadow-[0_20px_50px_rgba(0,0,0,0.5)] mb-6">
+              <div className="bg-[#111]/80 backdrop-blur-xl border border-white/10 rounded-[3rem] p-8 text-center shadow-[0_20px_50px_rgba(0,0,0,0.5)] mb-6 relative overflow-hidden">
                 
-                <div className="flex justify-center mb-4">
+                {/* Optional subtle glow behind the success content based on theme */}
+                <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ background: `radial-gradient(circle at top, ${themeColor}, transparent 70%)` }} />
+
+                <div className="flex justify-center mb-4 relative z-10">
                   <div className="w-12 h-12 bg-[#222] rounded-xl flex items-center justify-center overflow-hidden border border-white/10 shadow-lg">
                     {storeData?.logo_url ? (
                       <img src={storeData.logo_url} alt="Store Logo" className="w-full h-full object-cover" />
@@ -205,17 +221,35 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
                   initial={{ scale: 0, rotate: -180 }}
                   animate={{ scale: 1, rotate: 0 }}
                   transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.1 }}
-                  className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 border-2 shadow-2xl"
+                  className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 border-2 shadow-2xl relative z-10"
                   style={{ backgroundColor: `${themeColor}15`, borderColor: `${themeColor}40` }}
                 >
                   <CheckCircle2 className="w-10 h-10" style={{ color: themeColor }} />
                 </motion.div>
 
-                <h1 className="text-4xl font-black text-white mb-3 tracking-tighter leading-none">Payment Done!</h1>
+                <h1 className="text-4xl font-black text-white mb-2 tracking-tighter leading-none relative z-10">Payment Done!</h1>
                 
-                <p className="text-zinc-400 mb-8 text-sm font-medium">Thank you for shopping at <span className="font-black text-white">{displayName}</span>.</p>
+                <p className="text-zinc-400 mb-6 text-sm font-medium relative z-10">Thank you for shopping at <span className="font-black text-white">{displayName}</span>.</p>
                 
-                <div className="bg-black/50 rounded-[2rem] p-5 mb-8 border border-white/5 shadow-inner">
+                {/* 🎁 THE DISCOUNT DOPAMINE HIT */}
+                <AnimatePresence>
+                    {discountSaved > 0 && (
+                        <motion.div 
+                            initial={{ opacity: 0, y: -10, scale: 0.9 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            transition={{ delay: 0.5, type: "spring" }}
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-8 shadow-[0_0_20px_rgba(0,0,0,0.5)] relative z-10 border"
+                            style={{ backgroundColor: `${themeColor}15`, borderColor: `${themeColor}30` }}
+                        >
+                            <Sparkles className="w-4 h-4" style={{ color: themeColor }} />
+                            <span className="text-sm font-black tracking-tight" style={{ color: themeColor }}>
+                                You saved ₹{discountSaved} ({discountPercent}% OFF)
+                            </span>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                <div className={`bg-black/50 rounded-[2rem] p-5 border border-white/5 shadow-inner relative z-10 ${discountSaved > 0 ? 'mb-8' : 'mb-8 mt-2'}`}>
                   <p className="text-[10px] text-zinc-500 uppercase font-black tracking-[0.2em] mb-1">Order ID</p>
                   <p className="text-2xl font-black text-white tracking-tighter">{safeCartId}</p>
                 </div>
@@ -223,7 +257,7 @@ export default function SuccessPage({ params }: { params: Promise<{ store_slug: 
                 <button 
                   onClick={handleRequestBill}
                   disabled={billRequested || billRequestLoading}
-                  className={`w-full font-black py-5 rounded-2xl flex items-center justify-center gap-3 text-lg transition-all shadow-xl select-none touch-manipulation ${
+                  className={`w-full font-black py-5 rounded-2xl flex items-center justify-center gap-3 text-lg transition-all shadow-xl select-none touch-manipulation relative z-10 ${
                     billRequested 
                       ? 'bg-white/10 text-white border border-white/20' 
                       : 'bg-[#25D366] text-black hover:scale-[1.02] active:scale-95 shadow-[0_10px_30px_rgba(37,211,102,0.3)]'
