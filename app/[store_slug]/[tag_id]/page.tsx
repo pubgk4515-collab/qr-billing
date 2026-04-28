@@ -21,6 +21,13 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
   const safeStoreSlug = decodeURIComponent(store_slug || '').toLowerCase().trim();
   const safeTagId = decodeURIComponent(tag_id || '').toUpperCase().trim();
 
+  // Haptic Feedback Helper
+  const triggerHaptic = (pattern: number | number[] = 50) => {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(pattern);
+    }
+  };
+
   useEffect(() => {
     if (!safeStoreSlug || !safeTagId) return;
 
@@ -46,14 +53,27 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
         if (!tag.products) throw new Error(`This QR code is not currently attached to any piece of clothing.`);
         if (tag.status === 'sold') throw new Error(`This item has already been sold or is in the checkout process.`);
 
-        supabase
-          .from('products')
-          .update({ scan_count: (tag.products.scan_count || 0) + 1 })
-          .eq('id', tag.products.id)
-          .then(({ error }) => {
-            if (error) console.error('Silent Tracking Error:', error);
-          });
+        setProductData(tag.products);
 
+        // 🔥 INTELLIGENCE LAYER: Top of Funnel (View Count)
+        // Check session storage so we don't count page refreshes as new views
+        const sessionId = sessionStorage.getItem('qrebill_session') || Date.now().toString();
+        sessionStorage.setItem('qrebill_session', sessionId);
+        const viewKey = `viewed_${tag.products.id}_${sessionId}`;
+        
+        if (!sessionStorage.getItem(viewKey)) {
+          sessionStorage.setItem(viewKey, 'true');
+          
+          supabase
+            .from('products')
+            .update({ view_count: (tag.products.view_count || 0) + 1 })
+            .eq('id', tag.products.id)
+            .then(({ error }) => {
+              if (error) console.error('Silent View Tracking Error:', error);
+            });
+        }
+
+        // Cart State Check
         if (tag.status === 'in_cart') {
           setIsInBag(true);
         } else {
@@ -68,7 +88,6 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
           }
         }
 
-        setProductData(tag.products);
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -81,17 +100,30 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
 
   const handleAddToBag = async () => {
     if (!productData || isInBag || !storeData) return;
+    
+    triggerHaptic(50);
     setIsAdding(true);
 
     try {
-      const { error: updateError } = await supabase
+      // 🔥 INTELLIGENCE LAYER: Mid Funnel (Add To Cart Intent)
+      // Running both database updates concurrently for maximum speed
+      const updateTagPromise = supabase
         .from('qr_tags')
         .update({ status: 'in_cart' })
         .eq('id', safeTagId)
         .eq('store_id', storeData.id);
 
-      if (updateError) throw updateError;
+      const updateProductIntentPromise = supabase
+        .from('products')
+        .update({ cart_add_count: (productData.cart_add_count || 0) + 1 })
+        .eq('id', productData.id);
 
+      const [tagUpdateResult, intentUpdateResult] = await Promise.all([updateTagPromise, updateProductIntentPromise]);
+
+      if (tagUpdateResult.error) throw tagUpdateResult.error;
+      if (intentUpdateResult.error) console.error('Silent Intent Tracking Error:', intentUpdateResult.error);
+
+      // Local Storage Update
       const cartKey = `cart_${safeStoreSlug}`;
       const currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
 
@@ -105,14 +137,15 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
       });
 
       localStorage.setItem(cartKey, JSON.stringify(currentCart));
-
+      
+      triggerHaptic(); // Success Haptic
       router.push(`/${safeStoreSlug}/cart`);
+      
     } catch (err) {
       console.error('Add to cart error:', err);
       alert('Nahi ho paya! Shayad kisi aur ne pehle hi utha liya.');
-    } finally {
       setIsAdding(false);
-    }
+    } 
   };
 
   const themeColor = storeData?.theme_color || '#10b981';
@@ -299,12 +332,6 @@ export default function MagicScanPage({ params }: { params: Promise<{ store_slug
                 </p>
 
                 <div className="w-full flex flex-col gap-3">
-                  <button
-                    onClick={() => router.push(`/${safeStoreSlug}/scan`)}
-                    className="w-full py-4 bg-white text-black rounded-[1.5rem] font-semibold flex items-center justify-center gap-3 active:scale-[0.98] transition-all"
-                  >
-                    <QrCode className="w-5 h-5" /> Scan Next Item
-                  </button>
                   <button
                     onClick={() => router.push(`/${safeStoreSlug}/cart`)}
                     className="w-full py-4 bg-white/[0.04] text-zinc-300 rounded-[1.5rem] font-semibold flex items-center justify-center gap-3 hover:bg-white/[0.08] active:scale-[0.98] transition-all border border-white/[0.06]"

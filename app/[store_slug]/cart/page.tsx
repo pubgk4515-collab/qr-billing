@@ -7,30 +7,33 @@ import { supabase } from '../../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Html5Qrcode } from 'html5-qrcode';
 
-// ⚙️ THE GOD LEVEL DISCOUNT ENGINE (V2 - Fixed Types & Guaranteed Dopamine)
-function calculateGodLevelDiscount(signals: { productScans: number; productSales: number; daysInInventory: number; isNewCustomer: boolean; cartValue: number; isSlowHour: boolean; }) {
+// ⚙️ THE GOD LEVEL DISCOUNT ENGINE (V3 - Funnel Intelligence)
+function calculateGodLevelDiscount(signals: { viewCount: number; cartAddCount: number; cartRemoveCount: number; daysInInventory: number; isNewCustomer: boolean; cartValue: number; isSlowHour: boolean; }) {
   let score = 0;
-  const conversionRate = signals.productScans === 0 ? 1 : signals.productSales / signals.productScans;
   
-  if (signals.productScans > 3 && signals.productSales === 0) score += 4;
-  else if (conversionRate < 0.2) score += 3;
-  else if (conversionRate > 0.5) score -= 3;
+  // 1. Desperation Signal (High Removes = Pricing Issue)
+  if (signals.cartRemoveCount > 3) score += 5;
+  else if (signals.cartRemoveCount > 0) score += 2;
 
+  // 2. Flop Signal (High Views, Zero Cart Adds = Design Issue, Don't discount)
+  if (signals.viewCount > 10 && signals.cartAddCount === 0) {
+      return { shouldShow: true, score: 0, offeredDiscount: 0 }; 
+  }
+
+  // 3. Intent Signal (Added to cart but struggling to close)
+  if (signals.cartAddCount > 3) score += 3;
+  else if (signals.cartAddCount > 0) score += 1;
+
+  // 4. Inventory Signal (Dead Stock)
   if (signals.daysInInventory > 60) score += 3;
   else if (signals.daysInInventory > 30) score += 1;
 
+  // 5. Customer & Context Signals
   if (signals.isNewCustomer) score += 2;
-
   if (signals.cartValue > 10000) score -= 2;
   if (signals.isSlowHour) score += 1;
 
-  // Always show the wheel for dopamine, but adjust the score if it's a fast-moving item.
-  if (conversionRate >= 0.7 && signals.productSales > 5) {
-      score = 0; // Force into the lowest bracket instead of hiding
-  }
-
   type DiscountOption = { value: number; weight: number };
-
   const pickWeighted = (options: DiscountOption[]): number => {
     const totalWeight = options.reduce((acc, curr) => acc + curr.weight, 0);
     let random = Math.random() * totalWeight;
@@ -38,48 +41,32 @@ function calculateGodLevelDiscount(signals: { productScans: number; productSales
       if (random < option.weight) return option.value;
       random -= option.weight;
     }
-    // Fallback to the first option's value to ensure a valid number is returned.
     return options?.[0]?.value ?? 0; 
   };
 
   let offeredDiscount = 0;
-  const shouldShow = true; // 🔥 ALWAYS SHOW FOR DOPAMINE
+  const shouldShow = true; // ALWAYS SHOW FOR DOPAMINE
 
   if (score <= 2) {
-    // Bucket 1: Score 0-2 (The "Better Luck" Trap - Fast moving / frequent buyer)
+    // Fast moving or highly desired item -> Better Luck Trap
     offeredDiscount = pickWeighted([
-        { value: 0, weight: 80 },  // 80% chance of no discount (Better luck)
-        { value: 5, weight: 20 }   // 20% chance of a tiny 5% to keep hope alive
+        { value: 0, weight: 80 },  
+        { value: 5, weight: 20 }   
     ]);
   } else if (score >= 3 && score <= 5) {
-    // Bucket 2: Score 3-5 (Small Sweetener)
-    offeredDiscount = pickWeighted([
-        { value: 5, weight: 60 }, 
-        { value: 8, weight: 30 }, 
-        { value: 10, weight: 10 }
-    ]);
+    offeredDiscount = pickWeighted([{ value: 5, weight: 60 }, { value: 8, weight: 30 }, { value: 10, weight: 10 }]);
   } else if (score >= 6 && score <= 8) {
-    // Bucket 3: Score 6-8 (Mid-tier push)
-    offeredDiscount = pickWeighted([
-        { value: 12, weight: 60 }, 
-        { value: 15, weight: 30 }, 
-        { value: 20, weight: 10 }
-    ]);
+    offeredDiscount = pickWeighted([{ value: 12, weight: 60 }, { value: 15, weight: 30 }, { value: 20, weight: 10 }]);
   } else if (score >= 9) {
-    // Bucket 4: Score 9+ (Dead stock / Desperation push)
-    offeredDiscount = pickWeighted([
-        { value: 25, weight: 60 }, 
-        { value: 30, weight: 30 }, 
-        { value: 35, weight: 10 }
-    ]);
+    offeredDiscount = pickWeighted([{ value: 25, weight: 60 }, { value: 30, weight: 30 }, { value: 35, weight: 10 }]);
   }
 
   return { shouldShow, score, offeredDiscount };
 }
 
-// 🎰 WHEEL CONFIGURATION (Optimized GPU Array) - Added 0 for "Better Luck"
+// 🎰 WHEEL CONFIGURATION 
 const WHEEL_SEGMENTS = [
-  { label: '0%', value: 0, color: '#333333' }, // Better Luck segment
+  { label: '0%', value: 0, color: '#333333' }, 
   { label: '5%', value: 5, color: '#FF3366' },
   { label: '8%', value: 8, color: '#FF6B35' },
   { label: '10%', value: 10, color: '#FFD740' },
@@ -111,11 +98,8 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
   const [duplicateTag, setDuplicateTag] = useState<string | null>(null);
   const [customAlert, setCustomAlert] = useState<{title: string, message: string, isError: boolean} | null>(null);
 
-  // 🎲 PREMIUM DISCOUNT DRAWER STATES
   const [discountData, setDiscountData] = useState<{shouldShow: boolean, offeredDiscount: number} | null>(null);
   const [isDiscountDrawerOpen, setIsDiscountDrawerOpen] = useState(false);
-  
-  // Animation Sequence States
   const [discountState, setDiscountState] = useState<'initial' | 'spinning' | 'revealed' | 'animating_firecracker' | 'applied'>('initial');
   const [wheelRotation, setWheelRotation] = useState(0);
   const [billImpact, setBillImpact] = useState(false);
@@ -142,15 +126,23 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
 
         if (savedCart.length > 0) {
           const productIds = savedCart.map((i: any) => i.product_id);
-          const { data: liveProducts, error } = await supabase.from('products').select('id, scan_count, created_at').in('id', productIds);if (error) {
-            console.error(error);
-          }
+          
+          // Fetching the new Intelligence Columns
+          const { data: liveProducts, error } = await supabase
+            .from('products')
+            .select('id, view_count, cart_add_count, cart_remove_count, created_at')
+            .in('id', productIds);
+            
+          if (error) console.error(error);
 
-          // Calculate Cart Intelligence (Focusing on the most "dead" item to encourage clearing it)
-          let maxScans = 0; let oldestDays = 0;
+          // Calculate Cart Intelligence (Focusing on worst performer)
+          let maxViews = 0; let maxAdds = 0; let maxRemoves = 0; let oldestDays = 0;
+          
           if (liveProducts && liveProducts.length > 0) {
             liveProducts.forEach(p => {
-              if (p.scan_count && p.scan_count > maxScans) maxScans = p.scan_count;
+              if (p.view_count > maxViews) maxViews = p.view_count;
+              if (p.cart_add_count > maxAdds) maxAdds = p.cart_add_count;
+              if (p.cart_remove_count > maxRemoves) maxRemoves = p.cart_remove_count;
               if (p.created_at) {
                 const days = (Date.now() - new Date(p.created_at).getTime()) / (1000 * 60 * 60 * 24);
                 if (days > oldestDays) oldestDays = days;
@@ -164,7 +156,13 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
           const rawCartValue = savedCart.reduce((total: number, item: any) => total + (Number(item.price) || 0), 0);
 
           const engineResult = calculateGodLevelDiscount({
-            productScans: maxScans, productSales: 0, daysInInventory: oldestDays, isNewCustomer, cartValue: rawCartValue, isSlowHour
+            viewCount: maxViews, 
+            cartAddCount: maxAdds, 
+            cartRemoveCount: maxRemoves, 
+            daysInInventory: oldestDays, 
+            isNewCustomer, 
+            cartValue: rawCartValue, 
+            isSlowHour
           });
 
           if (engineResult.shouldShow) {
@@ -202,6 +200,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
 
   const handleRemoveItem = async (tagIdToRemove: string) => {
     const cartKey = `cart_${safeStoreSlug}`;
+    const itemToRemove = cartItems.find(i => i.tag_id === tagIdToRemove);
     const updatedCart = cartItems.filter(item => item.tag_id !== tagIdToRemove);
     setCartItems(updatedCart);
     localStorage.setItem(cartKey, JSON.stringify(updatedCart));
@@ -210,12 +209,23 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         setIsDiscountDrawerOpen(false);
         setDiscountState('initial');
     }
+    
     if (storeData?.id) {
-      try { await supabase.from('qr_tags').update({ status: 'active' }).eq('id', tagIdToRemove).eq('store_id', storeData.id); } catch (err) {}
+      try { 
+        await supabase.from('qr_tags').update({ status: 'active' }).eq('id', tagIdToRemove).eq('store_id', storeData.id); 
+        
+        // 🔥 INTELLIGENCE LAYER: Record The Drop-off
+        if (itemToRemove?.product_id) {
+            supabase.from('products').select('cart_remove_count').eq('id', itemToRemove.product_id).single().then(({data}) => {
+                if (data) {
+                    supabase.from('products').update({ cart_remove_count: (data.cart_remove_count || 0) + 1 }).eq('id', itemToRemove.product_id).then();
+                }
+            });
+        }
+      } catch (err) {}
     }
   };
 
-  // 🔥 PROCEED LOGIC (Now Always Opens Drawer)
   const handleProceedClick = () => {
     triggerHaptic(50);
     if (discountData?.shouldShow && discountState !== 'applied') {
@@ -422,7 +432,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
         </motion.div>
       )}
 
-      {/* 🎰 LUXURY HTML5 CANVAS-STYLE WHEEL DRAWER */}
+      {/* 🎰 LUXURY HTML5 CANVAS-STYLE WHEEL DRAWER (RESPONSIVE FIX) */}
       <AnimatePresence>
         {isDiscountDrawerOpen && (
           <>
@@ -431,10 +441,11 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
               onClick={() => {}} 
               className="fixed inset-0 z-40 bg-black/80 backdrop-blur-md"
             />
+            {/* Added max-h-[92vh] and overflow-y-auto to fix cut-off on smaller devices */}
             <motion.div 
               initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 200 }}
-              className="fixed bottom-0 left-0 right-0 z-50 bg-[#0A0A0A] border-t border-white/10 rounded-t-[3rem] shadow-[0_-30px_80px_rgba(0,0,0,0.9)] flex flex-col items-center pt-8 pb-10 px-6 overflow-hidden"
+              className="fixed bottom-0 left-0 right-0 z-50 bg-[#0A0A0A] border-t border-white/10 rounded-t-[3rem] shadow-[0_-30px_80px_rgba(0,0,0,0.9)] flex flex-col items-center pt-8 pb-10 sm:pb-12 px-6 max-h-[92vh] overflow-y-auto no-scrollbar"
             >
               {(discountState === 'initial' || discountState === 'applied') && (
                   <button onClick={() => setIsDiscountDrawerOpen(false)} className="absolute top-6 right-6 p-3 bg-white/5 rounded-full text-white z-50 active:scale-90 transition-all">
@@ -443,15 +454,13 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
               )}
 
               {/* WHEEL CONTAINER */}
-              <div className="relative w-[280px] h-[280px] sm:w-[320px] sm:h-[320px] flex items-center justify-center mb-8 mt-2">
+              <div className="relative w-[240px] h-[240px] sm:w-[280px] sm:h-[280px] flex items-center justify-center mb-6 mt-2 shrink-0">
                 
-                {/* Pointer / Needle */}
                 <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-20 drop-shadow-[0_0_15px_rgba(255,255,255,0.8)]">
                   <div className="w-0 h-0 border-l-[16px] border-r-[16px] border-t-[28px] border-l-transparent border-r-transparent border-t-white relative z-10" />
                   <div className="w-4 h-4 bg-white rounded-full absolute -top-[14px] left-1/2 -translate-x-1/2 shadow-inner" />
                 </div>
 
-                {/* Outer Glow Ring */}
                 <motion.div 
                    animate={discountState === 'spinning' ? { opacity: [0.5, 1, 0.5], scale: [1, 1.02, 1] } : { opacity: 0.5 }}
                    transition={{ duration: 1.5, repeat: Infinity }}
@@ -459,46 +468,42 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                    style={{ background: `conic-gradient(from 0deg, ${themeColor}, #FF3366, #00E5FF, ${themeColor})` }}
                 />
 
-                {/* THE ROTATING WHEEL (GPU Accelerated) */}
                 <motion.div 
                   animate={{ rotate: wheelRotation }}
                   transition={{ duration: 3, ease: [0.1, 0.8, 0.1, 1] }}
                   className="w-full h-full rounded-full border-[4px] border-[#1a1a2e] relative overflow-hidden z-10 shadow-[0_10px_30px_rgba(0,0,0,0.8)]"
                   style={{ background: wheelGradient }}
                 >
-                  {/* Segments Text Mapping */}
                   {WHEEL_SEGMENTS.map((segment, index) => (
                     <div 
                       key={index}
                       className="absolute inset-0 flex justify-center items-start pt-[12%]"
                       style={{ transform: `rotate(${index * (360/WHEEL_SEGMENTS.length) + (360/WHEEL_SEGMENTS.length)/2}deg)` }}
                     >
-                       <span className="text-white font-black text-sm sm:text-base drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] transform -rotate-0">
+                       <span className="text-white font-black text-xs sm:text-sm drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] transform -rotate-0">
                          {segment.label}
                        </span>
                     </div>
                   ))}
                   
-                  {/* Center Hub */}
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-[#1a1a2e] rounded-full border-[3px] border-white/20 shadow-[inset_0_5px_15px_rgba(0,0,0,0.5)] flex items-center justify-center">
-                     <div className="w-6 h-6 rounded-full bg-gradient-to-br from-white/40 to-transparent" />
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-14 h-14 bg-[#1a1a2e] rounded-full border-[3px] border-white/20 shadow-[inset_0_5px_15px_rgba(0,0,0,0.5)] flex items-center justify-center">
+                     <div className="w-5 h-5 rounded-full bg-gradient-to-br from-white/40 to-transparent" />
                   </div>
                 </motion.div>
 
-                {/* 💥 THE PREMIUM FIRECRACKER MISSILE */}
                 <AnimatePresence>
                   {discountState === 'animating_firecracker' && (
                     <motion.div
                       initial={{ opacity: 0, y: 0, x: 0, scale: 0.2 }}
                       animate={{ 
-                        opacity: [0, 1, 1], 
-                        y: [0, -40, 220], 
+                        opacity:[1, 1, 0], 
+                        y: [0, -40, 180], 
                         x: [0, 10, -10], 
                         scale: [0.5, 1.8, 0.8],
                         rotate: [0, 15, -10]
                       }}
                       transition={{ duration: 0.8, ease: "easeInOut" }}
-                      className="absolute z-50 font-black text-5xl whitespace-nowrap"
+                      className="absolute z-50 font-black text-4xl whitespace-nowrap"
                       style={{ color: themeColor, textShadow: `0 0 30px ${themeColor}, 0 0 60px ${themeColor}` }}
                     >
                       {discountData?.offeredDiscount === 0 ? 'Better Luck!' : `-${discountData?.offeredDiscount}% OFF`}
@@ -508,7 +513,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
               </div>
 
               {/* Title & Status */}
-              <div className="text-center w-full mb-10 h-12 flex items-center justify-center">
+              <div className="text-center w-full mb-6 h-12 flex items-center justify-center shrink-0">
                   <AnimatePresence mode="wait">
                       {discountState === 'initial' && (
                           <motion.div key="initial" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
@@ -537,16 +542,16 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
               <motion.div 
                 animate={billImpact ? { x: [-10, 10, -8, 8, 0], scale: [1, 1.05, 1], backgroundColor: [`${themeColor}30`, '#111'] } : {}}
                 transition={{ duration: 0.4 }}
-                className="w-full bg-[#111] rounded-[2.5rem] p-6 border border-white/5 relative overflow-hidden flex items-center justify-between shadow-inner"
+                className="w-full bg-[#111] rounded-[2.5rem] p-6 border border-white/5 relative overflow-hidden flex items-center justify-between shadow-inner shrink-0 mb-4"
               >
                  <div className="flex flex-col relative z-10">
                     <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 mb-1">Total Bill</span>
-                    <div className="flex items-end gap-3">
+                    <div className="flex items-end gap-2 sm:gap-3">
                         <AnimatePresence>
                             {discountState === 'applied' && discountData?.offeredDiscount !== 0 && (
                                 <motion.span 
                                     initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} 
-                                    className="text-xl font-medium text-zinc-600 line-through decoration-red-500/50"
+                                    className="text-lg sm:text-xl font-medium text-zinc-600 line-through decoration-red-500/50"
                                 >
                                     ₹{getBaseTotal()}
                                 </motion.span>
@@ -555,7 +560,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                         <motion.span 
                             animate={discountState === 'applied' && discountData?.offeredDiscount !== 0 ? { scale: [1, 1.3, 1], color: [themeColor, '#ffffff'] } : {}}
                             transition={{ duration: 0.6 }}
-                            className="text-4xl font-black tracking-tight leading-none"
+                            className="text-3xl sm:text-4xl font-black tracking-tight leading-none"
                         >
                             ₹{calculateTotal()}
                         </motion.span>
@@ -569,14 +574,14 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                                 key="btn-spin"
                                 initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
                                 onClick={startPremiumSpin}
-                                className="px-8 py-5 rounded-2xl font-black text-black shadow-[0_10px_30px_rgba(0,0,0,0.5)] hover:scale-105 active:scale-95 transition-all"
+                                className="px-6 sm:px-8 py-4 sm:py-5 rounded-2xl font-black text-black shadow-[0_10px_30px_rgba(0,0,0,0.5)] hover:scale-105 active:scale-95 transition-all"
                                 style={{ backgroundColor: themeColor }}
                              >
                                 SPIN NOW
                              </motion.button>
                          )}
                          {(discountState === 'spinning' || discountState === 'revealed' || discountState === 'animating_firecracker') && (
-                             <motion.div key="btn-wait" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="px-8 py-5">
+                             <motion.div key="btn-wait" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="px-6 sm:px-8 py-4 sm:py-5">
                                  <Loader2 className="w-8 h-8 animate-spin text-zinc-600" />
                              </motion.div>
                          )}
@@ -585,7 +590,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
                                 key="btn-pay"
                                 initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
                                 onClick={handleCheckoutClick}
-                                className="px-8 py-5 rounded-2xl font-black text-black bg-white shadow-[0_10px_40px_rgba(255,255,255,0.2)] hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                                className="px-6 sm:px-8 py-4 sm:py-5 rounded-2xl font-black text-black bg-white shadow-[0_10px_40px_rgba(255,255,255,0.2)] hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
                              >
                                 PAY <CreditCard className="w-5 h-5" />
                              </motion.button>
@@ -610,7 +615,7 @@ export default function CartPage({ params }: { params: Promise<{ store_slug: str
             <motion.div 
               initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed bottom-0 left-0 right-0 z-50 bg-[#0A0A0A] border-t border-white/10 rounded-t-[2.5rem] p-6 shadow-[0_-20px_60px_rgba(0,0,0,0.8)]"
+              className="fixed bottom-0 left-0 right-0 z-50 bg-[#0A0A0A] border-t border-white/10 rounded-t-[2.5rem] p-6 shadow-[0_-20px_60px_rgba(0,0,0,0.8)] max-h-[90vh] overflow-y-auto no-scrollbar"
             >
               <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-8" />
 
